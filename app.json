@@ -1,29 +1,64 @@
 {
   "expo": {
-    "name": "KEYPEYIA",
-    "slug": "KEYPEYIA",
+    "name": "SoinLokal",
+    "slug": "soinlokal",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/logo.png",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/logo.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#2E8B57"
     },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.soinlokal.app",
+      "buildNumber": "1.0.0",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "SoinLokal a besoin de votre localisation pour optimiser les tournées des infirmières.",
+        "NSCameraUsageDescription": "SoinLokal a besoin d'accéder à votre caméra pour prendre des photos des soins.",
+        "NSPhotoLibraryUsageDescription": "SoinLokal a besoin d'accéder à votre galerie photo pour sélectionner des images.",
+        "NSMicrophoneUsageDescription": "SoinLokal a besoin d'accéder au microphone pour les appels d'urgence."
+      }
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "foregroundImage": "./assets/logo.png",
+        "backgroundColor": "#2E8B57"
       },
-      "edgeToEdgeEnabled": true
+      "package": "com.soinlokal.app",
+      "versionCode": 1,
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "RECORD_AUDIO"
+      ]
     },
     "web": {
-      "favicon": "./assets/favicon.png"
-    }
+      "favicon": "./assets/logo.png",
+      "name": "SoinLokal",
+      "shortName": "SoinLokal",
+      "lang": "fr",
+      "scope": "/",
+      "themeColor": "#2E8B57",
+      "description": "Application de soins à domicile en Martinique"
+    },
+    "plugins": [
+      "expo-location",
+      "expo-camera",
+      "expo-image-picker"
+    ],
+    "scheme": "soinlokal",
+    "privacy": "public",
+    "platforms": ["ios", "android", "web"],
+    "description": "SoinLokal est l'application de référence pour les soins à domicile en Martinique. Conçue pour les infirmières libérales et leurs patients, elle optimise les tournées, simplifie la communication et améliore le suivi médical.",
+    "githubUrl": "https://github.com/soinlokal/app"
   }
 }

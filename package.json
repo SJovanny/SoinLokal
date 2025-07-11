@@ -1,21 +1,53 @@
 {
-  "name": "keypeyia",
+  "name": "soinlokal",
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "build:android": "expo build:android",
+    "build:ios": "expo build:ios",
+    "publish": "expo publish",
+    "eject": "expo eject"
   },
   "dependencies": {
+    "@react-native-async-storage/async-storage": "2.1.2",
+    "@react-navigation/bottom-tabs": "^7.4.2",
+    "@react-navigation/drawer": "^7.5.2",
+    "@react-navigation/native": "^7.1.14",
+    "@react-navigation/stack": "^7.4.2",
     "expo": "~53.0.17",
+    "expo-camera": "^16.1.10",
+    "expo-image-picker": "^16.1.4",
+    "expo-linear-gradient": "^14.1.5",
+    "expo-location": "^18.1.6",
+    "expo-splash-screen": "^0.30.10",
     "expo-status-bar": "~2.2.3",
+    "firebase": "^11.10.0",
     "react": "19.0.0",
-    "react-native": "0.79.5"
+    "react-native": "0.79.5",
+    "react-native-elements": "^3.4.3",
+    "react-native-maps": "1.20.1",
+    "react-native-safe-area-context": "5.4.0",
+    "react-native-screens": "^4.11.1",
+    "react-native-vector-icons": "^10.2.0"
   },
   "devDependencies": {
     "@babel/core": "^7.20.0"
   },
-  "private": true
+  "private": true,
+  "description": "SoinLokal - Application mobile pour les soins à domicile en Martinique",
+  "author": "SoinLokal Team",
+  "license": "PROPRIETARY",
+  "keywords": [
+    "react-native",
+    "expo",
+    "firebase",
+    "martinique",
+    "soins-domicile",
+    "infirmiere",
+    "sante"
+  ]
 }

@@ -1,20 +1,46 @@
+import React, { useState, useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
+import * as SplashScreen from 'expo-splash-screen';
+import { AuthProvider } from './src/contexts/AuthContext';
+import AppNavigator from './src/navigation/AppNavigator';
+import CustomSplashScreen from './src/components/SplashScreen';
+
+// Empêcher le splashscreen natif de se cacher automatiquement
+SplashScreen.preventAutoHideAsync();
 
 export default function App() {
+  const [isAppReady, setIsAppReady] = useState(false);
+  const [showCustomSplash, setShowCustomSplash] = useState(true);
+
+  useEffect(() => {
+    async function prepare() {
+      try {
+        // Préparation de l'app (chargement des fonts, configs, etc.)
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      } catch (e) {
+        console.warn(e);
+      } finally {
+        setIsAppReady(true);
+        // Cacher le splashscreen natif
+        await SplashScreen.hideAsync();
+      }
+    }
+
+    prepare();
+  }, []);
+
+  const handleSplashComplete = () => {
+    setShowCustomSplash(false);
+  };
+
+  if (!isAppReady || showCustomSplash) {
+    return <CustomSplashScreen onAnimationComplete={handleSplashComplete} />;
+  }
+
   return (
-    <View style={styles.container}>
-      <Text>Open up App.js to start working on your app!</Text>
+    <AuthProvider>
+      <AppNavigator />
       <StatusBar style="auto" />
-    </View>
+    </AuthProvider>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});
