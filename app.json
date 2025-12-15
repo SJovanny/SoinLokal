@@ -7,9 +7,8 @@
     "icon": "./assets/logo.png",
     "userInterfaceStyle": "light",
     "splash": {
-      "image": "./assets/logo.png",
       "resizeMode": "contain",
-      "backgroundColor": "#2E8B57"
+      "backgroundColor": "#3b9340"
     },
     "assetBundlePatterns": [
       "**/*"
@@ -57,7 +56,11 @@
     ],
     "scheme": "soinlokal",
     "privacy": "public",
-    "platforms": ["ios", "android", "web"],
+    "platforms": [
+      "ios",
+      "android",
+      "web"
+    ],
     "description": "SoinLokal est l'application de référence pour les soins à domicile en Martinique. Conçue pour les infirmières libérales et leurs patients, elle optimise les tournées, simplifie la communication et améliore le suivi médical.",
     "githubUrl": "https://github.com/soinlokal/app"
   }
