@@ -11,12 +11,12 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
-import { TEST_ACCOUNTS_INFO } from '../../utils/testUsers';
+
 
 const LoginScreen = ({ navigation, route }) => {
   const { userType } = route.params || { userType: 'nurse' };
   const { login } = useAuth();
-  
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -44,7 +44,7 @@ const LoginScreen = ({ navigation, route }) => {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.backButton}
           onPress={() => navigation.goBack()}
         >
@@ -52,10 +52,10 @@ const LoginScreen = ({ navigation, route }) => {
         </TouchableOpacity>
 
         <View style={styles.header}>
-          <Ionicons 
-            name={userType === 'nurse' ? 'medical' : 'heart'} 
-            size={80} 
-            color={themeColor} 
+          <Ionicons
+            name={userType === 'nurse' ? 'medical' : 'heart'}
+            size={80}
+            color={themeColor}
           />
           <Text style={[styles.title, { color: themeColor }]}>
             {userType === 'nurse' ? 'Espace Infirmière' : 'Espace Patient'}
@@ -87,19 +87,19 @@ const LoginScreen = ({ navigation, route }) => {
               secureTextEntry={!showPassword}
               autoCapitalize="none"
             />
-            <TouchableOpacity 
+            <TouchableOpacity
               onPress={() => setShowPassword(!showPassword)}
               style={styles.eyeIcon}
             >
-              <Ionicons 
-                name={showPassword ? 'eye-off-outline' : 'eye-outline'} 
-                size={20} 
-                color="#666" 
+              <Ionicons
+                name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                size={20}
+                color="#666"
               />
             </TouchableOpacity>
           </View>
 
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[styles.loginButton, { backgroundColor: themeColor }]}
             onPress={handleLogin}
             disabled={loading}
@@ -111,41 +111,21 @@ const LoginScreen = ({ navigation, route }) => {
             )}
           </TouchableOpacity>
 
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.forgotPassword}
-            onPress={() => Alert.alert('Information', 'Fonctionnalité à venir')}
+            onPress={() => navigation.navigate('ForgotPassword', { userType })}
           >
             <Text style={[styles.forgotPasswordText, { color: themeColor }]}>
               Mot de passe oublié ?
             </Text>
           </TouchableOpacity>
 
-          {/* Section des comptes de test */}
-          <View style={styles.testAccountsSection}>
-            <Text style={styles.testAccountsTitle}>🔧 Comptes de test disponibles :</Text>
-            
-            {TEST_ACCOUNTS_INFO.map((account, index) => (
-              <TouchableOpacity
-                key={index}
-                style={styles.testAccountCard}
-                onPress={() => {
-                  setEmail(account.email);
-                  setPassword(account.password);
-                }}
-              >
-                <Text style={styles.testAccountType}>{account.type}</Text>
-                <Text style={styles.testAccountCredential}>📧 {account.email}</Text>
-                <Text style={styles.testAccountCredential}>🔑 {account.password}</Text>
-                <Text style={styles.testAccountDescription}>{account.description}</Text>
-                <Text style={styles.tapToFillText}>👆 Appuyez pour remplir automatiquement</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+
         </View>
 
         <View style={styles.footer}>
           <Text style={styles.footerText}>Pas encore de compte ?</Text>
-          <TouchableOpacity 
+          <TouchableOpacity
             onPress={() => navigation.navigate('Register', { userType })}
           >
             <Text style={[styles.registerLink, { color: themeColor }]}>

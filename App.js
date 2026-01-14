@@ -18,14 +18,13 @@ export default function App() {
   };
 
   if (showCustomSplash) {
-    if (showCustomSplash) {
-      return <CustomSplashScreen onAnimationComplete={handleSplashComplete} />;
-    }
-
-    return (
-      <AuthProvider>
-        <AppNavigator />
-        <StatusBar style="auto" />
-      </AuthProvider>
-    );
+    return <CustomSplashScreen onAnimationComplete={handleSplashComplete} />;
   }
+
+  return (
+    <AuthProvider>
+      <AppNavigator />
+      <StatusBar style="auto" />
+    </AuthProvider>
+  );
+}

@@ -8,24 +8,25 @@ export const IS_DEVELOPMENT = __DEV__;
 
 // Configuration des comptes de test
 export const DEV_CONFIG = {
-  // Activer les comptes de test
-  ENABLE_TEST_ACCOUNTS: IS_DEVELOPMENT,
-  
+  // Configuration Firebase
+  // ENABLE_TEST_ACCOUNTS removed as requested
+
+
   // Afficher les informations de debug
   SHOW_DEBUG_INFO: IS_DEVELOPMENT,
-  
+
   // Activer les logs de debug
   ENABLE_DEBUG_LOGS: IS_DEVELOPMENT,
-  
+
   // Ignorer la vérification SSL (dev uniquement)
   IGNORE_SSL: IS_DEVELOPMENT,
-  
+
   // Utiliser les données de test au lieu de Firebase
   USE_MOCK_DATA: false,
-  
+
   // Délai artificiel pour simuler la latence réseau (ms)
   NETWORK_DELAY: 0,
-  
+
   // Activer le mode offline pour les tests
   OFFLINE_MODE: false,
 };
@@ -34,7 +35,7 @@ export const DEV_CONFIG = {
 export const FIREBASE_DEV_CONFIG = {
   // Utiliser l'émulateur Firebase local
   USE_EMULATOR: false,
-  
+
   // URL de l'émulateur
   EMULATOR_HOST: 'localhost',
   EMULATOR_AUTH_PORT: 9099,

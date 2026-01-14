@@ -1,8 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { auth, db } from '../services/firebase';
-import { validateTestCredentials } from '../utils/testUsers';
+import { supabase } from '../utils/supabase';
+
 import { DEV_CONFIG, debugLog, DEBUG_MESSAGES } from '../utils/devConfig';
 
 const AuthContext = createContext();
@@ -21,14 +19,21 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        setUser(firebaseUser);
-        // Récupérer le profil utilisateur depuis Firestore
-        const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
-        if (userDoc.exists()) {
-          setUserProfile(userDoc.data());
-        }
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        setUser(session.user);
+        fetchProfile(session.user.id);
+      } else {
+        setLoading(false);
+      }
+    });
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (session) {
+        setUser(session.user);
+        await fetchProfile(session.user.id);
       } else {
         setUser(null);
         setUserProfile(null);
@@ -36,36 +41,47 @@ export const AuthProvider = ({ children }) => {
       setLoading(false);
     });
 
-    return unsubscribe;
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
+
+  const fetchProfile = async (userId) => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+
+      if (error) {
+        debugLog('Error fetching profile', error.message);
+        return;
+      }
+
+      if (data) {
+        setUserProfile(data);
+      }
+    } catch (error) {
+      debugLog('Unexpected error fetching profile', error.message);
+    }
+  };
 
   const login = async (email, password) => {
     try {
       // Vérifier d'abord les utilisateurs de test (seulement en développement)
-      if (DEV_CONFIG.ENABLE_TEST_ACCOUNTS) {
-        const testUser = validateTestCredentials(email, password);
+      // Connexion Supabase drecte
 
-        if (testUser) {
-          debugLog(DEBUG_MESSAGES.TEST_USER_LOGIN, testUser.profile);
-          
-          // Simuler une connexion réussie avec un utilisateur de test
-          const mockUser = {
-            uid: testUser.profile.uid,
-            email: testUser.email,
-            emailVerified: true,
-            isTestUser: true
-          };
-          
-          setUser(mockUser);
-          setUserProfile(testUser.profile);
-          return { user: mockUser };
-        }
-      }
 
-      // Si ce n'est pas un utilisateur de test, utiliser Firebase
-      debugLog(DEBUG_MESSAGES.FIREBASE_LOGIN, { email });
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      return userCredential;
+      // Si ce n'est pas un utilisateur de test, utiliser Supabase
+      debugLog('Connexion Supabase', { email });
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) throw error;
+      return { data, error };
     } catch (error) {
       debugLog('Erreur de connexion', error.message);
       throw error;
@@ -74,18 +90,33 @@ export const AuthProvider = ({ children }) => {
 
   const register = async (email, password, profile) => {
     try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      
-      // Créer le profil utilisateur dans Firestore
-      await setDoc(doc(db, 'users', userCredential.user.uid), {
-        ...profile,
+      const { data, error } = await supabase.auth.signUp({
         email,
-        createdAt: new Date().toISOString(),
-        uid: userCredential.user.uid
+        password,
+        options: {
+          data: {
+            first_name: profile.firstName,
+            last_name: profile.lastName,
+            user_type: profile.userType,
+            phone: profile.phone,
+            adeli: profile.adeli || null,
+            specialties: profile.specialties || null,
+            zone: profile.zone || null,
+            address: profile.address || null,
+            emergency_contact: profile.emergencyContact || null,
+            verified: profile.verified || false
+          }
+        }
       });
 
-      return userCredential;
+      if (error) throw error;
+
+      // La création du profil est maintenant gérée par un Trigger Supabase
+      // Pas besoin d'insertion manuelle ici
+
+      return { data, error };
     } catch (error) {
+      debugLog('Erreur d\'inscription', error.message);
       throw error;
     }
   };
@@ -93,27 +124,29 @@ export const AuthProvider = ({ children }) => {
   const logout = async () => {
     try {
       debugLog('Début de la déconnexion');
-      
-      // Vérifier si c'est un utilisateur de test
-      if (user && user.isTestUser) {
-        debugLog('Déconnexion utilisateur de test');
-        // Pour les utilisateurs de test, simplement réinitialiser l'état
-        setUser(null);
-        setUserProfile(null);
-        setLoading(false);
-        return;
-      }
-      
-      // Sinon, utiliser Firebase
-      debugLog('Déconnexion Firebase');
-      await signOut(auth);
-      // Firebase se chargera automatiquement de mettre à jour l'état via onAuthStateChanged
+
+
+
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
     } catch (error) {
       debugLog('Erreur lors de la déconnexion', error.message);
-      // En cas d'erreur, forcer la réinitialisation de l'état
       setUser(null);
       setUserProfile(null);
       setLoading(false);
+      throw error;
+    }
+  };
+
+  const resetPassword = async (email) => {
+    try {
+      const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: 'soinlokal://reset-password',
+      });
+      if (error) throw error;
+      return { data, error };
+    } catch (error) {
+      debugLog('Erreur mdp oublié', error.message);
       throw error;
     }
   };
@@ -124,6 +157,7 @@ export const AuthProvider = ({ children }) => {
     login,
     register,
     logout,
+    resetPassword,
     loading
   };
 

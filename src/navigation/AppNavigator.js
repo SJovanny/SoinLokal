@@ -11,6 +11,7 @@ import SplashScreen from '../components/SplashScreen';
 import LoginScreen from '../screens/auth/LoginScreen';
 import RegisterScreen from '../screens/auth/RegisterScreen';
 import UserTypeScreen from '../screens/auth/UserTypeScreen';
+import ForgotPasswordScreen from '../screens/auth/ForgotPasswordScreen';
 
 // Écrans infirmière
 import NurseDashboard from '../screens/nurse/NurseDashboard';
@@ -65,45 +66,45 @@ const NurseTabNavigator = () => (
       },
     })}
   >
-    <Tab.Screen 
-      name="Dashboard" 
-      component={NurseDashboard} 
-      options={{ 
+    <Tab.Screen
+      name="Dashboard"
+      component={NurseDashboard}
+      options={{
         title: 'Accueil',
         headerShown: false
-      }} 
+      }}
     />
-    <Tab.Screen 
-      name="Patients" 
-      component={PatientsList} 
-      options={{ 
+    <Tab.Screen
+      name="Patients"
+      component={PatientsList}
+      options={{
         title: 'Patients',
         headerShown: false
-      }} 
+      }}
     />
-    <Tab.Screen 
-      name="Tournée" 
-      component={TourneeScreen} 
-      options={{ 
+    <Tab.Screen
+      name="Tournée"
+      component={TourneeScreen}
+      options={{
         title: 'Tournée',
         headerShown: false
-      }} 
+      }}
     />
-    <Tab.Screen 
-      name="Messages" 
-      component={MessagingScreen} 
-      options={{ 
+    <Tab.Screen
+      name="Messages"
+      component={MessagingScreen}
+      options={{
         title: 'Messages',
         headerShown: false
-      }} 
+      }}
     />
-    <Tab.Screen 
-      name="Profil" 
-      component={ProfileScreen} 
-      options={{ 
+    <Tab.Screen
+      name="Profil"
+      component={ProfileScreen}
+      options={{
         title: 'Profil',
         headerShown: false
-      }} 
+      }}
     />
   </Tab.Navigator>
 );
@@ -140,29 +141,29 @@ const PatientTabNavigator = () => (
       },
     })}
   >
-    <Tab.Screen 
-      name="Dashboard" 
-      component={PatientDashboard} 
-      options={{ 
+    <Tab.Screen
+      name="Dashboard"
+      component={PatientDashboard}
+      options={{
         title: 'Accueil',
         headerShown: false
-      }} 
+      }}
     />
-    <Tab.Screen 
-      name="Historique" 
-      component={PatientCareHistory} 
-      options={{ 
+    <Tab.Screen
+      name="Historique"
+      component={PatientCareHistory}
+      options={{
         title: 'Historique',
         headerShown: false
-      }} 
+      }}
     />
-    <Tab.Screen 
-      name="Messages" 
-      component={MessagingScreen} 
-      options={{ 
+    <Tab.Screen
+      name="Messages"
+      component={MessagingScreen}
+      options={{
         title: 'Messages',
         headerShown: false
-      }} 
+      }}
     />
   </Tab.Navigator>
 );
@@ -184,6 +185,7 @@ const AppNavigator = () => {
             <Stack.Screen name="UserType" component={UserTypeScreen} />
             <Stack.Screen name="Login" component={LoginScreen} />
             <Stack.Screen name="Register" component={RegisterScreen} />
+            <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
           </>
         ) : (
           // Utilisateur connecté
