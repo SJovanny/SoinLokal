@@ -1,22 +1,35 @@
 import React from 'react';
-import { TouchableOpacity, Text, StyleSheet, Alert } from 'react-native';
+import { TouchableOpacity, Text, StyleSheet, Alert, ViewStyle, TextStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
+import { COLORS } from '../utils/constants';
 
-const LogoutButton = ({ 
-  style, 
-  textStyle, 
-  iconSize = 20, 
-  showText = true, 
+type Variant = 'default' | 'icon' | 'minimal' | 'danger';
+
+interface LogoutButtonProps {
+  style?: ViewStyle;
+  textStyle?: TextStyle;
+  iconSize?: number;
+  showText?: boolean;
+  variant?: Variant;
+  onLogoutStart?: () => void;
+  onLogoutComplete?: () => void;
+}
+
+const LogoutButton: React.FC<LogoutButtonProps> = ({
+  style,
+  textStyle,
+  iconSize = 20,
+  showText = true,
   variant = 'default',
   onLogoutStart,
-  onLogoutComplete 
+  onLogoutComplete,
 }) => {
-  const { logout, user, userProfile } = useAuth();
+  const { logout, userProfile } = useAuth();
 
   const handleLogout = () => {
-    const userName = userProfile?.firstName || 'utilisateur';
-    
+    const userName = userProfile?.first_name || 'utilisateur';
+
     Alert.alert(
       'Déconnexion',
       `Êtes-vous sûr de vouloir vous déconnecter, ${userName} ?`,
@@ -42,47 +55,55 @@ const LogoutButton = ({
     );
   };
 
-  // Styles basés sur la variante
-  const getButtonStyle = () => {
+  const getButtonStyle = (): ViewStyle[] => {
     switch (variant) {
       case 'icon':
-        return [styles.iconButton, style];
+        return [styles.iconButton, style as ViewStyle];
       case 'minimal':
-        return [styles.minimalButton, style];
+        return [styles.minimalButton, style as ViewStyle];
       case 'danger':
-        return [styles.dangerButton, style];
+        return [styles.dangerButton, style as ViewStyle];
       default:
-        return [styles.defaultButton, style];
+        return [styles.defaultButton, style as ViewStyle];
     }
   };
 
-  const getTextStyle = () => {
+  const getTextStyle = (): TextStyle[] => {
     switch (variant) {
       case 'danger':
-        return [styles.dangerText, textStyle];
+        return [styles.dangerText, textStyle as TextStyle];
       case 'minimal':
-        return [styles.minimalText, textStyle];
+        return [styles.minimalText, textStyle as TextStyle];
       default:
-        return [styles.defaultText, textStyle];
+        return [styles.defaultText, textStyle as TextStyle];
+    }
+  };
+
+  const getIconColor = (): string => {
+    switch (variant) {
+      case 'danger':
+        return COLORS.WHITE;
+      case 'minimal':
+        return COLORS.TEXT_SECONDARY;
+      default:
+        return COLORS.NURSE_PRIMARY;
     }
   };
 
   return (
-    <TouchableOpacity 
-      style={getButtonStyle()} 
+    <TouchableOpacity
+      style={getButtonStyle()}
       onPress={handleLogout}
       activeOpacity={0.7}
     >
-      <Ionicons 
-        name="log-out-outline" 
-        size={iconSize} 
-        color={variant === 'danger' ? 'white' : variant === 'minimal' ? '#666' : '#2E8B57'} 
-        style={showText ? styles.iconWithText : null}
+      <Ionicons
+        name="log-out-outline"
+        size={iconSize}
+        color={getIconColor()}
+        style={showText ? styles.iconWithText : undefined}
       />
       {showText && (
-        <Text style={getTextStyle()}>
-          Déconnexion
-        </Text>
+        <Text style={getTextStyle()}>Déconnexion</Text>
       )}
     </TouchableOpacity>
   );
@@ -92,22 +113,22 @@ const styles = StyleSheet.create({
   defaultButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f8f9fa',
+    backgroundColor: COLORS.BACKGROUND,
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#2E8B57',
+    borderColor: COLORS.NURSE_PRIMARY,
   },
   iconButton: {
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#f8f9fa',
+    backgroundColor: COLORS.BACKGROUND,
     width: 44,
     height: 44,
     borderRadius: 22,
     borderWidth: 1,
-    borderColor: '#e0e0e0',
+    borderColor: COLORS.BORDER,
   },
   minimalButton: {
     flexDirection: 'row',
@@ -118,23 +139,23 @@ const styles = StyleSheet.create({
   dangerButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#dc3545',
+    backgroundColor: COLORS.DANGER,
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 8,
   },
   defaultText: {
-    color: '#2E8B57',
+    color: COLORS.NURSE_PRIMARY,
     fontSize: 16,
     fontWeight: '600',
   },
   minimalText: {
-    color: '#666',
+    color: COLORS.TEXT_SECONDARY,
     fontSize: 14,
     fontWeight: '500',
   },
   dangerText: {
-    color: 'white',
+    color: COLORS.WHITE,
     fontSize: 16,
     fontWeight: '600',
   },

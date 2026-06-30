@@ -11,9 +11,9 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
+import { getThemeColor } from '../../utils/constants';
 
-
-const LoginScreen = ({ navigation, route }) => {
+const LoginScreen = ({ navigation, route }: { navigation: any; route: any }) => {
   const { userType } = route.params || { userType: 'nurse' };
   const { login } = useAuth();
 
@@ -21,6 +21,10 @@ const LoginScreen = ({ navigation, route }) => {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [emailFocused, setEmailFocused] = useState(false);
+  const [passwordFocused, setPasswordFocused] = useState(false);
+
+  const themeColor = getThemeColor(userType);
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -32,105 +36,135 @@ const LoginScreen = ({ navigation, route }) => {
     try {
       await login(email, password);
       // La navigation se fera automatiquement via AuthContext
-    } catch (error) {
+    } catch (error: any) {
       Alert.alert('Erreur de connexion', error.message);
     } finally {
       setLoading(false);
     }
   };
 
-  const themeColor = userType === 'nurse' ? '#2E8B57' : '#4A90E2';
-
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
+        {/* Back button */}
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => navigation.goBack()}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
-          <Ionicons name="arrow-back" size={24} color="#666" />
+          <Ionicons name="chevron-back" size={24} color="#64748B" />
         </TouchableOpacity>
 
+        {/* Header */}
         <View style={styles.header}>
           <Ionicons
-            name={userType === 'nurse' ? 'medical' : 'heart'}
-            size={80}
+            name={userType === 'nurse' ? 'medkit' : 'heart'}
+            size={40}
             color={themeColor}
           />
-          <Text style={[styles.title, { color: themeColor }]}>
-            {userType === 'nurse' ? 'Espace Infirmière' : 'Espace Patient'}
-          </Text>
-          <Text style={styles.subtitle}>Connectez-vous à votre compte</Text>
+          <Text style={[styles.title, { color: themeColor }]}>Connexion</Text>
+          <Text style={styles.subtitle}>Bienvenue sur SoinLokal</Text>
         </View>
 
+        {/* Form */}
         <View style={styles.form}>
-          <View style={styles.inputContainer}>
-            <Ionicons name="mail-outline" size={20} color="#666" style={styles.inputIcon} />
+          {/* Email input */}
+          <View
+            style={[
+              styles.inputContainer,
+              emailFocused && { borderColor: themeColor },
+            ]}
+          >
+            <Ionicons
+              name="person-outline"
+              size={20}
+              color={emailFocused ? themeColor : '#94A3B8'}
+              style={styles.inputIcon}
+            />
             <TextInput
               style={styles.input}
               placeholder="Adresse email"
+              placeholderTextColor="#94A3B8"
               value={email}
               onChangeText={setEmail}
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
+              onFocus={() => setEmailFocused(true)}
+              onBlur={() => setEmailFocused(false)}
             />
           </View>
 
-          <View style={styles.inputContainer}>
-            <Ionicons name="lock-closed-outline" size={20} color="#666" style={styles.inputIcon} />
+          {/* Password input */}
+          <View
+            style={[
+              styles.inputContainer,
+              passwordFocused && { borderColor: themeColor },
+            ]}
+          >
+            <Ionicons
+              name="lock-closed-outline"
+              size={20}
+              color={passwordFocused ? themeColor : '#94A3B8'}
+              style={styles.inputIcon}
+            />
             <TextInput
               style={styles.input}
               placeholder="Mot de passe"
+              placeholderTextColor="#94A3B8"
               value={password}
               onChangeText={setPassword}
               secureTextEntry={!showPassword}
               autoCapitalize="none"
+              onFocus={() => setPasswordFocused(true)}
+              onBlur={() => setPasswordFocused(false)}
             />
             <TouchableOpacity
               onPress={() => setShowPassword(!showPassword)}
               style={styles.eyeIcon}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
               <Ionicons
                 name={showPassword ? 'eye-off-outline' : 'eye-outline'}
                 size={20}
-                color="#666"
+                color="#94A3B8"
               />
             </TouchableOpacity>
           </View>
 
+          {/* Login button */}
           <TouchableOpacity
-            style={[styles.loginButton, { backgroundColor: themeColor }]}
+            style={[styles.primaryButton, { backgroundColor: themeColor }]}
             onPress={handleLogin}
             disabled={loading}
+            activeOpacity={0.85}
           >
             {loading ? (
               <ActivityIndicator color="white" />
             ) : (
-              <Text style={styles.loginButtonText}>Se connecter</Text>
+              <Text style={styles.primaryButtonText}>Se connecter</Text>
             )}
           </TouchableOpacity>
 
+          {/* Forgot password */}
           <TouchableOpacity
-            style={styles.forgotPassword}
+            style={styles.forgotPasswordButton}
             onPress={() => navigation.navigate('ForgotPassword', { userType })}
           >
             <Text style={[styles.forgotPasswordText, { color: themeColor }]}>
               Mot de passe oublié ?
             </Text>
           </TouchableOpacity>
-
-
         </View>
 
+        {/* Footer */}
         <View style={styles.footer}>
           <Text style={styles.footerText}>Pas encore de compte ?</Text>
           <TouchableOpacity
             onPress={() => navigation.navigate('Register', { userType })}
+            hitSlop={{ top: 8, bottom: 8, left: 4, right: 8 }}
           >
-            <Text style={[styles.registerLink, { color: themeColor }]}>
-              S'inscrire
-            </Text>
+            <Text style={[styles.footerLink, { color: themeColor }]}>S'inscrire</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -141,29 +175,40 @@ const LoginScreen = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#F8F9FA',
   },
   content: {
     flex: 1,
-    padding: 20,
+    paddingHorizontal: 24,
+    paddingTop: 12,
   },
   backButton: {
-    marginTop: 10,
-    marginBottom: 20,
+    marginBottom: 24,
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: 'white',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
   },
   header: {
     alignItems: 'center',
     marginBottom: 40,
+    gap: 8,
   },
   title: {
     fontSize: 28,
     fontWeight: 'bold',
-    marginTop: 20,
-    marginBottom: 10,
+    marginTop: 12,
   },
   subtitle: {
     fontSize: 16,
-    color: '#666',
+    color: '#64748B',
     textAlign: 'center',
   },
   form: {
@@ -173,110 +218,69 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: 'white',
-    borderRadius: 10,
-    marginBottom: 15,
-    paddingHorizontal: 15,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#e0e0e0',
+    borderColor: '#E0E0E0',
+    paddingHorizontal: 16,
+    height: 52,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 1,
   },
   inputIcon: {
-    marginRight: 10,
+    marginRight: 12,
   },
   input: {
     flex: 1,
-    height: 50,
     fontSize: 16,
+    color: '#1A1A2E',
   },
   eyeIcon: {
-    padding: 5,
+    padding: 4,
   },
-  loginButton: {
-    height: 50,
-    borderRadius: 10,
+  primaryButton: {
+    height: 52,
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 20,
+    marginTop: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 4,
   },
-  loginButtonText: {
+  primaryButtonText: {
     color: 'white',
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: 'bold',
+    letterSpacing: 0.3,
   },
-  forgotPassword: {
+  forgotPasswordButton: {
     alignItems: 'center',
-    marginTop: 20,
+    marginTop: 16,
   },
   forgotPasswordText: {
-    fontSize: 16,
+    fontSize: 15,
+    fontWeight: '500',
   },
   footer: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 20,
+    gap: 6,
+    marginBottom: 24,
   },
   footerText: {
-    fontSize: 16,
-    color: '#666',
-    marginRight: 5,
+    fontSize: 15,
+    color: '#64748B',
   },
-  registerLink: {
-    fontSize: 16,
+  footerLink: {
+    fontSize: 15,
     fontWeight: 'bold',
-  },
-  testAccountsSection: {
-    marginTop: 30,
-    padding: 15,
-    backgroundColor: '#f0f8ff',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#e0e7ff',
-  },
-  testAccountsTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#4a5568',
-    marginBottom: 15,
-    textAlign: 'center',
-  },
-  testAccountCard: {
-    backgroundColor: 'white',
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 10,
-    borderLeftWidth: 4,
-    borderLeftColor: '#4299e1',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  testAccountType: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#2d3748',
-    marginBottom: 5,
-  },
-  testAccountCredential: {
-    fontSize: 12,
-    color: '#4a5568',
-    fontFamily: 'monospace',
-    marginBottom: 2,
-  },
-  testAccountDescription: {
-    fontSize: 11,
-    color: '#718096',
-    fontStyle: 'italic',
-    marginTop: 4,
-    marginBottom: 4,
-  },
-  tapToFillText: {
-    fontSize: 10,
-    color: '#4299e1',
-    fontWeight: '500',
-    textAlign: 'center',
-    marginTop: 2,
   },
 });
 

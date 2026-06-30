@@ -1,0 +1,120 @@
+import 'react-native-url-polyfill/auto';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { createClient } from '@supabase/supabase-js';
+
+// ---------------------------------------------------------------------------
+// Environment variables (Expo SDK 56 uses EXPO_PUBLIC_ prefix)
+// ---------------------------------------------------------------------------
+
+const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
+const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.warn(
+    '[SoinLokal] EXPO_PUBLIC_SUPABASE_URL or EXPO_PUBLIC_SUPABASE_ANON_KEY is not defined. ' +
+      'Make sure your .env file is configured correctly.',
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Supabase client
+// ---------------------------------------------------------------------------
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    storage:           AsyncStorage,
+    autoRefreshToken:  true,
+    persistSession:    true,
+    detectSessionInUrl: false,
+  },
+});
+
+// ---------------------------------------------------------------------------
+// Database types
+// ---------------------------------------------------------------------------
+
+export interface Profile {
+  id:          string;
+  email:       string;
+  first_name:  string;
+  last_name:   string;
+  user_type:   'patient' | 'family' | 'nurse';
+  phone?:      string;
+  verified:    boolean;
+  created_at:  string;
+  updated_at:  string;
+}
+
+export interface NurseProfile {
+  id:              string;
+  profile_id:      string;
+  adeli?:          string;
+  rpps_number?:    string;
+  specialties?:    string[];
+  zone?:           string;
+  bio?:            string;
+  rating:          number;
+  total_patients:  number;
+  total_visits:    number;
+  created_at:      string;
+  updated_at:      string;
+}
+
+export interface PatientProfile {
+  id:                string;
+  profile_id:        string;
+  dob?:              string;
+  address?:          string;
+  address_label?:    string;
+  gps_lat?:          number;
+  gps_lng?:          number;
+  access_code?:      string;
+  emergency_contact?: string;
+  medical_notes?:    string;
+  allergies?:        string[];
+  created_at:        string;
+  updated_at:        string;
+}
+
+export interface PatientFile {
+  id:              string;
+  patient_id:      string;
+  nurse_id:        string;
+  prescription?:   string;
+  care_plan?:      string;
+  is_active:       boolean;
+  created_at:      string;
+  updated_at:      string;
+}
+
+export interface Appointment {
+  id:                string;
+  patient_file_id:   string;
+  nurse_id:          string;
+  date:              string;
+  time:              string;
+  care_type:         string;
+  status:            'pending' | 'confirmed' | 'completed' | 'cancelled';
+  address?:          string;
+  notes?:            string;
+  completion_note?:  string;
+  created_at:        string;
+  updated_at:        string;
+}
+
+export interface FamilyLink {
+  id:                string;
+  family_user_id:    string;
+  patient_file_id:   string;
+  permissions:       'read_only' | 'can_message';
+  created_at:        string;
+}
+
+export interface Message {
+  id:                string;
+  author_id:         string;
+  patient_file_id:   string;
+  content:           string;
+  is_read:           boolean;
+  created_at:        string;
+}

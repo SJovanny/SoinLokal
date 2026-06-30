@@ -1,11 +1,19 @@
 import React from 'react';
-import { View, Text, StyleSheet, SafeAreaView, ScrollView, Image } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
 import LogoutButton from '../../components/LogoutButton';
 
 const ProfileScreen = () => {
-  const { userProfile, user } = useAuth();
+  const { userProfile, nurseProfile, patientProfile } = useAuth();
+
+  const getRoleLabel = () => {
+    switch (userProfile?.user_type) {
+      case 'nurse': return '👩‍⚕️ Infirmière libérale';
+      case 'family': return '👨‍👩‍👧‍👦 Famille';
+      default: return '🏥 Patient';
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -22,17 +30,12 @@ const ProfileScreen = () => {
             <View style={styles.avatar}>
               <Ionicons name="person" size={60} color="#2E8B57" />
             </View>
-            {user?.isTestUser && (
-              <View style={styles.testBadge}>
-                <Text style={styles.testBadgeText}>🧪 Test</Text>
-              </View>
-            )}
           </View>
           
           <Text style={styles.userName}>
-            {userProfile?.firstName} {userProfile?.lastName}
+            {userProfile?.first_name} {userProfile?.last_name}
           </Text>
-          <Text style={styles.userRole}>👩‍⚕️ Infirmière libérale</Text>
+          <Text style={styles.userRole}>{getRoleLabel()}</Text>
           <Text style={styles.userEmail}>{userProfile?.email}</Text>
         </View>
 
@@ -44,7 +47,7 @@ const ProfileScreen = () => {
             <Ionicons name="id-card-outline" size={20} color="#666" />
             <View style={styles.infoContent}>
               <Text style={styles.infoLabel}>N° ADELI</Text>
-              <Text style={styles.infoValue}>{userProfile?.adeli || 'Non renseigné'}</Text>
+              <Text style={styles.infoValue}>{nurseProfile?.adeli || 'Non renseigné'}</Text>
             </View>
           </View>
 
@@ -56,13 +59,13 @@ const ProfileScreen = () => {
             </View>
           </View>
 
-          {userProfile?.specialties && (
+          {nurseProfile?.specialties && (
             <View style={styles.infoRow}>
               <Ionicons name="medical-outline" size={20} color="#666" />
               <View style={styles.infoContent}>
                 <Text style={styles.infoLabel}>Spécialités</Text>
                 <Text style={styles.infoValue}>
-                  {userProfile.specialties.join(', ')}
+                  {nurseProfile.specialties.join(', ')}
                 </Text>
               </View>
             </View>
@@ -70,46 +73,40 @@ const ProfileScreen = () => {
         </View>
 
         {/* Adresse */}
-        {userProfile?.address && (
+        {patientProfile?.address && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Adresse</Text>
             
             <View style={styles.infoRow}>
               <Ionicons name="location-outline" size={20} color="#666" />
               <View style={styles.infoContent}>
-                <Text style={styles.infoValue}>
-                  {userProfile.address.street}
-                </Text>
-                <Text style={styles.infoValue}>
-                  {userProfile.address.postalCode} {userProfile.address.city}
-                </Text>
-                <Text style={styles.infoValue}>
-                  {userProfile.address.country}
-                </Text>
+                <Text style={styles.infoValue}>{patientProfile.address}</Text>
               </View>
             </View>
           </View>
         )}
 
         {/* Statistiques */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Statistiques</Text>
-          
-          <View style={styles.statsContainer}>
-            <View style={styles.statItem}>
-              <Text style={styles.statNumber}>{userProfile?.totalPatients || 0}</Text>
-              <Text style={styles.statLabel}>Patients</Text>
-            </View>
-            <View style={styles.statItem}>
-              <Text style={styles.statNumber}>{userProfile?.totalVisits || 0}</Text>
-              <Text style={styles.statLabel}>Visites</Text>
-            </View>
-            <View style={styles.statItem}>
-              <Text style={styles.statNumber}>{userProfile?.rating || '4.8'}</Text>
-              <Text style={styles.statLabel}>Note</Text>
+        {userProfile?.user_type === 'nurse' && nurseProfile && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Statistiques</Text>
+            
+            <View style={styles.statsContainer}>
+              <View style={styles.statItem}>
+                <Text style={styles.statNumber}>{nurseProfile.total_patients}</Text>
+                <Text style={styles.statLabel}>Patients</Text>
+              </View>
+              <View style={styles.statItem}>
+                <Text style={styles.statNumber}>{nurseProfile.total_visits}</Text>
+                <Text style={styles.statLabel}>Visites</Text>
+              </View>
+              <View style={styles.statItem}>
+                <Text style={styles.statNumber}>{nurseProfile.rating.toFixed(1)}</Text>
+                <Text style={styles.statLabel}>Note</Text>
+              </View>
             </View>
           </View>
-        </View>
+        )}
 
         {/* Bouton de déconnexion */}
         <View style={styles.logoutSection}>
@@ -170,20 +167,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#f0f8f0',
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  testBadge: {
-    position: 'absolute',
-    top: -5,
-    right: -5,
-    backgroundColor: '#4ade80',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 10,
-  },
-  testBadgeText: {
-    fontSize: 10,
-    fontWeight: 'bold',
-    color: 'white',
   },
   userName: {
     fontSize: 24,

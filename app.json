@@ -6,10 +6,6 @@
     "orientation": "portrait",
     "icon": "./assets/logo.png",
     "userInterfaceStyle": "light",
-    "splash": {
-      "resizeMode": "contain",
-      "backgroundColor": "#3b9340"
-    },
     "assetBundlePatterns": [
       "**/*"
     ],
@@ -52,10 +48,11 @@
     "plugins": [
       "expo-location",
       "expo-camera",
-      "expo-image-picker"
+      "expo-image-picker",
+      "expo-splash-screen",
+      "expo-font"
     ],
     "scheme": "soinlokal",
-    "privacy": "public",
     "platforms": [
       "ios",
       "android",

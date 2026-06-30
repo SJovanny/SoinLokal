@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -12,9 +12,33 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
 import LogoutButton from '../../components/LogoutButton';
 
-const NurseDashboard = ({ navigation }) => {
-  const { userProfile, logout } = useAuth();
-  const [todayAppointments, setTodayAppointments] = useState([
+interface Appointment {
+  id: string;
+  patientName: string;
+  time: string;
+  type: string;
+  address: string;
+  status: 'pending' | 'completed';
+}
+
+interface StatCardProps {
+  icon: React.ComponentProps<typeof Ionicons>['name'];
+  title: string;
+  value: number | string;
+  color: string;
+}
+
+const StatCard: React.FC<StatCardProps> = ({ icon, title, value, color }) => (
+  <View style={styles.statCard}>
+    <Ionicons name={icon} size={24} color={color} />
+    <Text style={styles.statValue}>{value}</Text>
+    <Text style={styles.statTitle}>{title}</Text>
+  </View>
+);
+
+const NurseDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
+  const { userProfile } = useAuth();
+  const [todayAppointments] = useState<Appointment[]>([
     {
       id: '1',
       patientName: 'Marie Dupont',
@@ -41,14 +65,14 @@ const NurseDashboard = ({ navigation }) => {
     },
   ]);
 
-  const [stats, setStats] = useState({
+  const [stats] = useState({
     totalPatients: 28,
     todayVisits: 5,
     completedToday: 2,
     revenue: 450,
   });
 
-  const renderAppointmentItem = ({ item }) => (
+  const renderAppointmentItem = ({ item }: { item: Appointment }) => (
     <TouchableOpacity 
       style={[
         styles.appointmentCard,
@@ -77,14 +101,6 @@ const NurseDashboard = ({ navigation }) => {
     </TouchableOpacity>
   );
 
-  const StatCard = ({ icon, title, value, color }) => (
-    <View style={styles.statCard}>
-      <Ionicons name={icon} size={24} color={color} />
-      <Text style={styles.statValue}>{value}</Text>
-      <Text style={styles.statTitle}>{title}</Text>
-    </View>
-  );
-
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
@@ -93,7 +109,7 @@ const NurseDashboard = ({ navigation }) => {
           <View style={styles.headerLeft}>
             <Text style={styles.greeting}>Bonjour,</Text>
             <Text style={styles.userName}>
-              {userProfile?.firstName} {userProfile?.lastName}
+              {userProfile?.first_name} {userProfile?.last_name}
             </Text>
           </View>
           <View style={styles.headerRight}>

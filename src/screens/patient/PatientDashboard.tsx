@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -12,9 +12,18 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
 import LogoutButton from '../../components/LogoutButton';
 
-const PatientDashboard = ({ navigation }) => {
-  const { userProfile, logout } = useAuth();
-  const [upcomingAppointments, setUpcomingAppointments] = useState([
+interface Appointment {
+  id: string;
+  nurseName: string;
+  date: string;
+  time: string;
+  type: string;
+  status: 'confirmed' | 'pending';
+}
+
+const PatientDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
+  const { userProfile } = useAuth();
+  const [upcomingAppointments] = useState<Appointment[]>([
     {
       id: '1',
       nurseName: 'Mme Dupont',
@@ -33,7 +42,7 @@ const PatientDashboard = ({ navigation }) => {
     },
   ]);
 
-  const renderAppointmentItem = ({ item }) => (
+  const renderAppointmentItem = ({ item }: { item: Appointment }) => (
     <TouchableOpacity style={styles.appointmentCard}>
       <View style={styles.appointmentHeader}>
         <View style={styles.appointmentInfo}>
@@ -66,11 +75,8 @@ const PatientDashboard = ({ navigation }) => {
           <View style={styles.headerLeft}>
             <Text style={styles.greeting}>Bonjour,</Text>
             <Text style={styles.userName}>
-              {userProfile?.firstName} {userProfile?.lastName}
+              {userProfile?.first_name} {userProfile?.last_name}
             </Text>
-            {userProfile?.isFamily && (
-              <Text style={styles.familyBadge}>👨‍👩‍👧‍👦 Compte famille</Text>
-            )}
           </View>
           <View style={styles.headerRight}>
             <TouchableOpacity style={styles.profileButton}>
@@ -158,12 +164,6 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
     color: '#333',
-  },
-  familyBadge: {
-    fontSize: 12,
-    color: '#4A90E2',
-    fontWeight: '500',
-    marginTop: 2,
   },
   profileButton: {
     padding: 5,

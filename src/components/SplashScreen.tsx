@@ -5,19 +5,19 @@ import {
   Animated,
   StatusBar,
   Image,
-  useColorScheme,
   Text,
 } from 'react-native';
 
-const SplashScreen = ({ onAnimationComplete }) => {
+interface SplashScreenProps {
+  onAnimationComplete?: () => void;
+}
+
+const SplashScreen: React.FC<SplashScreenProps> = ({ onAnimationComplete }) => {
   const logoScale = useRef(new Animated.Value(0.8)).current;
   const logoOpacity = useRef(new Animated.Value(0)).current;
   const loadingOpacity = useRef(new Animated.Value(0)).current;
   const progressWidth = useRef(new Animated.Value(0)).current;
   const fadeOut = useRef(new Animated.Value(1)).current;
-  
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
 
   useEffect(() => {
     startAnimation();
@@ -75,7 +75,7 @@ const SplashScreen = ({ onAnimationComplete }) => {
     <Animated.View style={[styles.container, { opacity: fadeOut }]}>
       <StatusBar 
         barStyle="light-content" 
-        backgroundColor="#339fa2" 
+        backgroundColor="#3b9340" 
       />
       
       {/* Contenu principal */}

@@ -34,7 +34,7 @@ const NurseTabNavigator = () => (
     screenOptions={({ route }) => ({
       headerShown: false, // Masquer le header en haut
       tabBarIcon: ({ focused, color, size }) => {
-        let iconName;
+        let iconName: React.ComponentProps<typeof Ionicons>['name'] | undefined;
         switch (route.name) {
           case 'Dashboard':
             iconName = focused ? 'home' : 'home-outline';
@@ -52,7 +52,7 @@ const NurseTabNavigator = () => (
             iconName = focused ? 'person' : 'person-outline';
             break;
         }
-        return <Ionicons name={iconName} size={size} color={color} />;
+        return <Ionicons name={iconName!} size={size} color={color} />;
       },
       tabBarActiveTintColor: '#2E8B57',
       tabBarInactiveTintColor: 'gray',
@@ -115,7 +115,7 @@ const PatientTabNavigator = () => (
     screenOptions={({ route }) => ({
       headerShown: false, // Masquer le header en haut
       tabBarIcon: ({ focused, color, size }) => {
-        let iconName;
+        let iconName: React.ComponentProps<typeof Ionicons>['name'] | undefined;
         switch (route.name) {
           case 'Dashboard':
             iconName = focused ? 'home' : 'home-outline';
@@ -127,7 +127,7 @@ const PatientTabNavigator = () => (
             iconName = focused ? 'chatbubbles' : 'chatbubbles-outline';
             break;
         }
-        return <Ionicons name={iconName} size={size} color={color} />;
+        return <Ionicons name={iconName!} size={size} color={color} />;
       },
       tabBarActiveTintColor: '#4A90E2',
       tabBarInactiveTintColor: 'gray',
@@ -173,7 +173,7 @@ const AppNavigator = () => {
   const { user, userProfile, loading } = useAuth();
 
   if (loading) {
-    return <SplashScreen />;
+    return <SplashScreen onAnimationComplete={() => {}} />;
   }
 
   return (
@@ -190,7 +190,7 @@ const AppNavigator = () => {
         ) : (
           // Utilisateur connecté
           <>
-            {userProfile?.userType === 'nurse' ? (
+            {userProfile?.user_type === 'nurse' ? (
               <Stack.Screen name="NurseApp" component={NurseTabNavigator} />
             ) : (
               <Stack.Screen name="PatientApp" component={PatientTabNavigator} />
