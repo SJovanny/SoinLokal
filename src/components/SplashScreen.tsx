@@ -102,9 +102,6 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ onAnimationComplete }) => {
           <Text style={styles.subtitle}>
             Soins à domicile en Martinique
           </Text>
-          <Text style={styles.tagline}>
-            ✨ Excellence • Proximité • Innovation ✨
-          </Text>
         </View>
       </View>
 

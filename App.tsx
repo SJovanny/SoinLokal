@@ -1,19 +1,7 @@
-if (typeof globalThis !== 'undefined' && !globalThis.matchMedia) {
-  globalThis.matchMedia = () => ({
-    matches: false,
-    media: '',
-    onchange: null,
-    addListener: () => {},
-    removeListener: () => {},
-    addEventListener: () => {},
-    removeEventListener: () => {},
-    dispatchEvent: () => false,
-  });
-}
-
 import React, { useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { TamaguiProvider } from 'tamagui';
 import config from './tamagui.config';
 import { AuthProvider } from './src/contexts/AuthContext';
@@ -35,11 +23,13 @@ export default function App() {
   }
 
   return (
-    <TamaguiProvider config={config} defaultTheme="light">
-      <AuthProvider>
-        <AppNavigator />
-        <StatusBar style="auto" />
-      </AuthProvider>
-    </TamaguiProvider>
+    <SafeAreaProvider>
+      <TamaguiProvider config={config} defaultTheme="light">
+        <AuthProvider>
+          <AppNavigator />
+          <StatusBar style="auto" />
+        </AuthProvider>
+      </TamaguiProvider>
+    </SafeAreaProvider>
   );
 }

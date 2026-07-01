@@ -1,206 +1,338 @@
-import React from 'react';
+import React, { useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
-  TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
   Dimensions,
   StatusBar,
+  Animated,
+  Pressable,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import Svg, { Polygon, Defs, LinearGradient as SvgLinearGradient, Stop } from 'react-native-svg';
+import { useIsFocused } from '@react-navigation/native';
+import { COLORS } from '../../utils/constants';
+import DoctorIllustration from '../../../assets/Doctors-bro.svg';
+import WheelchairIllustration from '../../../assets/Hospital wheelchair-rafiki.svg';
 
-const { height } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
 
 const UserTypeScreen = ({ navigation }: { navigation: any }) => {
+  const tileOpacity = useRef(new Animated.Value(0)).current;
+  const nurseSlideX = useRef(new Animated.Value(-40)).current;
+  const nurseOpacity = useRef(new Animated.Value(0)).current;
+  const patientSlideX = useRef(new Animated.Value(40)).current;
+  const patientOpacity = useRef(new Animated.Value(0)).current;
+  const contentScale = useRef(new Animated.Value(1)).current;
+  const nurseFlashOpacity = useRef(new Animated.Value(0)).current;
+  const patientFlashOpacity = useRef(new Animated.Value(0)).current;
+  const isFocused = useIsFocused();
+  const timeoutIds = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const isAnimating = useRef(false);
+
+  const playEntranceAnimation = useCallback(() => {
+    tileOpacity.setValue(0);
+    nurseSlideX.setValue(-40);
+    nurseOpacity.setValue(0);
+    patientSlideX.setValue(40);
+    patientOpacity.setValue(0);
+    nurseFlashOpacity.setValue(0);
+    patientFlashOpacity.setValue(0);
+
+    timeoutIds.current.push(
+      setTimeout(() => {
+        Animated.spring(tileOpacity, {
+          toValue: 1,
+          tension: 50,
+          friction: 8,
+          useNativeDriver: true,
+        }).start();
+      }, 200),
+    );
+
+    timeoutIds.current.push(
+      setTimeout(() => {
+        Animated.parallel([
+          Animated.timing(nurseOpacity, {
+            toValue: 1,
+            duration: 300,
+            useNativeDriver: true,
+          }),
+          Animated.spring(nurseSlideX, {
+            toValue: 0,
+            tension: 50,
+            friction: 8,
+            useNativeDriver: true,
+          }),
+          Animated.timing(patientOpacity, {
+            toValue: 1,
+            duration: 300,
+            useNativeDriver: true,
+          }),
+          Animated.spring(patientSlideX, {
+            toValue: 0,
+            tension: 50,
+            friction: 8,
+            useNativeDriver: true,
+          }),
+        ]).start();
+      }, 400),
+    );
+  }, [tileOpacity, nurseSlideX, nurseOpacity, patientSlideX, patientOpacity, nurseFlashOpacity, patientFlashOpacity]);
+
+  useEffect(() => {
+    if (isFocused) {
+      playEntranceAnimation();
+    }
+    return () => {
+      timeoutIds.current.forEach(clearTimeout);
+      timeoutIds.current = [];
+    };
+  }, [isFocused, playEntranceAnimation]);
+
+  const handleRoleSelect = (type: 'nurse' | 'patient') => {
+    if (isAnimating.current) return;
+    isAnimating.current = true;
+
+    const flashTarget = type === 'nurse' ? nurseFlashOpacity : patientFlashOpacity;
+
+    Animated.sequence([
+      Animated.timing(flashTarget, {
+        toValue: 0.25,
+        duration: 80,
+        useNativeDriver: true,
+      }),
+      Animated.timing(flashTarget, {
+        toValue: 0,
+        duration: 170,
+        useNativeDriver: true,
+      }),
+      Animated.spring(contentScale, {
+        toValue: 1.03,
+        tension: 100,
+        friction: 5,
+        useNativeDriver: true,
+      }),
+      Animated.parallel([
+        Animated.timing(tileOpacity, { toValue: 0, duration: 250, useNativeDriver: true }),
+        Animated.timing(nurseOpacity, { toValue: 0, duration: 250, useNativeDriver: true }),
+        Animated.timing(patientOpacity, { toValue: 0, duration: 250, useNativeDriver: true }),
+      ]),
+    ]).start(() => {
+      navigation.navigate('Login', { userType: type });
+    });
+  };
+
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <StatusBar barStyle="light-content" />
-      <LinearGradient
-        colors={['#1A3A2A', '#2E8B57', '#43A047']}
-        style={styles.gradient}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
+
+      <Animated.View
+        style={[StyleSheet.absoluteFill, { opacity: tileOpacity }]}
       >
-        <View style={styles.content}>
-          {/* Logo area */}
-          <View style={styles.logoArea}>
-            <View style={styles.logoCircle}>
-              <Ionicons name="heart" size={48} color="#2E8B57" />
-            </View>
-            <Text style={styles.appName}>SoinLokal</Text>
-            <Text style={styles.appTagline}>Soins à domicile en Martinique</Text>
-          </View>
+        <Svg width={width} height={height}>
+          <Defs>
+            <SvgLinearGradient id="nurseTile" x1="0" y1="0" x2="1" y2="1">
+              <Stop offset="0" stopColor={COLORS.NURSE_DARK} />
+              <Stop offset="0.6" stopColor={COLORS.NURSE_PRIMARY} />
+              <Stop offset="1" stopColor="#3CB371" />
+            </SvgLinearGradient>
+            <SvgLinearGradient id="patientTile" x1="0" y1="0" x2="1" y2="1">
+              <Stop offset="0" stopColor={COLORS.PATIENT_DARK} />
+              <Stop offset="0.6" stopColor={COLORS.PATIENT_PRIMARY} />
+              <Stop offset="1" stopColor="#64B5F6" />
+            </SvgLinearGradient>
+          </Defs>
+          <Polygon
+            points={`0,0 ${width},0 0,${height}`}
+            fill="url(#nurseTile)"
+            stroke="url(#nurseTile)"
+            strokeWidth={0.5}
+          />
+          <Polygon
+            points={`${width},0 ${width},${height} 0,${height}`}
+            fill="url(#patientTile)"
+            stroke="url(#patientTile)"
+            strokeWidth={0.5}
+          />
+        </Svg>
+      </Animated.View>
 
-          {/* Role cards */}
-          <View style={styles.cardsContainer}>
-            <TouchableOpacity
-              style={[styles.card, styles.nurseCard]}
-              onPress={() => navigation.navigate('Login', { userType: 'nurse' })}
-              activeOpacity={0.85}
+      {/* Flash — nurse triangle */}
+      <Animated.View
+        style={[
+          StyleSheet.absoluteFill,
+          { opacity: nurseFlashOpacity },
+        ]}
+        pointerEvents="none"
+      >
+        <Svg width={width} height={height}>
+          <Polygon
+            points={`0,0 ${width},0 0,${height}`}
+            fill="white"
+          />
+        </Svg>
+      </Animated.View>
+
+      {/* Flash — patient triangle */}
+      <Animated.View
+        style={[
+          StyleSheet.absoluteFill,
+          { opacity: patientFlashOpacity },
+        ]}
+        pointerEvents="none"
+      >
+        <Svg width={width} height={height}>
+          <Polygon
+            points={`${width},0 ${width},${height} 0,${height}`}
+            fill="white"
+          />
+        </Svg>
+      </Animated.View>
+
+      <Animated.View
+        style={[
+          styles.contentWrapper,
+          { transform: [{ scale: contentScale }] },
+        ]}
+      >
+        <SafeAreaView style={styles.safeArea}>
+          {/* Nurse — top left */}
+          <Animated.View
+            style={[
+              styles.nurseContent,
+              {
+                opacity: nurseOpacity,
+                transform: [{ translateX: nurseSlideX }],
+              },
+            ]}
+          >
+            <Pressable
+              onPress={() => handleRoleSelect('nurse')}
+              style={styles.nurseInner}
             >
-              <View style={styles.nurseIconBg}>
-                <Ionicons name="medkit" size={30} color="#2E8B57" />
-              </View>
-              <View style={styles.cardTextBlock}>
-                <Text style={styles.cardTitle}>Infirmière libérale</Text>
-                <Text style={styles.cardSubtitle}>Gérez vos patients et tournées</Text>
-              </View>
-              <View style={styles.nurseChevronBg}>
-                <Ionicons name="chevron-forward" size={20} color="#2E8B57" />
-              </View>
-            </TouchableOpacity>
+              <Text style={styles.title}>Infirmière</Text>
+              <Text style={styles.title}>libérale</Text>
+              <Text style={styles.subtitle}>
+                Gérez vos patients{'\n'}et tournées
+              </Text>
+              <DoctorIllustration
+                width={200}
+                height={200}
+                style={styles.nurseIllustration}
+              />
+            </Pressable>
+          </Animated.View>
 
-            <TouchableOpacity
-              style={[styles.card, styles.patientCard]}
-              onPress={() => navigation.navigate('Login', { userType: 'patient' })}
-              activeOpacity={0.85}
+          {/* Patient — bottom right */}
+          <Animated.View
+            style={[
+              styles.patientContent,
+              {
+                opacity: patientOpacity,
+                transform: [{ translateX: patientSlideX }],
+              },
+            ]}
+          >
+            <Pressable
+              onPress={() => handleRoleSelect('patient')}
+              style={styles.patientInner}
             >
-              <View style={styles.patientIconBg}>
-                <Ionicons name="person" size={30} color="#4A90E2" />
-              </View>
-              <View style={styles.cardTextBlock}>
-                <Text style={styles.cardTitle}>Patient / Famille</Text>
-                <Text style={styles.cardSubtitle}>Suivez vos soins et rendez-vous</Text>
-              </View>
-              <View style={styles.patientChevronBg}>
-                <Ionicons name="chevron-forward" size={20} color="#4A90E2" />
-              </View>
-            </TouchableOpacity>
-          </View>
+              <Text style={[styles.title, styles.patientTitle]}>Patient</Text>
+              <Text style={[styles.title, styles.patientTitle]}>/ Famille</Text>
+              <Text style={[styles.subtitle, styles.patientSubtitle]}>
+                Suivez vos soins{'\n'}et rendez-vous
+              </Text>
+              <WheelchairIllustration
+                width={200}
+                height={200}
+                style={styles.patientIllustration}
+              />
+            </Pressable>
+          </Animated.View>
+        </SafeAreaView>
+      </Animated.View>
 
-          {/* Footer */}
-          <Text style={styles.footerText}>Sécurisé • Certifié • RGPD</Text>
-        </View>
-      </LinearGradient>
-    </SafeAreaView>
+      <Animated.Text style={[styles.footer, { opacity: tileOpacity }]}>
+        Sécurisé • Certifié • RGPD
+      </Animated.Text>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: COLORS.NURSE_DARK,
   },
-  gradient: {
+  contentWrapper: {
     flex: 1,
   },
-  content: {
+  safeArea: {
     flex: 1,
-    paddingHorizontal: 24,
-    justifyContent: 'space-between',
-    paddingTop: height * 0.06,
-    paddingBottom: 36,
   },
-  // Logo area
-  logoArea: {
-    alignItems: 'center',
+  nurseContent: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: '55%',
+    height: '55%',
   },
-  logoCircle: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: 'white',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 6,
+  nurseInner: {
+    flex: 1,
+    justifyContent: 'flex-start',
+    paddingLeft: width * 0.05,
+    paddingTop: height * 0.08,
   },
-  appName: {
-    fontSize: 32,
-    fontWeight: 'bold',
+  nurseIllustration: {
+    marginTop: 14,
+    opacity: 0.9,
+  },
+  patientContent: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: '55%',
+    height: '55%',
+  },
+  patientInner: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    alignItems: 'flex-end',
+    paddingRight: width * 0.05,
+    paddingBottom: height * 0.08,
+  },
+  patientIllustration: {
+    marginTop: 14,
+    opacity: 0.9,
+  },
+  title: {
+    fontSize: 34,
+    fontWeight: '700',
     color: 'white',
-    marginBottom: 8,
+    lineHeight: 38,
   },
-  appTagline: {
+  patientTitle: {
+    textAlign: 'right',
+  },
+  subtitle: {
     fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.70)',
+    color: 'rgba(255,255,255,0.75)',
+    marginTop: 8,
+    lineHeight: 22,
   },
-  // Cards
-  cardsContainer: {
-    gap: 16,
+  patientSubtitle: {
+    textAlign: 'right',
   },
-  card: {
-    backgroundColor: 'white',
-    borderRadius: 20,
-    padding: 24,
-    flexDirection: 'row',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.18,
-    shadowRadius: 16,
-    elevation: 10,
-    marginVertical: 8,
-  },
-  nurseCard: {
-    borderLeftWidth: 4,
-    borderLeftColor: '#2E8B57',
-  },
-  patientCard: {
-    borderLeftWidth: 4,
-    borderLeftColor: '#4A90E2',
-  },
-  nurseIconBg: {
-    width: 56,
-    height: 56,
-    borderRadius: 14,
-    backgroundColor: 'rgba(46, 139, 87, 0.12)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 16,
-  },
-  patientIconBg: {
-    width: 56,
-    height: 56,
-    borderRadius: 14,
-    backgroundColor: '#EBF4FF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 16,
-  },
-  cardTextBlock: {
-    flex: 1,
-  },
-  cardTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#1A1A2E',
-    marginBottom: 4,
-  },
-  cardSubtitle: {
-    fontSize: 14,
-    color: '#64748B',
-    lineHeight: 20,
-  },
-  nurseChevronBg: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(46, 139, 87, 0.10)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: 8,
-  },
-  patientChevronBg: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#EBF4FF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: 8,
-  },
-  // Footer
-  footerText: {
-    fontSize: 13,
-    color: 'rgba(255, 255, 255, 0.60)',
+  footer: {
+    position: 'absolute',
+    bottom: 20,
+    left: 0,
+    right: 0,
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.5)',
     textAlign: 'center',
-    letterSpacing: 0.5,
+    letterSpacing: 0.6,
   },
 });
 
