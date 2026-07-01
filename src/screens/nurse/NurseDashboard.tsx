@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -6,104 +6,251 @@ import {
   ScrollView,
   TouchableOpacity,
   FlatList,
+  ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
+import { supabase } from '../../utils/supabase';
+import { COLORS, SIZES } from '../../utils/constants';
 import LogoutButton from '../../components/LogoutButton';
 
-interface Appointment {
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+interface TodayAppointment {
   id: string;
   patientName: string;
   time: string;
-  type: string;
+  careType: string;
   address: string;
-  status: 'pending' | 'completed';
+  status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
 }
 
-interface StatCardProps {
+interface Stats {
+  totalPatients: number;
+  todayVisits: number;
+  completedToday: number;
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function getTodayISO(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+}
+
+function formatTime(time: string): string {
+  return time.substring(0, 5);
+}
+
+// ---------------------------------------------------------------------------
+// Sub-components
+// ---------------------------------------------------------------------------
+
+function StatCard({
+  icon,
+  title,
+  value,
+  color,
+}: {
   icon: React.ComponentProps<typeof Ionicons>['name'];
   title: string;
   value: number | string;
   color: string;
+}) {
+  return (
+    <View style={styles.statCard}>
+      <Ionicons name={icon} size={24} color={color} />
+      <Text style={styles.statValue}>{value}</Text>
+      <Text style={styles.statTitle}>{title}</Text>
+    </View>
+  );
 }
 
-const StatCard: React.FC<StatCardProps> = ({ icon, title, value, color }) => (
-  <View style={styles.statCard}>
-    <Ionicons name={icon} size={24} color={color} />
-    <Text style={styles.statValue}>{value}</Text>
-    <Text style={styles.statTitle}>{title}</Text>
-  </View>
-);
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
 
 const NurseDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
-  const { userProfile } = useAuth();
-  const [todayAppointments] = useState<Appointment[]>([
-    {
-      id: '1',
-      patientName: 'Marie Dupont',
-      time: '09:00',
-      type: 'Pansement',
-      address: '15 Rue des Flamboyants, Fort-de-France',
-      status: 'pending'
-    },
-    {
-      id: '2',
-      patientName: 'Jean Martin',
-      time: '10:30',
-      type: 'Injection',
-      address: '8 Avenue des Alizés, Schoelcher',
-      status: 'completed'
-    },
-    {
-      id: '3',
-      patientName: 'Claire Laroche',
-      time: '14:00',
-      type: 'Contrôle glycémie',
-      address: '22 Rue des Bougainvilliers, Lamentin',
-      status: 'pending'
-    },
-  ]);
+  const { userProfile, user } = useAuth();
+  const today = getTodayISO();
 
-  const [stats] = useState({
-    totalPatients: 28,
-    todayVisits: 5,
-    completedToday: 2,
-    revenue: 450,
-  });
+  const [stats, setStats] = useState<Stats>({ totalPatients: 0, todayVisits: 0, completedToday: 0 });
+  const [appointments, setAppointments] = useState<TodayAppointment[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const renderAppointmentItem = ({ item }: { item: Appointment }) => (
-    <TouchableOpacity 
-      style={[
-        styles.appointmentCard,
-        item.status === 'completed' && styles.completedCard
-      ]}
-      onPress={() => navigation.navigate('PatientDetail', { patientId: item.id })}
-    >
-      <View style={styles.appointmentHeader}>
-        <View>
-          <Text style={styles.patientName}>{item.patientName}</Text>
-          <Text style={styles.appointmentType}>{item.type}</Text>
+  // -------------------------------------------------------------------------
+  // Fetch data
+  // -------------------------------------------------------------------------
+
+  const fetchData = useCallback(async () => {
+    if (!user) return;
+
+    try {
+      // Parallel queries for stats
+      const [patientsRes, todayRes, completedRes] = await Promise.all([
+        supabase
+          .from('patient_files')
+          .select('id', { count: 'exact', head: true })
+          .eq('nurse_id', user.id)
+          .eq('is_active', true),
+        supabase
+          .from('appointments')
+          .select('id', { count: 'exact', head: true })
+          .eq('nurse_id', user.id)
+          .eq('date', today),
+        supabase
+          .from('appointments')
+          .select('id', { count: 'exact', head: true })
+          .eq('nurse_id', user.id)
+          .eq('date', today)
+          .eq('status', 'completed'),
+      ]);
+
+      setStats({
+        totalPatients: patientsRes.count ?? 0,
+        todayVisits: todayRes.count ?? 0,
+        completedToday: completedRes.count ?? 0,
+      });
+
+      // Fetch today's appointments with patient info
+      const { data: appts, error: apptsErr } = await supabase
+        .from('appointments')
+        .select('id, patient_file_id, time, care_type, status, address')
+        .eq('nurse_id', user.id)
+        .eq('date', today)
+        .order('time', { ascending: true });
+
+      if (apptsErr) {
+        console.error('[Dashboard] appointments error:', apptsErr.message);
+        return;
+      }
+
+      // Get patient names
+      const fileIds = (appts ?? []).map((a: any) => a.patient_file_id).filter(Boolean);
+      let nameMap: Record<string, string> = {};
+      let addrMap: Record<string, string> = {};
+
+      if (fileIds.length > 0) {
+        const { data: files } = await supabase
+          .from('patient_files')
+          .select('id, patient_id')
+          .in('id', fileIds);
+
+        const patientIds = (files ?? []).map((f: any) => f.patient_id);
+        const fileIdToPatientId: Record<string, string> = {};
+        (files ?? []).forEach((f: any) => { fileIdToPatientId[f.id] = f.patient_id; });
+
+        if (patientIds.length > 0) {
+          const { data: profiles } = await supabase
+            .from('profiles')
+            .select('id, first_name, last_name')
+            .in('id', patientIds);
+
+          (profiles ?? []).forEach((p: any) => {
+            // Find all file_ids for this patient
+            Object.entries(fileIdToPatientId).forEach(([fid, pid]) => {
+              if (pid === p.id) {
+                nameMap[fid] = `${p.first_name} ${p.last_name}`;
+              }
+            });
+          });
+        }
+      }
+
+      const mapped: TodayAppointment[] = (appts ?? []).map((a: any) => ({
+        id: a.id,
+        patientName: nameMap[a.patient_file_id] ?? 'Patient',
+        time: a.time,
+        careType: a.care_type,
+        address: a.address ?? '',
+        status: a.status,
+      }));
+
+      setAppointments(mapped);
+    } catch (err) {
+      console.error('[Dashboard] unexpected:', err);
+    }
+  }, [user, today]);
+
+  useEffect(() => {
+    setLoading(true);
+    fetchData().finally(() => setLoading(false));
+  }, [fetchData]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await fetchData();
+    setRefreshing(false);
+  }, [fetchData]);
+
+  // -------------------------------------------------------------------------
+  // Render appointment
+  // -------------------------------------------------------------------------
+
+  const renderAppointmentItem = ({ item }: { item: TodayAppointment }) => {
+    const isCompleted = item.status === 'completed';
+    const statusColor = isCompleted ? COLORS.SUCCESS : COLORS.WARNING;
+
+    return (
+      <TouchableOpacity
+        style={[styles.appointmentCard, isCompleted && styles.completedCard]}
+        onPress={() => navigation.navigate('Tournée')}
+        activeOpacity={0.8}
+      >
+        <View style={styles.appointmentHeader}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.patientName}>{item.patientName}</Text>
+            <Text style={styles.appointmentType}>{item.careType}</Text>
+          </View>
+          <View style={styles.timeContainer}>
+            <Text style={styles.time}>{formatTime(item.time)}</Text>
+            <Ionicons
+              name={isCompleted ? 'checkmark-circle' : 'time-outline'}
+              size={20}
+              color={statusColor}
+            />
+          </View>
         </View>
-        <View style={styles.timeContainer}>
-          <Text style={styles.time}>{item.time}</Text>
-          <Ionicons 
-            name={item.status === 'completed' ? 'checkmark-circle' : 'time-outline'} 
-            size={20} 
-            color={item.status === 'completed' ? '#4CAF50' : '#FF9800'} 
-          />
+        {item.address ? (
+          <View style={styles.addressContainer}>
+            <Ionicons name="location-outline" size={16} color={COLORS.TEXT_MUTED} />
+            <Text style={styles.address} numberOfLines={1}>{item.address}</Text>
+          </View>
+        ) : null}
+      </TouchableOpacity>
+    );
+  };
+
+  // -------------------------------------------------------------------------
+  // Main render
+  // -------------------------------------------------------------------------
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.centerWrap}>
+          <ActivityIndicator size="large" color={COLORS.NURSE_PRIMARY} />
         </View>
-      </View>
-      <View style={styles.addressContainer}>
-        <Ionicons name="location-outline" size={16} color="#666" />
-        <Text style={styles.address}>{item.address}</Text>
-      </View>
-    </TouchableOpacity>
-  );
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.scrollView}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.NURSE_PRIMARY]} />
+        }
+      >
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
@@ -113,14 +260,14 @@ const NurseDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
             </Text>
           </View>
           <View style={styles.headerRight}>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.profileButton}
               onPress={() => navigation.navigate('Profil')}
             >
-              <Ionicons name="person-circle-outline" size={32} color="#2E8B57" />
+              <Ionicons name="person-circle-outline" size={32} color={COLORS.NURSE_PRIMARY} />
             </TouchableOpacity>
-            <LogoutButton 
-              variant="icon" 
+            <LogoutButton
+              variant="icon"
               showText={false}
               style={styles.logoutButtonHeader}
             />
@@ -129,29 +276,29 @@ const NurseDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
 
         {/* Stats Cards */}
         <View style={styles.statsContainer}>
-          <StatCard 
-            icon="people-outline" 
-            title="Patients" 
-            value={stats.totalPatients} 
-            color="#2E8B57" 
+          <StatCard
+            icon="people-outline"
+            title="Patients"
+            value={stats.totalPatients}
+            color={COLORS.NURSE_PRIMARY}
           />
-          <StatCard 
-            icon="calendar-outline" 
-            title="Visites aujourd'hui" 
-            value={stats.todayVisits} 
-            color="#4A90E2" 
+          <StatCard
+            icon="calendar-outline"
+            title="Visites aujourd'hui"
+            value={stats.todayVisits}
+            color={COLORS.PATIENT_PRIMARY}
           />
-          <StatCard 
-            icon="checkmark-circle-outline" 
-            title="Terminées" 
-            value={stats.completedToday} 
-            color="#4CAF50" 
+          <StatCard
+            icon="checkmark-circle-outline"
+            title="Terminées"
+            value={stats.completedToday}
+            color={COLORS.SUCCESS}
           />
-          <StatCard 
-            icon="card-outline" 
-            title="Revenus (€)" 
-            value={stats.revenue} 
-            color="#FF9800" 
+          <StatCard
+            icon="time-outline"
+            title="Restantes"
+            value={stats.todayVisits - stats.completedToday}
+            color={COLORS.WARNING}
           />
         </View>
 
@@ -159,7 +306,7 @@ const NurseDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Actions rapides</Text>
           <View style={styles.quickActions}>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.actionButton}
               onPress={() => navigation.navigate('Tournée')}
             >
@@ -167,18 +314,18 @@ const NurseDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
               <Text style={styles.actionText}>Ma tournée</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.actionButton, { backgroundColor: '#4A90E2' }]}
+              style={[styles.actionButton, { backgroundColor: COLORS.PATIENT_PRIMARY }]}
+              onPress={() => navigation.navigate('NewAppointment')}
+            >
+              <Ionicons name="calendar-outline" size={24} color="white" />
+              <Text style={styles.actionText}>Nouveau RDV</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.actionButton, { backgroundColor: COLORS.WARNING }]}
               onPress={() => navigation.navigate('Patients', { openSearch: true })}
             >
-              <Ionicons name="add-circle-outline" size={24} color="white" />
+              <Ionicons name="person-add-outline" size={24} color="white" />
               <Text style={styles.actionText}>Nouveau patient</Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={[styles.actionButton, { backgroundColor: '#FF9800' }]}
-              onPress={() => navigation.navigate('Messages')}
-            >
-              <Ionicons name="chatbubbles-outline" size={24} color="white" />
-              <Text style={styles.actionText}>Messages</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -191,55 +338,46 @@ const NurseDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
               <Text style={styles.seeAllText}>Voir tout</Text>
             </TouchableOpacity>
           </View>
-          
-          {todayAppointments.length > 0 ? (
+
+          {appointments.length > 0 ? (
             <FlatList
-              data={todayAppointments}
+              data={appointments}
               renderItem={renderAppointmentItem}
               keyExtractor={(item) => item.id}
               scrollEnabled={false}
             />
           ) : (
             <View style={styles.emptyState}>
-              <Ionicons name="calendar-outline" size={48} color="#ccc" />
+              <Ionicons name="calendar-outline" size={48} color={COLORS.BORDER} />
               <Text style={styles.emptyStateText}>Aucun rendez-vous aujourd'hui</Text>
+              <TouchableOpacity
+                style={styles.emptyButton}
+                onPress={() => navigation.navigate('NewAppointment')}
+              >
+                <Ionicons name="add" size={18} color={COLORS.WHITE} />
+                <Text style={styles.emptyButtonText}>Créer un RDV</Text>
+              </TouchableOpacity>
             </View>
           )}
-        </View>
-
-        {/* Recent Activity */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Activité récente</Text>
-          <View style={styles.activityCard}>
-            <View style={styles.activityItem}>
-              <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
-              <Text style={styles.activityText}>
-                Soins terminés chez Marie Dupont - 08:45
-              </Text>
-            </View>
-            <View style={styles.activityItem}>
-              <Ionicons name="document-text" size={20} color="#2E8B57" />
-              <Text style={styles.activityText}>
-                Rapport de soins envoyé - 08:50
-              </Text>
-            </View>
-            <View style={styles.activityItem}>
-              <Ionicons name="chatbubble" size={20} color="#4A90E2" />
-              <Text style={styles.activityText}>
-                Nouveau message de Jean Martin - 09:15
-              </Text>
-            </View>
-          </View>
         </View>
       </ScrollView>
     </SafeAreaView>
   );
 };
 
+// ---------------------------------------------------------------------------
+// Styles
+// ---------------------------------------------------------------------------
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: COLORS.BACKGROUND,
+  },
+  centerWrap: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   scrollView: {
     flex: 1,
@@ -248,8 +386,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 20,
-    backgroundColor: 'white',
+    padding: SIZES.LG,
+    backgroundColor: COLORS.WHITE,
   },
   headerLeft: {
     flex: 1,
@@ -257,174 +395,169 @@ const styles = StyleSheet.create({
   headerRight: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: SIZES.SM,
   },
   greeting: {
-    fontSize: 16,
-    color: '#666',
+    fontSize: SIZES.FONT_MD,
+    color: COLORS.TEXT_SECONDARY,
   },
   userName: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#333',
+    fontSize: SIZES.FONT_XL,
+    fontWeight: '700',
+    color: COLORS.TEXT_PRIMARY,
   },
   profileButton: {
-    padding: 5,
+    padding: SIZES.XS,
   },
   logoutButtonHeader: {
     backgroundColor: 'transparent',
-    borderColor: '#dc3545',
+    borderColor: COLORS.DANGER,
     borderWidth: 1,
   },
   statsContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    padding: 20,
-    gap: 15,
+    padding: SIZES.LG,
+    gap: SIZES.MD,
   },
   statCard: {
     width: '47%',
-    backgroundColor: 'white',
-    padding: 15,
-    borderRadius: 10,
+    backgroundColor: COLORS.WHITE,
+    padding: SIZES.MD,
+    borderRadius: SIZES.BORDER_RADIUS_MD,
     alignItems: 'center',
-    shadowColor: '#000',
+    shadowColor: COLORS.BLACK,
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
     elevation: 2,
   },
   statValue: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
-    marginTop: 5,
+    fontSize: SIZES.FONT_2XL,
+    fontWeight: '700',
+    color: COLORS.TEXT_PRIMARY,
+    marginTop: SIZES.XS,
   },
   statTitle: {
-    fontSize: 12,
-    color: '#666',
+    fontSize: SIZES.FONT_XS,
+    color: COLORS.TEXT_MUTED,
     textAlign: 'center',
-    marginTop: 5,
+    marginTop: SIZES.XS,
   },
   section: {
-    paddingVertical: 25,
-    paddingHorizontal: 20,
+    paddingVertical: SIZES.XL,
+    paddingHorizontal: SIZES.LG,
   },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 15,
+    marginBottom: SIZES.MD,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
+    fontSize: SIZES.FONT_LG,
+    fontWeight: '700',
+    color: COLORS.TEXT_PRIMARY,
   },
   seeAllText: {
-    color: '#2E8B57',
-    fontSize: 14,
+    color: COLORS.NURSE_PRIMARY,
+    fontSize: SIZES.FONT_SM,
     fontWeight: '600',
   },
   quickActions: {
     flexDirection: 'row',
-    gap: 15,
-    paddingBottom: 10,
+    gap: SIZES.MD,
+    paddingBottom: SIZES.SM,
   },
   actionButton: {
     flex: 1,
-    backgroundColor: '#2E8B57',
-    padding: 15,
-    borderRadius: 10,
+    backgroundColor: COLORS.NURSE_PRIMARY,
+    padding: SIZES.MD,
+    borderRadius: SIZES.BORDER_RADIUS_MD,
     alignItems: 'center',
-    gap: 5,
+    gap: SIZES.XS,
   },
   actionText: {
-    color: 'white',
-    fontSize: 12,
+    color: COLORS.WHITE,
+    fontSize: SIZES.FONT_XS,
     fontWeight: '600',
     textAlign: 'center',
   },
   appointmentCard: {
-    backgroundColor: 'white',
-    padding: 15,
-    borderRadius: 10,
-    marginBottom: 10,
-    shadowColor: '#000',
+    backgroundColor: COLORS.WHITE,
+    padding: SIZES.MD,
+    borderRadius: SIZES.BORDER_RADIUS_MD,
+    marginBottom: SIZES.SM,
+    shadowColor: COLORS.BLACK,
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
     elevation: 2,
   },
   completedCard: {
     opacity: 0.7,
     borderLeftWidth: 4,
-    borderLeftColor: '#4CAF50',
+    borderLeftColor: COLORS.SUCCESS,
   },
   appointmentHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 10,
+    marginBottom: SIZES.SM,
   },
   patientName: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#333',
+    fontSize: SIZES.FONT_MD,
+    fontWeight: '700',
+    color: COLORS.TEXT_PRIMARY,
   },
   appointmentType: {
-    fontSize: 14,
-    color: '#666',
+    fontSize: SIZES.FONT_SM,
+    color: COLORS.TEXT_SECONDARY,
     marginTop: 2,
   },
   timeContainer: {
     alignItems: 'center',
-    gap: 5,
+    gap: SIZES.XS,
   },
   time: {
-    fontSize: 14,
+    fontSize: SIZES.FONT_SM,
     fontWeight: '600',
-    color: '#333',
+    color: COLORS.TEXT_PRIMARY,
   },
   addressContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
+    gap: SIZES.XS,
   },
   address: {
-    fontSize: 12,
-    color: '#666',
+    fontSize: SIZES.FONT_XS,
+    color: COLORS.TEXT_MUTED,
     flex: 1,
   },
   emptyState: {
     alignItems: 'center',
     padding: 40,
+    gap: SIZES.SM,
   },
   emptyStateText: {
-    fontSize: 16,
-    color: '#999',
-    marginTop: 10,
+    fontSize: SIZES.FONT_MD,
+    color: COLORS.TEXT_MUTED,
+    marginTop: SIZES.SM,
   },
-  activityCard: {
-    backgroundColor: 'white',
-    padding: 15,
-    borderRadius: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  activityItem: {
+  emptyButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    paddingVertical: 8,
+    backgroundColor: COLORS.NURSE_PRIMARY,
+    paddingHorizontal: SIZES.LG,
+    paddingVertical: SIZES.MD,
+    borderRadius: SIZES.BORDER_RADIUS_MD,
+    gap: SIZES.XS,
+    marginTop: SIZES.SM,
   },
-  activityText: {
-    fontSize: 14,
-    color: '#666',
-    flex: 1,
+  emptyButtonText: {
+    color: COLORS.WHITE,
+    fontSize: SIZES.FONT_SM,
+    fontWeight: '600',
   },
 });
 

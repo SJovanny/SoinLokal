@@ -183,7 +183,14 @@ create policy "Nurse updates own patient files" on public.patient_files
 -- Appointments: nurse can CRUD their appointments; patient can view theirs
 drop policy if exists "Nurse manages appointments" on public.appointments;
 create policy "Nurse manages appointments" on public.appointments
-  for all using ( nurse_id = auth.uid() );
+  for all using ( nurse_id = auth.uid() )
+  with check (
+    nurse_id = auth.uid()
+    and exists (
+      select 1 from public.patient_files
+      where id = patient_file_id and nurse_id = auth.uid()
+    )
+  );
 drop policy if exists "Patient views appointments" on public.appointments;
 create policy "Patient views appointments" on public.appointments
   for select using (

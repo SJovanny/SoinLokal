@@ -82,15 +82,13 @@ const PatientsList: React.FC<{ navigation: any; route: any }> = ({
     if (!user) return;
     setLoading(true);
     try {
+      // Step 1: Fetch patient_files with basic profile info
       const { data, error } = await supabase
         .from('patient_files')
         .select(`
           id,
           patient_id,
-          patient:profiles!patient_id(
-            id, first_name, last_name, email, phone,
-            patient_profiles(id, profile_id, dob, address, address_label, emergency_contact, medical_notes, allergies, created_at, updated_at)
-          )
+          patient:profiles!patient_id(id, first_name, last_name, email, phone)
         `)
         .eq('nurse_id', user.id)
         .eq('is_active', true)
@@ -101,16 +99,31 @@ const PatientsList: React.FC<{ navigation: any; route: any }> = ({
         return;
       }
 
-      const mapped: MyPatient[] = (data ?? []).map((row: any) => ({
-        id: row.id,
-        patient_id: row.patient_id,
-        patient: {
-          ...row.patient,
-          patient_profiles: Array.isArray(row.patient?.patient_profiles)
-            ? row.patient.patient_profiles[0] ?? null
-            : row.patient?.patient_profiles ?? null,
-        },
-      }));
+      // Step 2: Fetch patient_profiles separately
+      const patientIds = (data ?? []).map((row: any) => row.patient_id).filter(Boolean);
+      let ppMap: Record<string, any> = {};
+      if (patientIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from('patient_profiles')
+          .select('id, profile_id, dob, address, address_label, emergency_contact, medical_notes, allergies, created_at, updated_at')
+          .in('profile_id', patientIds);
+        (profiles ?? []).forEach((pp: any) => { ppMap[pp.profile_id] = pp; });
+      }
+
+      // Step 3: Merge
+      const mapped: MyPatient[] = (data ?? []).map((row: any) => {
+        const patient = Array.isArray(row.patient)
+          ? row.patient[0] ?? null
+          : row.patient ?? null;
+        return {
+          id: row.id,
+          patient_id: row.patient_id,
+          patient: {
+            ...patient,
+            patient_profiles: ppMap[row.patient_id] ?? null,
+          },
+        };
+      });
 
       setMyPatients(mapped);
     } catch (err) {
@@ -152,12 +165,10 @@ const PatientsList: React.FC<{ navigation: any; route: any }> = ({
     const timer = setTimeout(async () => {
       try {
         const q = searchQuery.trim();
+        // Step 1: Search profiles
         const { data, error } = await supabase
           .from('profiles')
-          .select(`
-            id, first_name, last_name, email, phone,
-            patient_profiles(id, profile_id, dob, address, address_label, emergency_contact, medical_notes, allergies, created_at, updated_at)
-          `)
+          .select('id, first_name, last_name, email, phone')
           .eq('user_type', 'patient')
           .or(
             `first_name.ilike.%${q}%,last_name.ilike.%${q}%,email.ilike.%${q}%`
@@ -169,11 +180,21 @@ const PatientsList: React.FC<{ navigation: any; route: any }> = ({
           return;
         }
 
+        // Step 2: Fetch patient_profiles separately
+        const ids = (data ?? []).map((r: any) => r.id);
+        let ppMap: Record<string, any> = {};
+        if (ids.length > 0) {
+          const { data: profiles } = await supabase
+            .from('patient_profiles')
+            .select('id, profile_id, dob, address, address_label, emergency_contact, medical_notes, allergies, created_at, updated_at')
+            .in('profile_id', ids);
+          (profiles ?? []).forEach((pp: any) => { ppMap[pp.profile_id] = pp; });
+        }
+
+        // Step 3: Merge
         const mapped: PatientWithProfile[] = (data ?? []).map((row: any) => ({
           ...row,
-          patient_profiles: Array.isArray(row.patient_profiles)
-            ? row.patient_profiles[0] ?? null
-            : row.patient_profiles ?? null,
+          patient_profiles: ppMap[row.id] ?? null,
         }));
 
         setSearchResults(mapped);

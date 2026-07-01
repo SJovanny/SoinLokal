@@ -50,7 +50,8 @@
       "expo-camera",
       "expo-image-picker",
       "expo-splash-screen",
-      "expo-font"
+      "expo-font",
+      "@react-native-community/datetimepicker"
     ],
     "scheme": "soinlokal",
     "platforms": [
