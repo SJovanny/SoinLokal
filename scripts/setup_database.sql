@@ -150,6 +150,22 @@ drop policy if exists "Patient updates own patient profile" on public.patient_pr
 create policy "Patient updates own patient profile" on public.patient_profiles
   for update using ( profile_id = auth.uid() );
 
+-- Nurses can view patient profiles (for patient discovery / search)
+-- Uses nurse_profiles to avoid infinite recursion on profiles table
+drop policy if exists "Nurses can view patient profiles" on public.profiles;
+create policy "Nurses can view patient profiles" on public.profiles
+  for select using (
+    user_type = 'patient'
+    and exists (select 1 from public.nurse_profiles where profile_id = auth.uid())
+  );
+
+-- Nurses can view patient_profiles details (for patient discovery / search)
+drop policy if exists "Nurses can view patient details" on public.patient_profiles;
+create policy "Nurses can view patient details" on public.patient_profiles
+  for select using (
+    exists (select 1 from public.nurse_profiles where profile_id = auth.uid())
+  );
+
 -- Patient files: nurse can view/update their own files; patient can view files they're in
 drop policy if exists "Nurse views own patient files" on public.patient_files;
 create policy "Nurse views own patient files" on public.patient_files

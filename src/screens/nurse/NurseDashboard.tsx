@@ -166,9 +166,9 @@ const NurseDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
               <Ionicons name="map-outline" size={24} color="white" />
               <Text style={styles.actionText}>Ma tournée</Text>
             </TouchableOpacity>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[styles.actionButton, { backgroundColor: '#4A90E2' }]}
-              onPress={() => navigation.navigate('Patients')}
+              onPress={() => navigation.navigate('Patients', { openSearch: true })}
             >
               <Ionicons name="add-circle-outline" size={24} color="white" />
               <Text style={styles.actionText}>Nouveau patient</Text>
@@ -283,8 +283,7 @@ const styles = StyleSheet.create({
     gap: 15,
   },
   statCard: {
-    flex: 1,
-    minWidth: '45%',
+    width: '47%',
     backgroundColor: 'white',
     padding: 15,
     borderRadius: 10,
@@ -308,7 +307,8 @@ const styles = StyleSheet.create({
     marginTop: 5,
   },
   section: {
-    padding: 20,
+    paddingVertical: 25,
+    paddingHorizontal: 20,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -329,6 +329,7 @@ const styles = StyleSheet.create({
   quickActions: {
     flexDirection: 'row',
     gap: 15,
+    paddingBottom: 10,
   },
   actionButton: {
     flex: 1,
