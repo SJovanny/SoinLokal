@@ -173,7 +173,7 @@ Ce document t'aide à visualiser l'enchaînement des écrans pour le développem
 ---
 
 ## Flow 3 : La Réassurance (Usage Famille)
-*Contexte : La fille est à Fort-de-France, son père est au Morne-Rouge.*
+*Contexte : La fille est à Strasbourg, son père est à Schiltigheim.*
 
 1.  🟢 **Fille :** Reçoit une notification "Soin effectué".
 2.  🔷 **Fille :** Ouvre l'app.

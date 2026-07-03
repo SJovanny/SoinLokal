@@ -35,10 +35,28 @@ Mot de passe: famille
 
 ## 🎯 Test Rapide
 
-1. **Lancez l'application**
+> ⚠️ Depuis l'intégration de `@rnmapbox/maps`, **Expo Go n'est plus compatible**
+> (module natif requis). Utilise un **development build** à la place.
+
+1. **Lancez l'application (development build)**
    ```bash
-   npm start
+   # Premier lancement : génère les dossiers ios/ et android/
+   npx expo prebuild --clean
+
+   # Build + lancement sur simulateur iOS
+   npx expo run:ios
+
+   # Build + lancement sur votre iPhone (branché en USB / même Wi-Fi)
+   npx expo run:ios --device
    ```
+   Ensuite, le hot reload et le fast refresh fonctionnent comme avant.
+   Tu ne relances le build natif que si tu ajoutes une nouvelle lib native.
+
+2. **(Alternative) EAS Build — build cloud d'un client de dev**
+   ```bash
+   eas build --profile development --platform ios
+   ```
+   Installe le `.ipa` via l'app EAS ou TestFlight (compte Apple payant).
 
 2. **Accédez à l'écran de connexion**
    - Sélectionnez un type d'utilisateur
@@ -52,6 +70,10 @@ Mot de passe: famille
 
 ## 🔧 Fonctionnalités de Développement
 
+- ✅ **Carte Mapbox** (tuiles cohérentes avec Waze/Google) sur l'écran *Ma tournée*
+- ✅ **Géocodage Mapbox** pour les adresses (aligne les pins sur la carte)
+- ✅ **Bouton « Itinéraire »** au choix Waze / Google Maps (préférence mémorisée)
+- ✅ **Recalcul GPS patients** : bouton dans le profil infirmière + script `npm run regeocode`
 - ✅ **Comptes de test intégrés**
 - ✅ **Remplissage automatique des formulaires**
 - ✅ **Navigation adaptative selon le type d'utilisateur**

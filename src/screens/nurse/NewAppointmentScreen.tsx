@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -19,6 +19,12 @@ import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/dat
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../utils/supabase';
 import { COLORS, SIZES, CARE_TYPES } from '../../utils/constants';
+import {
+  type SlotInfo,
+  type GPSPoint,
+  fetchDayAppointmentsWithGPS,
+  buildSlotInfos,
+} from '../../utils/routing';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -29,6 +35,7 @@ interface PatientOption {
   patient_id: string;
   name: string;
   address: string | null;
+  gps: GPSPoint | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -43,21 +50,11 @@ function formatDateFR(d: Date): string {
   });
 }
 
-function formatTimeFR(d: Date): string {
-  return d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-}
-
 function dateToISO(d: Date): string {
   const yyyy = d.getFullYear();
   const mm = String(d.getMonth() + 1).padStart(2, '0');
   const dd = String(d.getDate()).padStart(2, '0');
   return `${yyyy}-${mm}-${dd}`;
-}
-
-function timeToISO(d: Date): string {
-  const hh = String(d.getHours()).padStart(2, '0');
-  const mm = String(d.getMinutes()).padStart(2, '0');
-  return `${hh}:${mm}:00`;
 }
 
 function parseManualDate(text: string): Date | null {
@@ -67,14 +64,6 @@ function parseManualDate(text: string): Date | null {
   const d = new Date(+yyyy, +mm - 1, +dd);
   if (d.getFullYear() !== +yyyy || d.getMonth() !== +mm - 1 || d.getDate() !== +dd) return null;
   return d;
-}
-
-function parseManualTime(text: string): { h: number; m: number } | null {
-  const match = text.match(/^(\d{2}):(\d{2})$/);
-  if (!match) return null;
-  const [, hh, mm] = match;
-  if (+hh >= 24 || +mm >= 60) return null;
-  return { h: +hh, m: +mm };
 }
 
 // ---------------------------------------------------------------------------
@@ -97,22 +86,21 @@ const NewAppointmentScreen: React.FC<{ navigation: any; route: any }> = ({
     d.setHours(0, 0, 0, 0);
     return d;
   });
-  const [timeObj, setTimeObj] = useState(() => {
-    const d = new Date();
-    d.setMinutes(0, 0, 0);
-    return d;
-  });
+  const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
   const [careType, setCareType] = useState('');
+  const [durationMin, setDurationMin] = useState(60);
   const [address, setAddress] = useState('');
   const [notes, setNotes] = useState('');
 
+  // Slot state
+  const [slots, setSlots] = useState<SlotInfo[]>([]);
+  const [slotsLoading, setSlotsLoading] = useState(false);
+  const [slotsLoaded, setSlotsLoaded] = useState(false);
+
   // Picker state
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [showTimePicker, setShowTimePicker] = useState(false);
   const [dateEditMode, setDateEditMode] = useState(false);
-  const [timeEditMode, setTimeEditMode] = useState(false);
   const [dateManual, setDateManual] = useState('');
-  const [timeManual, setTimeManual] = useState('');
 
   // Data
   const [patients, setPatients] = useState<PatientOption[]>([]);
@@ -156,7 +144,7 @@ const NewAppointmentScreen: React.FC<{ navigation: any; route: any }> = ({
 
         const { data: pps } = await supabase
           .from('patient_profiles')
-          .select('profile_id, address')
+          .select('profile_id, address, gps_lat, gps_lng')
           .in('profile_id', ids);
 
         const profileMap: Record<string, any> = {};
@@ -173,6 +161,9 @@ const NewAppointmentScreen: React.FC<{ navigation: any; route: any }> = ({
             patient_id: f.patient_id,
             name: p ? `${p.first_name} ${p.last_name}` : 'Patient inconnu',
             address: pp?.address ?? null,
+            gps: pp?.gps_lat != null && pp?.gps_lng != null
+              ? { lat: pp.gps_lat, lng: pp.gps_lng }
+              : null,
           };
         });
 
@@ -202,6 +193,39 @@ const NewAppointmentScreen: React.FC<{ navigation: any; route: any }> = ({
   }, [user]);
 
   // -------------------------------------------------------------------------
+  // Load slots when date changes
+  // -------------------------------------------------------------------------
+
+  const loadSlots = useCallback(async (date: Date) => {
+    if (!user) return;
+    setSlotsLoading(true);
+    setSlotsLoaded(false);
+    setSelectedSlot(null);
+    try {
+      const dateISO = dateToISO(date);
+      const existing = await fetchDayAppointmentsWithGPS(user.id, dateISO);
+      const newGPS = selectedPatient?.gps ?? null;
+      const slotInfos = await buildSlotInfos(existing, newGPS);
+      setSlots(slotInfos);
+      setSlotsLoaded(true);
+
+      // Auto-select optimal slot if available
+      const optimal = slotInfos.find((s) => s.isOptimal && !s.taken);
+      if (optimal) {
+        setSelectedSlot(optimal.time);
+      }
+    } catch (err) {
+      console.error('[NewAppointment] loadSlots error:', err);
+    } finally {
+      setSlotsLoading(false);
+    }
+  }, [user, selectedPatient]);
+
+  useEffect(() => {
+    loadSlots(dateObj);
+  }, [dateObj]); // intentionally skip loadSlots dependency to avoid loop
+
+  // -------------------------------------------------------------------------
   // Date picker handlers
   // -------------------------------------------------------------------------
 
@@ -210,15 +234,6 @@ const NewAppointmentScreen: React.FC<{ navigation: any; route: any }> = ({
     if (selectedDate) {
       selectedDate.setHours(0, 0, 0, 0);
       setDateObj(selectedDate);
-    }
-  };
-
-  const onTimeChange = (_event: DateTimePickerEvent, selectedTime?: Date) => {
-    if (Platform.OS === 'android') setShowTimePicker(false);
-    if (selectedTime) {
-      const newTime = new Date(timeObj);
-      newTime.setHours(selectedTime.getHours(), selectedTime.getMinutes());
-      setTimeObj(newTime);
     }
   };
 
@@ -232,18 +247,6 @@ const NewAppointmentScreen: React.FC<{ navigation: any; route: any }> = ({
     }
   };
 
-  const handleTimeManualSubmit = () => {
-    const parsed = parseManualTime(timeManual);
-    if (parsed) {
-      const newTime = new Date(timeObj);
-      newTime.setHours(parsed.h, parsed.m);
-      setTimeObj(newTime);
-      setTimeEditMode(false);
-    } else {
-      Alert.alert('Erreur', 'Heure invalide. Format attendu : HH:MM');
-    }
-  };
-
   // -------------------------------------------------------------------------
   // Select patient
   // -------------------------------------------------------------------------
@@ -252,6 +255,8 @@ const NewAppointmentScreen: React.FC<{ navigation: any; route: any }> = ({
     setSelectedPatient(patient);
     setAddress(patient.address ?? '');
     setShowPatientModal(false);
+    // Reload slots with new patient GPS
+    setTimeout(() => loadSlots(dateObj), 100);
   };
 
   // -------------------------------------------------------------------------
@@ -261,6 +266,10 @@ const NewAppointmentScreen: React.FC<{ navigation: any; route: any }> = ({
   const handleSubmit = async () => {
     if (!selectedPatient) {
       Alert.alert('Erreur', 'Veuillez sélectionner un patient.');
+      return;
+    }
+    if (!selectedSlot) {
+      Alert.alert('Erreur', 'Veuillez sélectionner un créneau horaire.');
       return;
     }
     if (!careType) {
@@ -274,8 +283,9 @@ const NewAppointmentScreen: React.FC<{ navigation: any; route: any }> = ({
         patient_file_id: selectedPatient.patient_file_id,
         nurse_id: user!.id,
         date: dateToISO(dateObj),
-        time: timeToISO(timeObj),
+        time: `${selectedSlot}:00`,
         care_type: careType,
+        duration_min: durationMin,
         address: address || null,
         notes: notes || null,
         status: 'pending',
@@ -295,6 +305,13 @@ const NewAppointmentScreen: React.FC<{ navigation: any; route: any }> = ({
       setSubmitting(false);
     }
   };
+
+  // -------------------------------------------------------------------------
+  // Optimal suggestion text
+  // -------------------------------------------------------------------------
+
+  const optimalSlot = slots.find((s) => s.isOptimal && !s.taken);
+  const selectedSlotInfo = slots.find((s) => s.time === selectedSlot);
 
   // -------------------------------------------------------------------------
   // Render
@@ -398,49 +415,76 @@ const NewAppointmentScreen: React.FC<{ navigation: any; route: any }> = ({
             </TouchableOpacity>
           )}
 
-          {/* Time */}
-          <Text style={styles.label}>Heure *</Text>
-          {timeEditMode ? (
-            <View style={styles.inputWrap}>
-              <Ionicons name="time-outline" size={20} color={COLORS.TEXT_MUTED} />
-              <TextInput
-                style={styles.input}
-                placeholder="HH:MM"
-                placeholderTextColor={COLORS.TEXT_MUTED}
-                value={timeManual}
-                onChangeText={setTimeManual}
-                keyboardType="number-pad"
-                maxLength={5}
-                autoFocus
-                onBlur={handleTimeManualSubmit}
-                onSubmitEditing={handleTimeManualSubmit}
-              />
-              <TouchableOpacity
-                onPress={() => setTimeEditMode(false)}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
-                <Ionicons name="close-circle" size={20} color={COLORS.TEXT_MUTED} />
-              </TouchableOpacity>
+          {/* Time Slots */}
+          <Text style={styles.label}>Créneau horaire *</Text>
+
+          {/* Optimal suggestion badge */}
+          {optimalSlot && (
+            <View style={styles.suggestionBadge}>
+              <Ionicons name="star" size={16} color={COLORS.NURSE_PRIMARY} />
+              <Text style={styles.suggestionText}>
+                Suggéré : {optimalSlot.label}
+                {optimalSlot.addedDistance != null
+                  ? ` (+${optimalSlot.addedDistance} km)`
+                  : ''}
+              </Text>
             </View>
-          ) : (
-            <TouchableOpacity
-              style={styles.selectBtn}
-              onPress={() => setShowTimePicker(true)}
-            >
-              <Ionicons name="time-outline" size={20} color={COLORS.NURSE_PRIMARY} />
-              <Text style={styles.selectText}>{formatTimeFR(timeObj)}</Text>
-              <TouchableOpacity
-                onPress={() => {
-                  setTimeManual(
-                    `${String(timeObj.getHours()).padStart(2, '0')}:${String(timeObj.getMinutes()).padStart(2, '0')}`
-                  );
-                  setTimeEditMode(true);
-                }}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
-                <Ionicons name="create-outline" size={18} color={COLORS.TEXT_MUTED} />
-              </TouchableOpacity>
-            </TouchableOpacity>
+          )}
+
+          {slotsLoading ? (
+            <View style={styles.slotsLoading}>
+              <ActivityIndicator size="small" color={COLORS.NURSE_PRIMARY} />
+              <Text style={styles.slotsLoadingText}>Calcul des créneaux...</Text>
+            </View>
+          ) : slotsLoaded ? (
+            <View style={styles.slotsGrid}>
+              {slots.map((slot) => {
+                const isSelected = selectedSlot === slot.time;
+                return (
+                  <TouchableOpacity
+                    key={slot.time}
+                    style={[
+                      styles.slotItem,
+                      slot.taken && styles.slotTaken,
+                      isSelected && styles.slotSelected,
+                      slot.isOptimal && !slot.taken && styles.slotOptimal,
+                    ]}
+                    onPress={() => {
+                      if (!slot.taken) setSelectedSlot(slot.time);
+                    }}
+                    activeOpacity={slot.taken ? 1 : 0.7}
+                    disabled={slot.taken}
+                  >
+                    <Text
+                      style={[
+                        styles.slotText,
+                        slot.taken && styles.slotTextTaken,
+                        isSelected && styles.slotTextSelected,
+                        slot.isOptimal && !slot.taken && !isSelected && styles.slotTextOptimal,
+                      ]}
+                    >
+                      {slot.label}
+                    </Text>
+                    {slot.isOptimal && !slot.taken && !isSelected && (
+                      <Ionicons name="star" size={10} color={COLORS.NURSE_PRIMARY} style={styles.slotStar} />
+                    )}
+                    {isSelected && (
+                      <Ionicons name="checkmark" size={14} color={COLORS.WHITE} style={styles.slotCheck} />
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          ) : null}
+
+          {/* Selected slot summary */}
+          {selectedSlot && selectedSlotInfo?.addedDistance != null && (
+            <Text style={styles.slotSummary}>
+              Créneau sélectionné : {selectedSlotInfo.label}
+              {selectedSlotInfo.addedDistance > 0
+                ? ` — ajoute ${selectedSlotInfo.addedDistance} km à votre tournée`
+                : ' — aucun détour supplémentaire'}
+            </Text>
           )}
 
           {/* Care type */}
@@ -460,6 +504,30 @@ const NewAppointmentScreen: React.FC<{ navigation: any; route: any }> = ({
             </Text>
             <Ionicons name="chevron-down" size={18} color={COLORS.TEXT_MUTED} />
           </TouchableOpacity>
+
+          {/* Duration */}
+          <Text style={styles.label}>Durée du rendez-vous</Text>
+          <View style={styles.durationRow}>
+            {[30, 45, 60, 90, 120].map((d) => (
+              <TouchableOpacity
+                key={d}
+                style={[
+                  styles.durationChip,
+                  durationMin === d && styles.durationChipSelected,
+                ]}
+                onPress={() => setDurationMin(d)}
+              >
+                <Text
+                  style={[
+                    styles.durationChipText,
+                    durationMin === d && styles.durationChipTextSelected,
+                  ]}
+                >
+                  {d < 60 ? `${d}min` : `${d / 60}h${d % 60 > 0 ? d % 60 : ''}`}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
 
           {/* Address */}
           <Text style={styles.label}>Adresse</Text>
@@ -509,7 +577,7 @@ const NewAppointmentScreen: React.FC<{ navigation: any; route: any }> = ({
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* Native Date Picker (iOS inline, Android dialog) */}
+      {/* Native Date Picker */}
       {showDatePicker && (
         <DateTimePicker
           value={dateObj}
@@ -517,17 +585,6 @@ const NewAppointmentScreen: React.FC<{ navigation: any; route: any }> = ({
           display={Platform.OS === 'ios' ? 'spinner' : 'default'}
           onChange={onDateChange}
           minimumDate={new Date()}
-        />
-      )}
-
-      {/* Native Time Picker */}
-      {showTimePicker && (
-        <DateTimePicker
-          value={timeObj}
-          mode="time"
-          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-          onChange={onTimeChange}
-          is24Hour
         />
       )}
 
@@ -719,6 +776,120 @@ const styles = StyleSheet.create({
   },
   placeholder: {
     color: COLORS.TEXT_MUTED,
+  },
+  // Slots
+  suggestionBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.NURSE_LIGHT,
+    paddingHorizontal: SIZES.MD,
+    paddingVertical: SIZES.SM,
+    borderRadius: SIZES.BORDER_RADIUS_SM,
+    marginTop: SIZES.XS,
+    gap: SIZES.XS,
+  },
+  suggestionText: {
+    fontSize: SIZES.FONT_SM,
+    color: COLORS.NURSE_PRIMARY,
+    fontWeight: '600',
+  },
+  slotsLoading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: SIZES.XL,
+    gap: SIZES.SM,
+  },
+  slotsLoadingText: {
+    fontSize: SIZES.FONT_SM,
+    color: COLORS.TEXT_MUTED,
+  },
+  slotsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: SIZES.SM,
+    marginTop: SIZES.SM,
+  },
+  slotItem: {
+    width: '22%',
+    minWidth: 70,
+    paddingVertical: SIZES.SM,
+    paddingHorizontal: SIZES.XS,
+    borderRadius: SIZES.BORDER_RADIUS_SM,
+    borderWidth: 1.5,
+    borderColor: COLORS.BORDER,
+    backgroundColor: COLORS.WHITE,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  slotTaken: {
+    backgroundColor: COLORS.BORDER,
+    borderColor: COLORS.BORDER,
+    opacity: 0.5,
+  },
+  slotSelected: {
+    backgroundColor: COLORS.NURSE_PRIMARY,
+    borderColor: COLORS.NURSE_PRIMARY,
+  },
+  slotOptimal: {
+    borderColor: COLORS.NURSE_PRIMARY,
+    borderWidth: 2,
+  },
+  slotText: {
+    fontSize: SIZES.FONT_SM,
+    fontWeight: '600',
+    color: COLORS.TEXT_PRIMARY,
+  },
+  slotTextTaken: {
+    color: COLORS.TEXT_MUTED,
+    textDecorationLine: 'line-through',
+  },
+  slotTextSelected: {
+    color: COLORS.WHITE,
+  },
+  slotTextOptimal: {
+    color: COLORS.NURSE_PRIMARY,
+  },
+  slotStar: {
+    position: 'absolute',
+    top: 2,
+    right: 2,
+  },
+  slotCheck: {
+    marginTop: 2,
+  },
+  slotSummary: {
+    fontSize: SIZES.FONT_XS,
+    color: COLORS.TEXT_SECONDARY,
+    marginTop: SIZES.XS,
+    fontStyle: 'italic',
+  },
+  // Duration
+  durationRow: {
+    flexDirection: 'row',
+    gap: SIZES.SM,
+    flexWrap: 'wrap',
+  },
+  durationChip: {
+    paddingVertical: SIZES.SM,
+    paddingHorizontal: SIZES.MD,
+    borderRadius: SIZES.BORDER_RADIUS_FULL,
+    borderWidth: 1.5,
+    borderColor: COLORS.BORDER,
+    backgroundColor: COLORS.WHITE,
+  },
+  durationChipSelected: {
+    borderColor: COLORS.NURSE_PRIMARY,
+    backgroundColor: COLORS.NURSE_LIGHT,
+  },
+  durationChipText: {
+    fontSize: SIZES.FONT_SM,
+    fontWeight: '600',
+    color: COLORS.TEXT_SECONDARY,
+  },
+  durationChipTextSelected: {
+    color: COLORS.NURSE_PRIMARY,
   },
   // Submit
   submitBtn: {

@@ -45,6 +45,15 @@ export interface Profile {
   updated_at:  string;
 }
 
+export interface NurseAddress {
+  id:         string;
+  label:      string; // e.g. "Cabinet", "Domicile", "Résidence secondaire"
+  address:    string;
+  gps_lat:    number | null;
+  gps_lng:    number | null;
+  is_primary: boolean;
+}
+
 export interface NurseProfile {
   id:              string;
   profile_id:      string;
@@ -52,6 +61,10 @@ export interface NurseProfile {
   rpps_number?:    string;
   specialties?:    string[];
   zone?:           string;
+  address?:        string;
+  gps_lat?:        number;
+  gps_lng?:        number;
+  addresses?:      NurseAddress[];
   bio?:            string;
   rating:          number;
   total_patients:  number;
@@ -94,6 +107,7 @@ export interface Appointment {
   date:              string;
   time:              string;
   care_type:         string;
+  duration_min:      number;
   status:            'pending' | 'confirmed' | 'completed' | 'cancelled';
   address?:          string;
   notes?:            string;

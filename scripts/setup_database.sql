@@ -40,6 +40,10 @@ create table if not exists public.nurse_profiles (
   rpps_number   text,
   specialties   text[],
   zone          text,
+  address       text,
+  gps_lat       double precision,
+  gps_lng       double precision,
+  addresses     jsonb default '[]'::jsonb,
   bio           text,
   rating        numeric(3,2) default 0,
   total_patients integer default 0,
@@ -86,6 +90,7 @@ create table if not exists public.appointments (
   date            date not null,
   time            time not null,
   care_type       text not null,
+  duration_min    integer default 60,
   status          text check (status in ('pending', 'confirmed', 'completed', 'cancelled')) default 'pending',
   address         text,
   notes           text,
@@ -253,7 +258,7 @@ begin
   -- Insert role-specific profile
   if v_user_type = 'nurse' then
     insert into public.nurse_profiles (
-      profile_id, adeli, specialties, zone
+      profile_id, adeli, specialties, zone, address, gps_lat, gps_lng
     ) values (
       new.id,
       new.raw_user_meta_data->>'adeli',
@@ -262,7 +267,10 @@ begin
         then array(select jsonb_array_elements_text(new.raw_user_meta_data->'specialties'))
         else null
       end,
-      new.raw_user_meta_data->>'zone'
+      new.raw_user_meta_data->>'zone',
+      new.raw_user_meta_data->>'address',
+      (new.raw_user_meta_data->>'gps_lat')::double precision,
+      (new.raw_user_meta_data->>'gps_lng')::double precision
     );
   elsif v_user_type = 'patient' then
     insert into public.patient_profiles (

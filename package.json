@@ -10,7 +10,8 @@
     "build:android": "eas build --platform android",
     "build:ios": "eas build --platform ios",
     "typecheck": "tsc --noEmit",
-    "seed": "npx tsx scripts/seed.ts"
+    "seed": "npx tsx scripts/seed.ts",
+    "regeocode": "npx tsx scripts/regeocode-patients.ts"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.1.1",
@@ -20,6 +21,7 @@
     "@react-navigation/drawer": "^7.12.3",
     "@react-navigation/native": "^7.3.4",
     "@react-navigation/stack": "^7.10.6",
+    "@rnmapbox/maps": "^10.3.1",
     "@supabase/supabase-js": "^2.109.0",
     "@tamagui/animations-react-native": "^2.4.0",
     "@tamagui/babel-plugin": "^2.4.0",

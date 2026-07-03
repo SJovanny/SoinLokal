@@ -9,14 +9,37 @@ import {
   Alert,
   Linking,
   Dimensions,
-  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import MapView, { Marker, Callout, type Region } from 'react-native-maps';
+import MapboxGL, {
+  MapView,
+  Camera,
+  PointAnnotation,
+  Callout,
+  UserLocation,
+} from '@rnmapbox/maps';
+import * as Location from 'expo-location';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../utils/supabase';
 import { COLORS, SIZES, CARE_TYPES } from '../../utils/constants';
+import {
+  type TourResult,
+  type GPSPoint,
+  type ChronoAppointment,
+  chronologicalTour,
+  calculateDepartureTimes,
+} from '../../utils/routing';
+import {
+  MAPBOX_TOKEN,
+  MAPBOX_STYLE_URL,
+  STRASBOURG_CENTER,
+  computeBounds,
+} from '../../utils/mapbox';
+import { openNavigation } from '../../utils/navigation';
+
+// Set Mapbox access token once at module load (runtime).
+MapboxGL.setAccessToken(MAPBOX_TOKEN);
 
 // ---------------------------------------------------------------------------
 // Types
@@ -29,6 +52,7 @@ interface AppointmentWithPatient {
   date: string;
   time: string;
   care_type: string;
+  duration_min: number;
   status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
   address: string | null;
   notes: string | null;
@@ -53,13 +77,6 @@ interface AppointmentWithPatient {
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
-
-const MARTINIQUE_CENTER: Region = {
-  latitude: 14.6415,
-  longitude: -61.0242,
-  latitudeDelta: 0.15,
-  longitudeDelta: 0.15,
-};
 
 const STATUS_CONFIG: Record<
   string,
@@ -95,17 +112,6 @@ function getTodayISO(): string {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 }
 
-function openWaze(lat: number, lng: number): void {
-  const wazeUrl = `https://waze.com/ul?ll=${lat},${lng}&navigate=yes`;
-  const googleUrl = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
-
-  Linking.openURL(wazeUrl).catch(() => {
-    Linking.openURL(googleUrl).catch(() => {
-      Alert.alert('Erreur', 'Impossible d\'ouvrir l\'application de navigation.');
-    });
-  });
-}
-
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -113,11 +119,14 @@ function openWaze(lat: number, lng: number): void {
 const TourneeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { user } = useAuth();
   const mapRef = useRef<MapView>(null);
+  const cameraRef = useRef<Camera>(null);
 
   const [appointments, setAppointments] = useState<AppointmentWithPatient[]>([]);
   const [loading, setLoading] = useState(true);
   const [completingId, setCompletingId] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [tourResult, setTourResult] = useState<TourResult | null>(null);
+  const [tourLoading, setTourLoading] = useState(false);
   const today = getTodayISO();
 
   // -------------------------------------------------------------------------
@@ -187,6 +196,161 @@ const TourneeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
       });
 
       setAppointments(mapped);
+
+      // Get nurse's current GPS position (fallback to registered address)
+      let nurseGPS: GPSPoint | null = null;
+      let nurseAddressLabel: string | null = null;
+
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status === 'granted') {
+          const position = await Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.Balanced,
+          });
+          nurseGPS = {
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+          };
+          nurseAddressLabel = 'Position actuelle';
+        }
+      } catch {
+        // GPS unavailable, will fall back to DB
+      }
+
+      // Fallback: use registered primary address from DB
+      if (!nurseGPS) {
+        const { data: nurseProfile } = await supabase
+          .from('nurse_profiles')
+          .select('address, gps_lat, gps_lng, addresses')
+          .eq('profile_id', user.id)
+          .single();
+
+        if (nurseProfile?.addresses && Array.isArray(nurseProfile.addresses) && nurseProfile.addresses.length > 0) {
+          const primary = nurseProfile.addresses.find((a: any) => a.is_primary) ?? nurseProfile.addresses[0];
+          if (primary.gps_lat && primary.gps_lng) {
+            nurseGPS = { lat: primary.gps_lat, lng: primary.gps_lng };
+            nurseAddressLabel = primary.address;
+          }
+        } else if (nurseProfile?.gps_lat != null && nurseProfile?.gps_lng != null) {
+          nurseGPS = { lat: nurseProfile.gps_lat, lng: nurseProfile.gps_lng };
+          nurseAddressLabel = nurseProfile.address ?? null;
+        }
+      }
+
+      console.log('[Tournee] Nurse GPS:', nurseGPS
+        ? `${nurseGPS.lat.toFixed(4)}, ${nurseGPS.lng.toFixed(4)} (${nurseAddressLabel})`
+        : 'Aucune position disponible');
+
+      // Sort patients with GPS by time for chronological ordering
+      const chronoAppointments: ChronoAppointment[] = [];
+      mapped.forEach((appt, idx) => {
+        const pp = appt.patient_file?.patient_profiles;
+        if (pp?.gps_lat != null && pp?.gps_lng != null) {
+          chronoAppointments.push({
+            gps: { lat: pp.gps_lat, lng: pp.gps_lng },
+            time: appt.time,
+            durationMin: appt.duration_min ?? 60,
+            originalIndex: idx,
+          });
+        }
+      });
+
+      // Sort by time (chronological)
+      chronoAppointments.sort((a, b) => {
+        const ma = a.time.split(':');
+        const mb = b.time.split(':');
+        return (parseInt(ma[0]) * 60 + parseInt(ma[1])) - (parseInt(mb[0]) * 60 + parseInt(mb[1]));
+      });
+
+      console.log('[Tournee] Patients triés chronologiquement:', chronoAppointments.length);
+      chronoAppointments.forEach((a, i) => {
+        const appt = mapped[a.originalIndex];
+        const name = appt?.patient_file?.patient
+          ? `${appt.patient_file.patient.first_name} ${appt.patient_file.patient.last_name}`
+          : `Patient ${a.originalIndex}`;
+        console.log(`[Tournee]   [${i + 1}] ${name} — RDV ${a.time} (${a.durationMin} min) lat:${a.gps.lat.toFixed(4)} lng:${a.gps.lng.toFixed(4)}`);
+      });
+
+      if (nurseGPS && chronoAppointments.length >= 1) {
+        setTourLoading(true);
+        try {
+          const { tour, gpsIndices } = await chronologicalTour(nurseGPS, chronoAppointments);
+
+          console.log('[Tournee] Ordre tournée (chronologique):', tour.order
+            .map(idx => gpsIndices[idx] === -1 ? 'Infirmière' : (mapped[gpsIndices[idx]]?.patient_file?.patient?.first_name ?? `P${gpsIndices[idx]}`))
+            .join(' → '));
+          console.log('[Tournee] Total:', tour.totalDistanceKm.toFixed(2), 'km |', tour.totalDurationMin.toFixed(0), 'min');
+          tour.legs.forEach((leg) => {
+            const fromLabel = gpsIndices[leg.fromIndex] === -1 ? 'Infirmière' : (mapped[gpsIndices[leg.fromIndex]]?.patient_file?.patient?.first_name ?? `P${gpsIndices[leg.fromIndex]}`);
+            const toLabel = gpsIndices[leg.toIndex] === -1 ? 'Infirmière' : (mapped[gpsIndices[leg.toIndex]]?.patient_file?.patient?.first_name ?? `P${gpsIndices[leg.toIndex]}`);
+            console.log(`[Tournee]   ${fromLabel} → ${toLabel} | ${leg.distanceKm.toFixed(2)} km | ${leg.durationMin.toFixed(0)} min`);
+          });
+
+          // Build mappedAppointments indexed by gpsPoints index (not position!)
+          const mappedAppointments: { time: string }[] = [];
+          mappedAppointments[0] = { time: chronoAppointments[0]?.time ?? '08:00' }; // nurse placeholder
+          chronoAppointments.forEach((a, i) => {
+            mappedAppointments[i + 1] = { time: a.time };
+          });
+
+          const legsWithDeparture = calculateDepartureTimes(tour, mappedAppointments);
+
+          console.log('[Tournee] Heures de départ:');
+          legsWithDeparture.forEach((leg) => {
+            const fromLabel = gpsIndices[leg.fromIndex] === -1 ? 'Infirmière' : (mapped[gpsIndices[leg.fromIndex]]?.patient_file?.patient?.first_name ?? `P${gpsIndices[leg.fromIndex]}`);
+            const toLabel = gpsIndices[leg.toIndex] === -1 ? 'Infirmière' : (mapped[gpsIndices[leg.toIndex]]?.patient_file?.patient?.first_name ?? `P${gpsIndices[leg.toIndex]}`);
+            const arrivalTime = mappedAppointments[leg.toIndex]?.time ?? '?';
+            console.log(`[Tournee]   ${fromLabel} → ${toLabel} | Départ: ${leg.departureTime} | Arrivée: ${arrivalTime} | ${leg.distanceKm.toFixed(2)} km | ${leg.durationMin.toFixed(0)} min`);
+          });
+
+          // Filter out legs starting from nurse home, remap indices
+          const patientLegs = legsWithDeparture
+            .filter((leg) => gpsIndices[leg.fromIndex] !== -1)
+            .map((leg) => ({
+              ...leg,
+              fromIndex: gpsIndices[leg.fromIndex],
+              toIndex: gpsIndices[leg.toIndex],
+            }));
+
+          // Departure time from nurse position to first patient
+          const firstPatientLeg = legsWithDeparture.find((l) => gpsIndices[l.fromIndex] === -1);
+          const departureFromHome = firstPatientLeg?.departureTime ?? null;
+
+          const remappedTour: TourResult = {
+            ...tour,
+            order: tour.order
+              .filter((gpsIdx) => gpsIndices[gpsIdx] !== -1)
+              .map((gpsIdx) => gpsIndices[gpsIdx]),
+            legs: patientLegs,
+            departureFromHome,
+            nurseAddress: nurseAddressLabel,
+          };
+          setTourResult(remappedTour);
+
+          console.log('[Tournee] === RÉSUMÉ TOURNÉE ===');
+          console.log('[Tournee] Départ:', nurseAddressLabel);
+          console.log('[Tournee] Heure départ recommandée:', departureFromHome || 'N/A');
+          console.log('[Tournee] Distance totale:', remappedTour.totalDistanceKm.toFixed(2), 'km');
+          console.log('[Tournee] Durée totale:', remappedTour.totalDurationMin.toFixed(0), 'min');
+          remappedTour.order.forEach((apptIdx, i) => {
+            const appt = mapped[apptIdx];
+            const patientName = appt?.patient_file?.patient
+              ? `${appt.patient_file.patient.first_name} ${appt.patient_file.patient.last_name}`
+              : `Patient ${apptIdx}`;
+            const time = appt?.time ?? '?';
+            const leg = remappedTour.legs[i];
+            const legInfo = leg ? ` | trajet: ${leg.distanceKm.toFixed(2)} km / ${leg.durationMin.toFixed(0)} min depuis arrêt précédent` : '';
+            console.log(`[Tournee]   RDV: ${time} — ${patientName}${legInfo}`);
+          });
+          console.log('[Tournee] =====================');
+        } catch (err) {
+          console.error('[Tournee] tour calculation error:', err);
+        } finally {
+          setTourLoading(false);
+        }
+      } else {
+        setTourResult(null);
+      }
     } catch (err) {
       console.error('[Tournee] unexpected:', err);
     } finally {
@@ -283,12 +447,11 @@ const TourneeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   // -------------------------------------------------------------------------
 
   const fitMapToMarkers = useCallback(() => {
-    if (markers.length === 0 || !mapRef.current) return;
-    const coordinates = markers.map((m) => m.coordinate);
-    mapRef.current.fitToCoordinates(coordinates, {
-      edgePadding: { top: 60, right: 60, bottom: 60, left: 60 },
-      animated: true,
-    });
+    if (markers.length === 0 || !cameraRef.current) return;
+    const bounds = computeBounds(markers.map((m) => m.coordinate));
+    if (!bounds) return;
+    // 80 pt of padding on each side; 600 ms ease animation.
+    cameraRef.current.fitBounds(bounds.ne, bounds.sw, 80, 600);
   }, [markers]);
 
   useEffect(() => {
@@ -313,6 +476,10 @@ const TourneeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
       : 'Patient inconnu';
     const address = pp?.address ?? item.address ?? 'Adresse non renseignée';
     const hasGPS = pp?.gps_lat != null && pp?.gps_lng != null;
+    const apptIndex = appointments.indexOf(item);
+
+    // Find tour leg for this appointment (arrival info)
+    const leg = tourResult?.legs.find((l) => l.toIndex === apptIndex);
 
     return (
       <TouchableOpacity
@@ -344,6 +511,7 @@ const TourneeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
               {patientName}
             </Text>
             <Text style={styles.cardCareType}>{item.care_type}</Text>
+            <Text style={styles.cardDuration}>{item.duration_min ?? 60} min</Text>
           </View>
 
           {/* Status badge */}
@@ -368,13 +536,31 @@ const TourneeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           </Text>
         </View>
 
+        {/* Travel info (OSRM) */}
+        {leg && leg.distanceKm > 0 && (
+          <View style={styles.travelRow}>
+            <Ionicons name="car-outline" size={14} color={COLORS.NURSE_PRIMARY} />
+            <Text style={styles.travelText}>
+              {leg.distanceKm} km · {leg.durationMin} min
+            </Text>
+            {leg.departureTime && apptIndex > 0 && (
+              <View style={styles.departureBadge}>
+                <Ionicons name="alarm-outline" size={12} color={COLORS.WHITE} />
+                <Text style={styles.departureText}>
+                  Partez {leg.departureTime}
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
+
         {/* Actions (shown when selected) */}
         {isSelected && (
           <View style={styles.cardActions}>
             {hasGPS && (
               <TouchableOpacity
                 style={styles.actionBtn}
-                onPress={() => openWaze(pp!.gps_lat!, pp!.gps_lng!)}
+                onPress={() => openNavigation(pp!.gps_lat!, pp!.gps_lng!)}
               >
                 <Ionicons name="navigate" size={18} color={COLORS.WHITE} />
                 <Text style={styles.actionBtnText}>Y aller</Text>
@@ -481,17 +667,32 @@ const TourneeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           <MapView
             ref={mapRef}
             style={styles.map}
-            initialRegion={MARTINIQUE_CENTER}
-            showsUserLocation
-            showsMyLocationButton={false}
-            showsCompass={false}
-            toolbarEnabled={false}
+            styleURL={MAPBOX_STYLE_URL}
+            zoomEnabled
+            scrollEnabled
+            pitchEnabled={false}
+            rotateEnabled={false}
+            attributionEnabled
+            logoEnabled={false}
+            compassEnabled={false}
           >
+            <Camera
+              ref={cameraRef}
+              centerCoordinate={[STRASBOURG_CENTER.longitude, STRASBOURG_CENTER.latitude]}
+              zoomLevel={12}
+              animationDuration={0}
+            />
+            <UserLocation
+              visible
+              showsUserHeadingIndicator
+            />
             {markers.map((m) => (
-              <Marker
+              <PointAnnotation
                 key={m.id}
-                coordinate={m.coordinate}
-                onPress={() => setSelectedId(m.id)}
+                id={`appt-${m.id}`}
+                coordinate={[m.coordinate.longitude, m.coordinate.latitude]}
+                anchor={{ x: 0.5, y: 1 }}
+                onSelected={() => setSelectedId(m.id)}
               >
                 <View
                   style={[
@@ -502,13 +703,11 @@ const TourneeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                 >
                   <Text style={styles.markerText}>{m.index}</Text>
                 </View>
-                <Callout tooltip>
-                  <View style={styles.callout}>
-                    <Text style={styles.calloutTitle}>{m.title}</Text>
-                    <Text style={styles.calloutSubtitle}>{m.subtitle}</Text>
-                  </View>
-                </Callout>
-              </Marker>
+                <Callout
+                  title={`${m.title}\n${m.subtitle}`}
+                  contentStyle={styles.calloutContent}
+                />
+              </PointAnnotation>
             ))}
           </MapView>
         </View>
@@ -535,6 +734,37 @@ const TourneeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           <Text style={styles.statLabel}>Restants</Text>
         </View>
       </View>
+
+      {/* Tour summary */}
+      {tourResult && (tourResult.legs.length > 0 || tourResult.departureFromHome) && (
+        <View style={styles.tourSummary}>
+          {tourLoading ? (
+            <ActivityIndicator size="small" color={COLORS.NURSE_PRIMARY} />
+          ) : (
+            <>
+              <Ionicons name="map" size={16} color={COLORS.NURSE_PRIMARY} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.tourSummaryText}>
+                  {tourResult.totalDistanceKm} km · {tourResult.totalDurationMin} min de route
+                </Text>
+                {tourResult.nurseAddress && (
+                  <Text style={styles.tourSummarySubtext}>
+                    Départ : {tourResult.nurseAddress}
+                  </Text>
+                )}
+              </View>
+              {tourResult.departureFromHome && (
+                <View style={styles.tourDepartureBadge}>
+                  <Ionicons name="alarm-outline" size={12} color={COLORS.WHITE} />
+                  <Text style={styles.tourDepartureText}>
+                    Partez {tourResult.departureFromHome}
+                  </Text>
+                </View>
+              )}
+            </>
+          )}
+        </View>
+      )}
 
       {/* Appointments list */}
       {appointments.length === 0 ? (
@@ -643,7 +873,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
   },
-  callout: {
+  calloutContent: {
     backgroundColor: COLORS.WHITE,
     borderRadius: SIZES.BORDER_RADIUS_SM,
     padding: SIZES.SM,
@@ -653,16 +883,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 4,
     elevation: 3,
-  },
-  calloutTitle: {
-    fontSize: SIZES.FONT_SM,
-    fontWeight: '600',
-    color: COLORS.TEXT_PRIMARY,
-  },
-  calloutSubtitle: {
-    fontSize: SIZES.FONT_XS,
-    color: COLORS.TEXT_SECONDARY,
-    marginTop: 2,
   },
   // Stats bar
   statsBar: {
@@ -759,6 +979,11 @@ const styles = StyleSheet.create({
     color: COLORS.TEXT_SECONDARY,
     marginTop: 2,
   },
+  cardDuration: {
+    fontSize: SIZES.FONT_XS,
+    color: COLORS.TEXT_MUTED,
+    marginTop: 1,
+  },
   statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -784,6 +1009,68 @@ const styles = StyleSheet.create({
   },
   textMuted: {
     opacity: 0.6,
+  },
+  // Travel info (OSRM)
+  travelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: SIZES.XS,
+    gap: SIZES.XS,
+  },
+  travelText: {
+    fontSize: SIZES.FONT_XS,
+    color: COLORS.NURSE_PRIMARY,
+    fontWeight: '600',
+  },
+  departureBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.NURSE_PRIMARY,
+    paddingHorizontal: SIZES.SM,
+    paddingVertical: 2,
+    borderRadius: SIZES.BORDER_RADIUS_SM,
+    gap: 3,
+    marginLeft: 'auto',
+  },
+  departureText: {
+    fontSize: 10,
+    color: COLORS.WHITE,
+    fontWeight: '700',
+  },
+  // Tour summary
+  tourSummary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.NURSE_LIGHT,
+    paddingVertical: SIZES.SM,
+    paddingHorizontal: SIZES.LG,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.BORDER,
+    gap: SIZES.SM,
+  },
+  tourSummaryText: {
+    fontSize: SIZES.FONT_SM,
+    color: COLORS.NURSE_PRIMARY,
+    fontWeight: '600',
+  },
+  tourSummarySubtext: {
+    fontSize: SIZES.FONT_XS,
+    color: COLORS.TEXT_SECONDARY,
+    marginTop: 2,
+  },
+  tourDepartureBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.NURSE_PRIMARY,
+    paddingHorizontal: SIZES.SM,
+    paddingVertical: 3,
+    borderRadius: SIZES.BORDER_RADIUS_SM,
+    gap: 3,
+  },
+  tourDepartureText: {
+    fontSize: SIZES.FONT_XS,
+    color: COLORS.WHITE,
+    fontWeight: '700',
   },
   // Actions
   cardActions: {
