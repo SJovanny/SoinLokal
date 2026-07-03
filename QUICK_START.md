@@ -41,6 +41,8 @@ Mot de passe: famille
 1. **Lancez l'application (development build)**
    ```bash
    # Premier lancement : génère les dossiers ios/ et android/
+   # app.config.ts lit automatiquement EXPO_PUBLIC_MAPBOX_API_KEY depuis .env
+   # et l'injecte dans le plugin @rnmapbox/maps (pas besoin de var d'env manuelle).
    npx expo prebuild --clean
 
    # Build + lancement sur simulateur iOS
@@ -51,6 +53,9 @@ Mot de passe: famille
    ```
    Ensuite, le hot reload et le fast refresh fonctionnent comme avant.
    Tu ne relances le build natif que si tu ajoutes une nouvelle lib native.
+
+   > **Token Mapbox** : il vient de `.env` (`EXPO_PUBLIC_MAPBOX_API_KEY`).
+   > Ne committez jamais `.env` — il est dans `.gitignore`.
 
 2. **(Alternative) EAS Build — build cloud d'un client de dev**
    ```bash
