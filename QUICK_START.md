@@ -35,33 +35,11 @@ Mot de passe: famille
 
 ## 🎯 Test Rapide
 
-> ⚠️ Depuis l'intégration de `@rnmapbox/maps`, **Expo Go n'est plus compatible**
-> (module natif requis). Utilise un **development build** à la place.
-
-1. **Lancez l'application (development build)**
+1. **Lancez l'application**
    ```bash
-   # Premier lancement : génère les dossiers ios/ et android/
-   # app.config.ts lit automatiquement EXPO_PUBLIC_MAPBOX_API_KEY depuis .env
-   # et l'injecte dans le plugin @rnmapbox/maps (pas besoin de var d'env manuelle).
-   npx expo prebuild --clean
-
-   # Build + lancement sur simulateur iOS
-   npx expo run:ios
-
-   # Build + lancement sur votre iPhone (branché en USB / même Wi-Fi)
-   npx expo run:ios --device
+   npm start
    ```
-   Ensuite, le hot reload et le fast refresh fonctionnent comme avant.
-   Tu ne relances le build natif que si tu ajoutes une nouvelle lib native.
-
-   > **Token Mapbox** : il vient de `.env` (`EXPO_PUBLIC_MAPBOX_API_KEY`).
-   > Ne committez jamais `.env` — il est dans `.gitignore`.
-
-2. **(Alternative) EAS Build — build cloud d'un client de dev**
-   ```bash
-   eas build --profile development --platform ios
-   ```
-   Installe le `.ipa` via l'app EAS ou TestFlight (compte Apple payant).
+   Puis scannez le QR code avec **Expo Go** sur votre iPhone/Android.
 
 2. **Accédez à l'écran de connexion**
    - Sélectionnez un type d'utilisateur
@@ -75,8 +53,8 @@ Mot de passe: famille
 
 ## 🔧 Fonctionnalités de Développement
 
-- ✅ **Carte Mapbox** (tuiles cohérentes avec Waze/Google) sur l'écran *Ma tournée*
-- ✅ **Géocodage Mapbox** pour les adresses (aligne les pins sur la carte)
+- ✅ **Carte native** (Apple Maps sur iOS, Google Maps sur Android) via `react-native-maps`
+- ✅ **Géocodage Mapbox** pour les adresses (aligne les pins sur la carte → fixe l'écart 30–100 m)
 - ✅ **Bouton « Itinéraire »** au choix Waze / Google Maps (préférence mémorisée)
 - ✅ **Recalcul GPS patients** : bouton dans le profil infirmière + script `npm run regeocode`
 - ✅ **Comptes de test intégrés**

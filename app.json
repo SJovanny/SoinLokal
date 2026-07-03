@@ -51,13 +51,7 @@
       "expo-image-picker",
       "expo-splash-screen",
       "expo-font",
-      "@react-native-community/datetimepicker",
-      [
-        "@rnmapbox/maps",
-        {
-          "RNMapboxMapsImpl": "mapbox"
-        }
-      ]
+      "@react-native-community/datetimepicker"
     ],
     "scheme": "soinlokal",
     "platforms": [

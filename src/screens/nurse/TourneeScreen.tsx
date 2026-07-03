@@ -12,13 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import MapboxGL, {
-  MapView,
-  Camera,
-  PointAnnotation,
-  Callout,
-  UserLocation,
-} from '@rnmapbox/maps';
+import MapView, { Marker, Callout } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../utils/supabase';
@@ -30,16 +24,8 @@ import {
   chronologicalTour,
   calculateDepartureTimes,
 } from '../../utils/routing';
-import {
-  MAPBOX_TOKEN,
-  MAPBOX_STYLE_URL,
-  STRASBOURG_CENTER,
-  computeBounds,
-} from '../../utils/mapbox';
+import { STRASBOURG_CENTER } from '../../utils/mapbox';
 import { openNavigation } from '../../utils/navigation';
-
-// Set Mapbox access token once at module load (runtime).
-MapboxGL.setAccessToken(MAPBOX_TOKEN);
 
 // ---------------------------------------------------------------------------
 // Types
@@ -119,7 +105,6 @@ function getTodayISO(): string {
 const TourneeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { user } = useAuth();
   const mapRef = useRef<MapView>(null);
-  const cameraRef = useRef<Camera>(null);
 
   const [appointments, setAppointments] = useState<AppointmentWithPatient[]>([]);
   const [loading, setLoading] = useState(true);
@@ -447,11 +432,12 @@ const TourneeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   // -------------------------------------------------------------------------
 
   const fitMapToMarkers = useCallback(() => {
-    if (markers.length === 0 || !cameraRef.current) return;
-    const bounds = computeBounds(markers.map((m) => m.coordinate));
-    if (!bounds) return;
-    // 80 pt of padding on each side; 600 ms ease animation.
-    cameraRef.current.fitBounds(bounds.ne, bounds.sw, 80, 600);
+    if (markers.length === 0 || !mapRef.current) return;
+    const coordinates = markers.map((m) => m.coordinate);
+    mapRef.current.fitToCoordinates(coordinates, {
+      edgePadding: { top: 60, right: 60, bottom: 60, left: 60 },
+      animated: true,
+    });
   }, [markers]);
 
   useEffect(() => {
@@ -667,32 +653,17 @@ const TourneeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           <MapView
             ref={mapRef}
             style={styles.map}
-            styleURL={MAPBOX_STYLE_URL}
-            zoomEnabled
-            scrollEnabled
-            pitchEnabled={false}
-            rotateEnabled={false}
-            attributionEnabled
-            logoEnabled={false}
-            compassEnabled={false}
+            initialRegion={STRASBOURG_CENTER}
+            showsUserLocation
+            showsMyLocationButton={false}
+            showsCompass={false}
+            toolbarEnabled={false}
           >
-            <Camera
-              ref={cameraRef}
-              centerCoordinate={[STRASBOURG_CENTER.longitude, STRASBOURG_CENTER.latitude]}
-              zoomLevel={12}
-              animationDuration={0}
-            />
-            <UserLocation
-              visible
-              showsUserHeadingIndicator
-            />
             {markers.map((m) => (
-              <PointAnnotation
+              <Marker
                 key={m.id}
-                id={`appt-${m.id}`}
-                coordinate={[m.coordinate.longitude, m.coordinate.latitude]}
-                anchor={{ x: 0.5, y: 1 }}
-                onSelected={() => setSelectedId(m.id)}
+                coordinate={m.coordinate}
+                onPress={() => setSelectedId(m.id)}
               >
                 <View
                   style={[
@@ -703,11 +674,13 @@ const TourneeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                 >
                   <Text style={styles.markerText}>{m.index}</Text>
                 </View>
-                <Callout
-                  title={`${m.title}\n${m.subtitle}`}
-                  contentStyle={styles.calloutContent}
-                />
-              </PointAnnotation>
+                <Callout tooltip>
+                  <View style={styles.calloutContent}>
+                    <Text style={styles.calloutTitle}>{m.title}</Text>
+                    <Text style={styles.calloutSubtitle}>{m.subtitle}</Text>
+                  </View>
+                </Callout>
+              </Marker>
             ))}
           </MapView>
         </View>
@@ -883,6 +856,16 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 4,
     elevation: 3,
+  },
+  calloutTitle: {
+    fontSize: SIZES.FONT_SM,
+    fontWeight: '600',
+    color: COLORS.TEXT_PRIMARY,
+  },
+  calloutSubtitle: {
+    fontSize: SIZES.FONT_XS,
+    color: COLORS.TEXT_SECONDARY,
+    marginTop: 2,
   },
   // Stats bar
   statsBar: {
