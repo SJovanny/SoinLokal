@@ -18,8 +18,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase, type NurseAddress } from '../../utils/supabase';
 import { COLORS, SIZES } from '../../utils/constants';
-import { searchAddressMapbox, type MapboxGeocodingResult, geocodeAddressMapbox } from '../../utils/mapboxGeocoding';
+import { searchAddressMapbox, type MapboxGeocodingResult } from '../../utils/mapboxGeocoding';
 import { searchAddress } from '../../utils/geocoding';
+import { nativeGeocode } from '../../utils/nativeGeocoding';
 import LogoutButton from '../../components/LogoutButton';
 
 // ---------------------------------------------------------------------------
@@ -61,7 +62,7 @@ const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const [editSpecialties, setEditSpecialties] = useState('');
   const [editZone, setEditZone] = useState('');
 
-  // Re-geocoding of existing patient addresses (Mapbox)
+  // Re-geocoding of existing patient addresses (native geocoder: CLGeocoder / Geocoder)
   const [regeocoding, setRegeocoding] = useState(false);
 
   // -------------------------------------------------------------------------
@@ -281,7 +282,7 @@ const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     if (!user) return;
     Alert.alert(
       'Recalculer les GPS patients',
-      'Cela va re-géocoder les adresses de vos patients avec Mapbox pour aligner les pins sur la carte. Continuer ?',
+      'Cela va re-géocoder les adresses de vos patients avec le géocodeur natif (Apple Maps/Google Maps) pour aligner les pins sur la carte. Continuer ?',
       [
         { text: 'Annuler', style: 'cancel' },
         {
@@ -315,7 +316,7 @@ const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
               let updated = 0;
               let failed = 0;
               for (const p of withAddr) {
-                const coord = await geocodeAddressMapbox(p.address);
+                const coord = await nativeGeocode(p.address);
                 if (!coord) { failed++; continue; }
                 const moved =
                   p.gps_lat == null ||
@@ -333,7 +334,7 @@ const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
 
               Alert.alert(
                 'Terminé',
-                `${updated} adresse(s) recalculée(s) avec Mapbox.${failed > 0 ? `\n${failed} échec(s).` : ''}`,
+                `${updated} adresse(s) recalculée(s) avec le géocodeur natif.${failed > 0 ? `\n${failed} échec(s).` : ''}`,
               );
             } catch (err: any) {
               Alert.alert('Erreur', err?.message ?? 'Échec du re-géocodage.');
@@ -562,7 +563,7 @@ const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                 <Ionicons name="locate-outline" size={16} color={COLORS.NURSE_PRIMARY} />
               )}
               <Text style={styles.regeocodeBtnText}>
-                {regeocoding ? 'Recalcul en cours…' : 'Recalculer les GPS patients (Mapbox)'}
+                {regeocoding ? 'Recalcul en cours…' : 'Recalculer les GPS patients (natif)'}
               </Text>
             </TouchableOpacity>
 
@@ -715,11 +716,20 @@ const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                       <TouchableOpacity
                         key={idx}
                         style={styles.suggestionItem}
-                        onPress={() => {
+                        onPress={async () => {
                           setNewAddress(s.address);
                           setSearchQuery(s.address);
-                          setSelectedGPS({ lat: s.lat, lng: s.lng });
                           setShowSuggestions(false);
+                          // Use native geocoder (CLGeocoder on iOS, Geocoder on
+                          // Android) so coords match the native map tiles exactly.
+                          // Fallback to suggestion coords (Mapbox/BAN) if native
+                          // geocoding fails.
+                          const native = await nativeGeocode(s.address);
+                          if (native) {
+                            setSelectedGPS({ lat: native.lat, lng: native.lng });
+                          } else {
+                            setSelectedGPS({ lat: s.lat, lng: s.lng });
+                          }
                         }}
                       >
                         <Ionicons name="location-outline" size={16} color={COLORS.NURSE_PRIMARY} />
