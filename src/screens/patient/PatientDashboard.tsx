@@ -44,7 +44,8 @@ function getTodayISO(): string {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 }
 
-function formatTime(time: string): string {
+function formatTime(time: string | null): string {
+  if (!time) return '--:--';
   return time.substring(0, 5);
 }
 
