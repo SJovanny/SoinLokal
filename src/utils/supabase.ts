@@ -105,7 +105,7 @@ export interface Appointment {
   patient_file_id:   string;
   nurse_id:          string;
   date:              string;
-  time:              string;
+  time:              string | null;
   care_type:         string;
   duration_min:      number;
   status:            'pending' | 'confirmed' | 'completed' | 'cancelled';

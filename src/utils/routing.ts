@@ -245,6 +245,106 @@ export async function chronologicalTour(
 }
 
 // ---------------------------------------------------------------------------
+// Flexible tour (distance-optimized, with optional fixed times)
+// ---------------------------------------------------------------------------
+// Used when nurses add patients without predefined times.
+// Always optimizes by distance (nearest-neighbor), then calculates estimated
+// arrival times based on departure time + travel + care duration.
+
+export interface FlexibleTourStop {
+  gps: GPSPoint;
+  careType: string;
+  durationMin: number;
+  patientFileId: string;
+  time?: string | null; // optional fixed time ("HH:MM" or "HH:MM:SS")
+}
+
+export interface FlexibleTourResult {
+  order: number[];           // indices into the original stops array, in visit order
+  legs: TourLeg[];
+  totalDistanceKm: number;
+  totalDurationMin: number;
+  estimatedArrivals: string[]; // "HH:MM" estimated arrival at each stop (in original order)
+}
+
+export async function flexibleTour(
+  nurseGPS: GPSPoint,
+  stops: FlexibleTourStop[],
+  departureTime: string, // "HH:MM"
+): Promise<FlexibleTourResult> {
+  if (stops.length === 0) {
+    return {
+      order: [],
+      legs: [],
+      totalDistanceKm: 0,
+      totalDurationMin: 0,
+      estimatedArrivals: [],
+    };
+  }
+
+  // Build points array: [nurse, ...stops]
+  const allPoints: GPSPoint[] = [nurseGPS, ...stops.map((s) => s.gps)];
+
+  // Use nearest-neighbor to optimize order (always distance-based)
+  const tour = await nearestNeighborTour(allPoints);
+
+  // tour.order includes index 0 (nurse) as first element
+  // Remove nurse (index 0) to get patient order
+  const patientOrder = tour.order.filter((idx) => idx !== 0);
+  // Convert from allPoints index to stops index (offset by 1)
+  const stopOrder = patientOrder.map((idx) => idx - 1);
+
+  // Calculate estimated arrival times
+  const estimatedArrivals: string[] = new Array(stops.length).fill('');
+  let currentMinutes = timeToMinutes(departureTime);
+
+  // Legs from tour are indexed into allPoints (0 = nurse, 1..n = stops)
+  // We need to walk through the legs in order and calculate times
+  for (let i = 0; i < tour.legs.length; i++) {
+    const leg = tour.legs[i];
+    const toStopIdx = leg.toIndex - 1; // convert to stops index
+
+    // Travel time to this stop
+    currentMinutes += Math.ceil(leg.durationMin);
+    estimatedArrivals[toStopIdx] = minutesToTime(currentMinutes);
+
+    // Add care duration at this stop (if not the last stop)
+    if (i < tour.legs.length - 1) {
+      currentMinutes += stops[toStopIdx].durationMin;
+    }
+  }
+
+  // Remap legs to use stops indices (0-based, not allPoints)
+  const remappedLegs: TourLeg[] = tour.legs.map((leg) => ({
+    fromIndex: leg.fromIndex - 1, // -1 = nurse start
+    toIndex: leg.toIndex - 1,
+    distanceKm: leg.distanceKm,
+    durationMin: leg.durationMin,
+    departureTime: '',
+  }));
+
+  // If any stop has a fixed time, adjust estimated arrivals
+  // For now, fixed times are just noted but don't reorder the tour
+  stops.forEach((stop, idx) => {
+    if (stop.time) {
+      estimatedArrivals[idx] = formatTimeHHMM(stop.time);
+    }
+  });
+
+  return {
+    order: stopOrder,
+    legs: remappedLegs,
+    totalDistanceKm: tour.totalDistanceKm,
+    totalDurationMin: tour.totalDurationMin,
+    estimatedArrivals,
+  };
+}
+
+function formatTimeHHMM(time: string): string {
+  return time.substring(0, 5);
+}
+
+// ---------------------------------------------------------------------------
 // Calculate departure times for a tour
 // ---------------------------------------------------------------------------
 // Given the visit order and appointment times, calculates when to leave

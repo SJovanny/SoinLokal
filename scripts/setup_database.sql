@@ -88,7 +88,7 @@ create table if not exists public.appointments (
   patient_file_id uuid not null references public.patient_files(id) on delete cascade,
   nurse_id        uuid not null references public.profiles(id) on delete cascade,
   date            date not null,
-  time            time not null,
+  time            time,
   care_type       text not null,
   duration_min    integer default 60,
   status          text check (status in ('pending', 'confirmed', 'completed', 'cancelled')) default 'pending',
@@ -98,6 +98,10 @@ create table if not exists public.appointments (
   created_at      timestamp with time zone default timezone('utc'::text, now()) not null,
   updated_at      timestamp with time zone default timezone('utc'::text, now()) not null
 );
+
+-- Index pour les requêtes fréquentes par nurse+date
+create index if not exists idx_appointments_nurse_date
+  on public.appointments(nurse_id, date);
 
 -- Family links (connecting family members to patient files)
 create table if not exists public.family_links (

@@ -23,7 +23,7 @@ import LogoutButton from '../../components/LogoutButton';
 interface TodayAppointment {
   id: string;
   patientName: string;
-  time: string;
+  time: string | null;
   careType: string;
   address: string;
   status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
@@ -44,7 +44,8 @@ function getTodayISO(): string {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 }
 
-function formatTime(time: string): string {
+function formatTime(time: string | null): string {
+  if (!time) return '--:--';
   return time.substring(0, 5);
 }
 
@@ -125,7 +126,7 @@ const NurseDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
         .select('id, patient_file_id, time, care_type, status, address')
         .eq('nurse_id', user.id)
         .eq('date', today)
-        .order('time', { ascending: true });
+        .order('created_at', { ascending: true });
 
       if (apptsErr) {
         console.error('[Dashboard] appointments error:', apptsErr.message);
@@ -315,10 +316,10 @@ const NurseDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.actionButton, { backgroundColor: COLORS.PATIENT_PRIMARY }]}
-              onPress={() => navigation.navigate('NewAppointment')}
+              onPress={() => navigation.navigate('Tournée', { openAddModal: true })}
             >
-              <Ionicons name="calendar-outline" size={24} color="white" />
-              <Text style={styles.actionText}>Nouveau RDV</Text>
+              <Ionicons name="add-circle-outline" size={24} color="white" />
+              <Text style={styles.actionText}>Ajouter à la tournée</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.actionButton, { backgroundColor: COLORS.WARNING }]}
@@ -333,7 +334,7 @@ const NurseDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
         {/* Today's Appointments */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Rendez-vous d'aujourd'hui</Text>
+            <Text style={styles.sectionTitle}>Tournée d'aujourd'hui</Text>
             <TouchableOpacity onPress={() => navigation.navigate('Tournée')}>
               <Text style={styles.seeAllText}>Voir tout</Text>
             </TouchableOpacity>
@@ -349,13 +350,13 @@ const NurseDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
           ) : (
             <View style={styles.emptyState}>
               <Ionicons name="calendar-outline" size={48} color={COLORS.BORDER} />
-              <Text style={styles.emptyStateText}>Aucun rendez-vous aujourd'hui</Text>
+              <Text style={styles.emptyStateText}>Aucun patient dans la tournée</Text>
               <TouchableOpacity
                 style={styles.emptyButton}
-                onPress={() => navigation.navigate('NewAppointment')}
+                onPress={() => navigation.navigate('Tournée', { openAddModal: true })}
               >
                 <Ionicons name="add" size={18} color={COLORS.WHITE} />
-                <Text style={styles.emptyButtonText}>Créer un RDV</Text>
+                <Text style={styles.emptyButtonText}>Ajouter à la tournée</Text>
               </TouchableOpacity>
             </View>
           )}

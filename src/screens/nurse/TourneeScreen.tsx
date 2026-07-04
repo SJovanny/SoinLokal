@@ -4,11 +4,16 @@ import {
   Text,
   StyleSheet,
   FlatList,
+  ScrollView,
   TouchableOpacity,
   ActivityIndicator,
   Alert,
   Linking,
   Dimensions,
+  Modal,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,11 +23,10 @@ import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../utils/supabase';
 import { COLORS, SIZES, CARE_TYPES } from '../../utils/constants';
 import {
-  type TourResult,
   type GPSPoint,
-  type ChronoAppointment,
-  chronologicalTour,
-  calculateDepartureTimes,
+  type FlexibleTourStop,
+  type FlexibleTourResult,
+  flexibleTour,
 } from '../../utils/routing';
 import { STRASBOURG_CENTER } from '../../utils/mapbox';
 import { openNavigation } from '../../utils/navigation';
@@ -31,33 +35,30 @@ import { openNavigation } from '../../utils/navigation';
 // Types
 // ---------------------------------------------------------------------------
 
-interface AppointmentWithPatient {
+interface TourAppointment {
   id: string;
   patient_file_id: string;
   nurse_id: string;
   date: string;
-  time: string;
+  time: string | null;
   care_type: string;
   duration_min: number;
   status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
   address: string | null;
   notes: string | null;
   completion_note: string | null;
-  patient_file: {
-    id: string;
-    patient: {
-      id: string;
-      first_name: string;
-      last_name: string;
-      phone: string | null;
-    } | null;
-    patient_profiles: {
-      address: string | null;
-      address_label: string | null;
-      gps_lat: number | null;
-      gps_lng: number | null;
-    } | null;
-  } | null;
+  patient_name: string;
+  patient_phone: string | null;
+  gps: GPSPoint | null;
+  address_label: string | null;
+}
+
+interface PatientOption {
+  patient_file_id: string;
+  patient_id: string;
+  name: string;
+  address: string | null;
+  gps: GPSPoint | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -78,13 +79,13 @@ const STATUS_CONFIG: Record<
 // Helpers
 // ---------------------------------------------------------------------------
 
-function formatTime(time: string): string {
-  // time comes as "09:00:00" or "09:00"
+function formatTime(time: string | null): string {
+  if (!time) return '--:--';
   return time.substring(0, 5);
 }
 
 function formatDateLabel(dateStr: string): string {
-  const d = new Date(dateStr);
+  const d = new Date(dateStr + 'T12:00:00');
   return d.toLocaleDateString('fr-FR', {
     weekday: 'long',
     day: 'numeric',
@@ -93,56 +94,402 @@ function formatDateLabel(dateStr: string): string {
   });
 }
 
+function formatDateShort(dateStr: string): string {
+  const d = new Date(dateStr + 'T12:00:00');
+  return d.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
+}
+
 function getTodayISO(): string {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 }
 
+function addDays(dateISO: string, days: number): string {
+  const d = new Date(dateISO + 'T12:00:00');
+  d.setDate(d.getDate() + days);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function getCurrentTimeHHMM(): string {
+  const now = new Date();
+  return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+}
+
 // ---------------------------------------------------------------------------
-// Component
+// Date Strip Component
 // ---------------------------------------------------------------------------
 
-const TourneeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
+function DateStrip({
+  selectedDate,
+  onSelect,
+}: {
+  selectedDate: string;
+  onSelect: (date: string) => void;
+}) {
+  const today = getTodayISO();
+  const days: string[] = [];
+  for (let i = -2; i <= 5; i++) {
+    days.push(addDays(today, i));
+  }
+
+  return (
+    <View style={styles.dateStrip}>
+      <TouchableOpacity
+        onPress={() => onSelect(addDays(selectedDate, -1))}
+        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+      >
+        <Ionicons name="chevron-back" size={20} color={COLORS.NURSE_PRIMARY} />
+      </TouchableOpacity>
+      {days.map((day) => {
+        const isSelected = day === selectedDate;
+        const isToday = day === today;
+        const d = new Date(day + 'T12:00:00');
+        const dayNum = d.getDate();
+        const dayLabel = d.toLocaleDateString('fr-FR', { weekday: 'short' });
+
+        return (
+          <TouchableOpacity
+            key={day}
+            style={[
+              styles.dateChip,
+              isSelected && styles.dateChipSelected,
+              isToday && !isSelected && styles.dateChipToday,
+            ]}
+            onPress={() => onSelect(day)}
+          >
+            <Text
+              style={[
+                styles.dateChipDay,
+                isSelected && styles.dateChipDaySelected,
+              ]}
+            >
+              {dayLabel}
+            </Text>
+            <Text
+              style={[
+                styles.dateChipNum,
+                isSelected && styles.dateChipNumSelected,
+              ]}
+            >
+              {dayNum}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
+      <TouchableOpacity
+        onPress={() => onSelect(addDays(selectedDate, 1))}
+        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+      >
+        <Ionicons name="chevron-forward" size={20} color={COLORS.NURSE_PRIMARY} />
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Add Patient Modal
+// ---------------------------------------------------------------------------
+
+function AddPatientModal({
+  visible,
+  onClose,
+  onAdd,
+  existingFileIds,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  onAdd: (patient: PatientOption, careType: string, durationMin: number, time: string | null) => void;
+  existingFileIds: string[];
+}) {
+  const { user } = useAuth();
+  const [patients, setPatients] = useState<PatientOption[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedPatient, setSelectedPatient] = useState<PatientOption | null>(null);
+  const [careType, setCareType] = useState('');
+  const [durationMin, setDurationMin] = useState(30);
+  const [time, setTime] = useState('');
+  const [showCareTypeModal, setShowCareTypeModal] = useState(false);
+
+  useEffect(() => {
+    if (!visible || !user) return;
+    setLoading(true);
+    setSelectedPatient(null);
+    setCareType('');
+    setDurationMin(30);
+    setTime('');
+
+    const loadPatients = async () => {
+      const { data: files } = await supabase
+        .from('patient_files')
+        .select('id, patient_id')
+        .eq('nurse_id', user.id)
+        .eq('is_active', true);
+
+      if (!files || files.length === 0) {
+        setPatients([]);
+        setLoading(false);
+        return;
+      }
+
+      const ids = files.map((f: any) => f.patient_id);
+
+      const [profilesRes, ppsRes] = await Promise.all([
+        supabase.from('profiles').select('id, first_name, last_name, phone').in('id', ids),
+        supabase.from('patient_profiles').select('profile_id, address, gps_lat, gps_lng').in('profile_id', ids),
+      ]);
+
+      const profileMap: Record<string, any> = {};
+      (profilesRes.data ?? []).forEach((p: any) => { profileMap[p.id] = p; });
+
+      const ppMap: Record<string, any> = {};
+      (ppsRes.data ?? []).forEach((pp: any) => { ppMap[pp.profile_id] = pp; });
+
+      const options: PatientOption[] = files
+        .filter((f: any) => !existingFileIds.includes(f.id))
+        .map((f: any) => {
+          const p = profileMap[f.patient_id];
+          const pp = ppMap[f.patient_id];
+          return {
+            patient_file_id: f.id,
+            patient_id: f.patient_id,
+            name: p ? `${p.first_name} ${p.last_name}` : 'Patient inconnu',
+            address: pp?.address ?? null,
+            gps: pp?.gps_lat != null && pp?.gps_lng != null
+              ? { lat: pp.gps_lat, lng: pp.gps_lng }
+              : null,
+          };
+        });
+
+      setPatients(options);
+      setLoading(false);
+    };
+
+    loadPatients();
+  }, [visible, user, existingFileIds]);
+
+  const handleAdd = () => {
+    if (!selectedPatient) {
+      Alert.alert('Erreur', 'Sélectionnez un patient.');
+      return;
+    }
+    if (!careType) {
+      Alert.alert('Erreur', 'Sélectionnez un type de soin.');
+      return;
+    }
+    onAdd(selectedPatient, careType, durationMin, time || null);
+    onClose();
+  };
+
+  return (
+    <>
+      {/* Main Modal — patient selection + form */}
+      <Modal visible={visible} animationType="fade" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Ajouter un patient</Text>
+              <TouchableOpacity onPress={onClose}>
+                <Ionicons name="close" size={24} color={COLORS.TEXT_PRIMARY} />
+              </TouchableOpacity>
+            </View>
+
+            <KeyboardAvoidingView
+              style={{ flex: 1 }}
+              behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            >
+              <ScrollView
+                style={{ flex: 1 }}
+                contentContainerStyle={{ paddingBottom: 20 }}
+                keyboardShouldPersistTaps="handled"
+              >
+                {/* Patient list */}
+                <Text style={styles.modalSectionTitle}>
+                  {patients.length === 0 ? 'Aucun patient disponible' : 'Choisir un patient'}
+                </Text>
+
+                {loading ? (
+                  <ActivityIndicator size="small" color={COLORS.NURSE_PRIMARY} style={{ padding: 20 }} />
+                ) : patients.length === 0 ? (
+                  <Text style={styles.modalEmptyText}>
+                    Tous vos patients sont déjà dans la tournée.
+                  </Text>
+                ) : (
+                  patients.map((item) => (
+                    <TouchableOpacity
+                      key={item.patient_file_id}
+                      style={[
+                        styles.modalItem,
+                        selectedPatient?.patient_file_id === item.patient_file_id && styles.modalItemSelected,
+                      ]}
+                      onPress={() => setSelectedPatient(item)}
+                    >
+                      <Ionicons name="person" size={20} color={COLORS.NURSE_PRIMARY} />
+                      <View style={{ flex: 1, marginLeft: SIZES.SM }}>
+                        <Text style={styles.modalItemName}>{item.name}</Text>
+                        {item.address ? (
+                          <Text style={styles.modalItemSub} numberOfLines={1}>{item.address}</Text>
+                        ) : null}
+                      </View>
+                      {selectedPatient?.patient_file_id === item.patient_file_id && (
+                        <Ionicons name="checkmark-circle" size={22} color={COLORS.SUCCESS} />
+                      )}
+                    </TouchableOpacity>
+                  ))
+                )}
+
+                {/* Form — shown when patient is selected */}
+                {selectedPatient && (
+                  <View style={styles.addForm}>
+                    <Text style={styles.formLabel}>Type de soin *</Text>
+                    <TouchableOpacity
+                      style={styles.selectBtn}
+                      onPress={() => setShowCareTypeModal(true)}
+                    >
+                      <Ionicons name="medkit-outline" size={18} color={COLORS.TEXT_MUTED} />
+                      <Text style={[styles.selectText, !careType && styles.placeholder]}>
+                        {careType || 'Sélectionner'}
+                      </Text>
+                      <Ionicons name="chevron-down" size={16} color={COLORS.TEXT_MUTED} />
+                    </TouchableOpacity>
+
+                    <Text style={styles.formLabel}>Durée</Text>
+                    <View style={styles.durationRow}>
+                      {[15, 30, 45, 60, 90].map((d) => (
+                        <TouchableOpacity
+                          key={d}
+                          style={[styles.durationChip, durationMin === d && styles.durationChipSelected]}
+                          onPress={() => setDurationMin(d)}
+                        >
+                          <Text
+                            style={[
+                              styles.durationChipText,
+                              durationMin === d && styles.durationChipTextSelected,
+                            ]}
+                          >
+                            {d < 60 ? `${d}min` : `${d / 60}h`}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+
+                    <Text style={styles.formLabel}>Heure (optionnel)</Text>
+                    <View style={styles.inputWrap}>
+                      <Ionicons name="time-outline" size={18} color={COLORS.TEXT_MUTED} />
+                      <TextInput
+                        style={styles.input}
+                        placeholder="HH:MM"
+                        placeholderTextColor={COLORS.TEXT_MUTED}
+                        value={time}
+                        onChangeText={setTime}
+                        keyboardType="numbers-and-punctuation"
+                        maxLength={5}
+                      />
+                    </View>
+
+                    <TouchableOpacity style={styles.addBtn} onPress={handleAdd}>
+                      <Ionicons name="add-circle" size={20} color={COLORS.WHITE} />
+                      <Text style={styles.addBtnText}>Ajouter à la tournée</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </ScrollView>
+            </KeyboardAvoidingView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Care Type Modal — sibling, not nested */}
+      <Modal visible={showCareTypeModal} animationType="fade" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Type de soin</Text>
+              <TouchableOpacity onPress={() => setShowCareTypeModal(false)}>
+                <Ionicons name="close" size={24} color={COLORS.TEXT_PRIMARY} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView>
+              {CARE_TYPES.map((item) => (
+                <TouchableOpacity
+                  key={item}
+                  style={[styles.modalItem, careType === item && styles.modalItemSelected]}
+                  onPress={() => {
+                    setCareType(item);
+                    setShowCareTypeModal(false);
+                  }}
+                >
+                  <Ionicons name="medkit" size={20} color={COLORS.NURSE_PRIMARY} />
+                  <Text style={[styles.modalItemName, { marginLeft: SIZES.SM, flex: 1 }]}>{item}</Text>
+                  {careType === item && (
+                    <Ionicons name="checkmark-circle" size={22} color={COLORS.SUCCESS} />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Main Component
+// ---------------------------------------------------------------------------
+
+const TourneeScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, route }) => {
   const { user } = useAuth();
   const mapRef = useRef<MapView>(null);
 
-  const [appointments, setAppointments] = useState<AppointmentWithPatient[]>([]);
+  const [selectedDate, setSelectedDate] = useState(getTodayISO());
+  const [appointments, setAppointments] = useState<TourAppointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [completingId, setCompletingId] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [tourResult, setTourResult] = useState<TourResult | null>(null);
+  const [tourResult, setTourResult] = useState<FlexibleTourResult | null>(null);
   const [tourLoading, setTourLoading] = useState(false);
-  const today = getTodayISO();
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [departureTime, setDepartureTime] = useState(getCurrentTimeHHMM());
+  const [editingDeparture, setEditingDeparture] = useState(false);
+  const [departureInput, setDepartureInput] = useState('');
+
+  // Open add modal from navigation params
+  useEffect(() => {
+    if (route.params?.openAddModal) {
+      setShowAddModal(true);
+      navigation.setParams({ openAddModal: false });
+    }
+  }, [route.params?.openAddModal]);
 
   // -------------------------------------------------------------------------
-  // Fetch appointments
+  // Fetch appointments for selected date
   // -------------------------------------------------------------------------
 
   const fetchAppointments = useCallback(async () => {
     if (!user) return;
     setLoading(true);
     try {
-      // Step 1: Fetch appointments with patient_files and basic profile info
       const { data, error } = await supabase
         .from('appointments')
         .select(`
-          *,
+          id, patient_file_id, nurse_id, date, time, care_type, duration_min,
+          status, address, notes, completion_note,
           patient_file:patient_files!patient_file_id(
-            id,
-            patient_id,
+            id, patient_id,
             patient:profiles!patient_id(id, first_name, last_name, phone)
           )
         `)
         .eq('nurse_id', user.id)
-        .eq('date', today)
-        .order('time', { ascending: true });
+        .eq('date', selectedDate)
+        .neq('status', 'cancelled')
+        .order('created_at', { ascending: true });
 
       if (error) {
         console.error('[Tournee] fetch error:', error.message);
         return;
       }
 
-      // Step 2: Collect patient_ids and fetch patient_profiles separately
+      // Collect patient_ids and fetch patient_profiles separately
       const patientIds = (data ?? [])
         .map((row: any) => row.patient_file?.patient_id)
         .filter(Boolean);
@@ -159,193 +506,185 @@ const TourneeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         });
       }
 
-      // Step 3: Merge
-      const mapped: AppointmentWithPatient[] = (data ?? []).map((row: any) => {
+      // Merge
+      const mapped: TourAppointment[] = (data ?? []).map((row: any) => {
         const patient = Array.isArray(row.patient_file?.patient)
           ? row.patient_file.patient[0] ?? null
           : row.patient_file?.patient ?? null;
         const patientId = row.patient_file?.patient_id;
+        const pp = patientId ? patientProfilesMap[patientId] ?? null : null;
 
         return {
-          ...row,
-          patient_file: row.patient_file
-            ? {
-                id: row.patient_file.id,
-                patient,
-                patient_profiles: patientId
-                  ? patientProfilesMap[patientId] ?? null
-                  : null,
-              }
+          id: row.id,
+          patient_file_id: row.patient_file_id,
+          nurse_id: row.nurse_id,
+          date: row.date,
+          time: row.time,
+          care_type: row.care_type,
+          duration_min: row.duration_min,
+          status: row.status,
+          address: row.address,
+          notes: row.notes,
+          completion_note: row.completion_note,
+          patient_name: patient ? `${patient.first_name} ${patient.last_name}` : 'Patient inconnu',
+          patient_phone: patient?.phone ?? null,
+          gps: pp?.gps_lat != null && pp?.gps_lng != null
+            ? { lat: pp.gps_lat, lng: pp.gps_lng }
             : null,
+          address_label: pp?.address ?? row.address ?? null,
         };
       });
 
       setAppointments(mapped);
-
-      // Get nurse's current GPS position (fallback to registered address)
-      let nurseGPS: GPSPoint | null = null;
-      let nurseAddressLabel: string | null = null;
-
-      try {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status === 'granted') {
-          const position = await Location.getCurrentPositionAsync({
-            accuracy: Location.Accuracy.Balanced,
-          });
-          nurseGPS = {
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
-          };
-          nurseAddressLabel = 'Position actuelle';
-        }
-      } catch {
-        // GPS unavailable, will fall back to DB
-      }
-
-      // Fallback: use registered primary address from DB
-      if (!nurseGPS) {
-        const { data: nurseProfile } = await supabase
-          .from('nurse_profiles')
-          .select('address, gps_lat, gps_lng, addresses')
-          .eq('profile_id', user.id)
-          .single();
-
-        if (nurseProfile?.addresses && Array.isArray(nurseProfile.addresses) && nurseProfile.addresses.length > 0) {
-          const primary = nurseProfile.addresses.find((a: any) => a.is_primary) ?? nurseProfile.addresses[0];
-          if (primary.gps_lat && primary.gps_lng) {
-            nurseGPS = { lat: primary.gps_lat, lng: primary.gps_lng };
-            nurseAddressLabel = primary.address;
-          }
-        } else if (nurseProfile?.gps_lat != null && nurseProfile?.gps_lng != null) {
-          nurseGPS = { lat: nurseProfile.gps_lat, lng: nurseProfile.gps_lng };
-          nurseAddressLabel = nurseProfile.address ?? null;
-        }
-      }
-
-      console.log('[Tournee] Nurse GPS:', nurseGPS
-        ? `${nurseGPS.lat.toFixed(4)}, ${nurseGPS.lng.toFixed(4)} (${nurseAddressLabel})`
-        : 'Aucune position disponible');
-
-      // Sort patients with GPS by time for chronological ordering
-      const chronoAppointments: ChronoAppointment[] = [];
-      mapped.forEach((appt, idx) => {
-        const pp = appt.patient_file?.patient_profiles;
-        if (pp?.gps_lat != null && pp?.gps_lng != null) {
-          chronoAppointments.push({
-            gps: { lat: pp.gps_lat, lng: pp.gps_lng },
-            time: appt.time,
-            durationMin: appt.duration_min ?? 60,
-            originalIndex: idx,
-          });
-        }
-      });
-
-      // Sort by time (chronological)
-      chronoAppointments.sort((a, b) => {
-        const ma = a.time.split(':');
-        const mb = b.time.split(':');
-        return (parseInt(ma[0]) * 60 + parseInt(ma[1])) - (parseInt(mb[0]) * 60 + parseInt(mb[1]));
-      });
-
-      console.log('[Tournee] Patients triés chronologiquement:', chronoAppointments.length);
-      chronoAppointments.forEach((a, i) => {
-        const appt = mapped[a.originalIndex];
-        const name = appt?.patient_file?.patient
-          ? `${appt.patient_file.patient.first_name} ${appt.patient_file.patient.last_name}`
-          : `Patient ${a.originalIndex}`;
-        console.log(`[Tournee]   [${i + 1}] ${name} — RDV ${a.time} (${a.durationMin} min) lat:${a.gps.lat.toFixed(4)} lng:${a.gps.lng.toFixed(4)}`);
-      });
-
-      if (nurseGPS && chronoAppointments.length >= 1) {
-        setTourLoading(true);
-        try {
-          const { tour, gpsIndices } = await chronologicalTour(nurseGPS, chronoAppointments);
-
-          console.log('[Tournee] Ordre tournée (chronologique):', tour.order
-            .map(idx => gpsIndices[idx] === -1 ? 'Infirmière' : (mapped[gpsIndices[idx]]?.patient_file?.patient?.first_name ?? `P${gpsIndices[idx]}`))
-            .join(' → '));
-          console.log('[Tournee] Total:', tour.totalDistanceKm.toFixed(2), 'km |', tour.totalDurationMin.toFixed(0), 'min');
-          tour.legs.forEach((leg) => {
-            const fromLabel = gpsIndices[leg.fromIndex] === -1 ? 'Infirmière' : (mapped[gpsIndices[leg.fromIndex]]?.patient_file?.patient?.first_name ?? `P${gpsIndices[leg.fromIndex]}`);
-            const toLabel = gpsIndices[leg.toIndex] === -1 ? 'Infirmière' : (mapped[gpsIndices[leg.toIndex]]?.patient_file?.patient?.first_name ?? `P${gpsIndices[leg.toIndex]}`);
-            console.log(`[Tournee]   ${fromLabel} → ${toLabel} | ${leg.distanceKm.toFixed(2)} km | ${leg.durationMin.toFixed(0)} min`);
-          });
-
-          // Build mappedAppointments indexed by gpsPoints index (not position!)
-          const mappedAppointments: { time: string }[] = [];
-          mappedAppointments[0] = { time: chronoAppointments[0]?.time ?? '08:00' }; // nurse placeholder
-          chronoAppointments.forEach((a, i) => {
-            mappedAppointments[i + 1] = { time: a.time };
-          });
-
-          const legsWithDeparture = calculateDepartureTimes(tour, mappedAppointments);
-
-          console.log('[Tournee] Heures de départ:');
-          legsWithDeparture.forEach((leg) => {
-            const fromLabel = gpsIndices[leg.fromIndex] === -1 ? 'Infirmière' : (mapped[gpsIndices[leg.fromIndex]]?.patient_file?.patient?.first_name ?? `P${gpsIndices[leg.fromIndex]}`);
-            const toLabel = gpsIndices[leg.toIndex] === -1 ? 'Infirmière' : (mapped[gpsIndices[leg.toIndex]]?.patient_file?.patient?.first_name ?? `P${gpsIndices[leg.toIndex]}`);
-            const arrivalTime = mappedAppointments[leg.toIndex]?.time ?? '?';
-            console.log(`[Tournee]   ${fromLabel} → ${toLabel} | Départ: ${leg.departureTime} | Arrivée: ${arrivalTime} | ${leg.distanceKm.toFixed(2)} km | ${leg.durationMin.toFixed(0)} min`);
-          });
-
-          // Filter out legs starting from nurse home, remap indices
-          const patientLegs = legsWithDeparture
-            .filter((leg) => gpsIndices[leg.fromIndex] !== -1)
-            .map((leg) => ({
-              ...leg,
-              fromIndex: gpsIndices[leg.fromIndex],
-              toIndex: gpsIndices[leg.toIndex],
-            }));
-
-          // Departure time from nurse position to first patient
-          const firstPatientLeg = legsWithDeparture.find((l) => gpsIndices[l.fromIndex] === -1);
-          const departureFromHome = firstPatientLeg?.departureTime ?? null;
-
-          const remappedTour: TourResult = {
-            ...tour,
-            order: tour.order
-              .filter((gpsIdx) => gpsIndices[gpsIdx] !== -1)
-              .map((gpsIdx) => gpsIndices[gpsIdx]),
-            legs: patientLegs,
-            departureFromHome,
-            nurseAddress: nurseAddressLabel,
-          };
-          setTourResult(remappedTour);
-
-          console.log('[Tournee] === RÉSUMÉ TOURNÉE ===');
-          console.log('[Tournee] Départ:', nurseAddressLabel);
-          console.log('[Tournee] Heure départ recommandée:', departureFromHome || 'N/A');
-          console.log('[Tournee] Distance totale:', remappedTour.totalDistanceKm.toFixed(2), 'km');
-          console.log('[Tournee] Durée totale:', remappedTour.totalDurationMin.toFixed(0), 'min');
-          remappedTour.order.forEach((apptIdx, i) => {
-            const appt = mapped[apptIdx];
-            const patientName = appt?.patient_file?.patient
-              ? `${appt.patient_file.patient.first_name} ${appt.patient_file.patient.last_name}`
-              : `Patient ${apptIdx}`;
-            const time = appt?.time ?? '?';
-            const leg = remappedTour.legs[i];
-            const legInfo = leg ? ` | trajet: ${leg.distanceKm.toFixed(2)} km / ${leg.durationMin.toFixed(0)} min depuis arrêt précédent` : '';
-            console.log(`[Tournee]   RDV: ${time} — ${patientName}${legInfo}`);
-          });
-          console.log('[Tournee] =====================');
-        } catch (err) {
-          console.error('[Tournee] tour calculation error:', err);
-        } finally {
-          setTourLoading(false);
-        }
-      } else {
-        setTourResult(null);
-      }
     } catch (err) {
       console.error('[Tournee] unexpected:', err);
     } finally {
       setLoading(false);
     }
-  }, [user, today]);
+  }, [user, selectedDate]);
 
   useEffect(() => {
     fetchAppointments();
   }, [fetchAppointments]);
+
+  // -------------------------------------------------------------------------
+  // Calculate tour when appointments or departure time change
+  // -------------------------------------------------------------------------
+
+  useEffect(() => {
+    const calculateTour = async () => {
+      const withGPS = appointments.filter((a) => a.gps);
+      if (withGPS.length === 0) {
+        setTourResult(null);
+        return;
+      }
+
+      setTourLoading(true);
+      try {
+        // Get nurse GPS
+        let nurseGPS: GPSPoint | null = null;
+
+        try {
+          const { status } = await Location.requestForegroundPermissionsAsync();
+          if (status === 'granted') {
+            const position = await Location.getCurrentPositionAsync({
+              accuracy: Location.Accuracy.Balanced,
+            });
+            nurseGPS = { lat: position.coords.latitude, lng: position.coords.longitude };
+          }
+        } catch {}
+
+        if (!nurseGPS) {
+          const { data: nurseProfile } = await supabase
+            .from('nurse_profiles')
+            .select('addresses, gps_lat, gps_lng')
+            .eq('profile_id', user!.id)
+            .single();
+
+          if (nurseProfile?.addresses && nurseProfile.addresses.length > 0) {
+            const primary = nurseProfile.addresses.find((a: any) => a.is_primary) ?? nurseProfile.addresses[0];
+            if (primary.gps_lat && primary.gps_lng) {
+              nurseGPS = { lat: primary.gps_lat, lng: primary.gps_lng };
+            }
+          } else if (nurseProfile?.gps_lat != null && nurseProfile?.gps_lng != null) {
+            nurseGPS = { lat: nurseProfile.gps_lat, lng: nurseProfile.gps_lng };
+          }
+        }
+
+        if (!nurseGPS) {
+          setTourResult(null);
+          setTourLoading(false);
+          return;
+        }
+
+        const stops: FlexibleTourStop[] = withGPS.map((a) => ({
+          gps: a.gps!,
+          careType: a.care_type,
+          durationMin: a.duration_min,
+          patientFileId: a.patient_file_id,
+          time: a.time,
+        }));
+
+        const result = await flexibleTour(nurseGPS, stops, departureTime);
+        setTourResult(result);
+      } catch (err) {
+        console.error('[Tournee] tour calculation error:', err);
+      } finally {
+        setTourLoading(false);
+      }
+    };
+
+    if (!loading && appointments.length > 0) {
+      calculateTour();
+    } else {
+      setTourResult(null);
+    }
+  }, [appointments, departureTime, loading]);
+
+  // -------------------------------------------------------------------------
+  // Add patient to tour
+  // -------------------------------------------------------------------------
+
+  const handleAddPatient = async (
+    patient: PatientOption,
+    careType: string,
+    durationMin: number,
+    time: string | null,
+  ) => {
+    if (!user) return;
+    try {
+      const { error } = await supabase.from('appointments').insert({
+        patient_file_id: patient.patient_file_id,
+        nurse_id: user.id,
+        date: selectedDate,
+        time: time,
+        care_type: careType,
+        duration_min: durationMin,
+        status: 'pending',
+        address: patient.address || null,
+      });
+
+      if (error) {
+        Alert.alert('Erreur', error.message);
+        return;
+      }
+
+      await fetchAppointments();
+    } catch (err) {
+      Alert.alert('Erreur', 'Une erreur inattendue est survenue.');
+    }
+  };
+
+  // -------------------------------------------------------------------------
+  // Remove patient from tour
+  // -------------------------------------------------------------------------
+
+  const handleRemove = async (appointmentId: string, patientName: string) => {
+    Alert.alert(
+      'Retirer de la tournée',
+      `Retirer ${patientName} de la tournée ?`,
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Retirer',
+          style: 'destructive',
+          onPress: async () => {
+            const { error } = await supabase
+              .from('appointments')
+              .delete()
+              .eq('id', appointmentId)
+              .eq('nurse_id', user?.id ?? '');
+
+            if (error) {
+              Alert.alert('Erreur', error.message);
+              return;
+            }
+            await fetchAppointments();
+          },
+        },
+      ],
+    );
+  };
 
   // -------------------------------------------------------------------------
   // Mark as completed
@@ -383,12 +722,64 @@ const TourneeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
       `Marquer le soin de ${patientName} comme terminé ?`,
       [
         { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Terminé',
-          onPress: () => handleComplete(appointmentId),
-        },
+        { text: 'Terminé', onPress: () => handleComplete(appointmentId) },
       ]
     );
+  };
+
+  // -------------------------------------------------------------------------
+  // Departure time editing
+  // -------------------------------------------------------------------------
+
+  const startEditDeparture = () => {
+    setDepartureInput(departureTime);
+    setEditingDeparture(true);
+  };
+
+  const saveDeparture = () => {
+    const match = departureInput.match(/^(\d{1,2}):(\d{2})$/);
+    if (match) {
+      const h = parseInt(match[1], 10);
+      const m = parseInt(match[2], 10);
+      if (h >= 0 && h <= 23 && m >= 0 && m <= 59) {
+        setDepartureTime(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
+        setEditingDeparture(false);
+        return;
+      }
+    }
+    Alert.alert('Erreur', 'Format invalide. Utilisez HH:MM');
+  };
+
+  // -------------------------------------------------------------------------
+  // Build ordered list for display
+  // -------------------------------------------------------------------------
+
+  const getOrderedAppointments = (): TourAppointment[] => {
+    if (!tourResult || tourResult.order.length === 0) return appointments;
+
+    const withGPS = appointments.filter((a) => a.gps);
+    const withoutGPS = appointments.filter((a) => !a.gps);
+
+    const ordered = tourResult.order.map((idx) => withGPS[idx]);
+    return [...ordered, ...withoutGPS];
+  };
+
+  const getEstimatedArrival = (appt: TourAppointment): string | null => {
+    if (!tourResult) return null;
+    const withGPS = appointments.filter((a) => a.gps);
+    const idx = withGPS.findIndex((a) => a.id === appt.id);
+    if (idx === -1) return null;
+    return tourResult.estimatedArrivals[idx] || null;
+  };
+
+  const getLegInfo = (appt: TourAppointment): { distance: number; duration: number } | null => {
+    if (!tourResult) return null;
+    const withGPS = appointments.filter((a) => a.gps);
+    const idx = withGPS.findIndex((a) => a.id === appt.id);
+    if (idx === -1) return null;
+    const leg = tourResult.legs.find((l) => l.toIndex === idx);
+    if (!leg) return null;
+    return { distance: leg.distanceKm, duration: leg.durationMin };
   };
 
   // -------------------------------------------------------------------------
@@ -400,32 +791,28 @@ const TourneeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const remainingRDV = totalRDV - completedRDV;
 
   // -------------------------------------------------------------------------
-  // Map markers
+  // Map markers (in optimized order)
   // -------------------------------------------------------------------------
 
-  const markers = appointments
-    .filter((a) => {
-      const pp = a.patient_file?.patient_profiles;
-      return pp?.gps_lat != null && pp?.gps_lng != null;
-    })
-    .map((a, index) => {
-      const pp = a.patient_file!.patient_profiles!;
-      const patient = a.patient_file?.patient;
-      const name = patient ? `${patient.first_name} ${patient.last_name}` : 'Patient';
-      const config = STATUS_CONFIG[a.status] ?? STATUS_CONFIG.pending;
+  const withGPSAppointments = appointments.filter((a) => a.gps);
+  const orderedForMarkers = tourResult && tourResult.order.length > 0
+    ? tourResult.order.map((idx) => withGPSAppointments[idx])
+    : withGPSAppointments;
 
-      return {
-        id: a.id,
-        coordinate: {
-          latitude: pp.gps_lat!,
-          longitude: pp.gps_lng!,
-        },
-        title: name,
-        subtitle: `${formatTime(a.time)} — ${a.care_type}`,
-        index: index + 1,
-        color: config.color,
-      };
-    });
+  const markers = orderedForMarkers.map((a, index) => {
+    const config = STATUS_CONFIG[a.status] ?? STATUS_CONFIG.pending;
+    return {
+      id: a.id,
+      coordinate: {
+        latitude: a.gps!.lat,
+        longitude: a.gps!.lng,
+      },
+      title: a.patient_name,
+      subtitle: `${a.care_type} — ${a.duration_min} min`,
+      index: index + 1,
+      color: config.color,
+    };
+  });
 
   // -------------------------------------------------------------------------
   // Fit map to markers
@@ -447,25 +834,21 @@ const TourneeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   }, [loading, markers.length, fitMapToMarkers]);
 
   // -------------------------------------------------------------------------
-  // Render appointment card
+  // Render patient card
   // -------------------------------------------------------------------------
 
-  const renderAppointmentCard = ({ item }: { item: AppointmentWithPatient }) => {
-    const patient = item.patient_file?.patient;
-    const pp = item.patient_file?.patient_profiles;
+  const renderCard = ({ item }: { item: TourAppointment }) => {
     const config = STATUS_CONFIG[item.status] ?? STATUS_CONFIG.pending;
     const isCompleted = item.status === 'completed';
     const isCompleting = completingId === item.id;
     const isSelected = selectedId === item.id;
-    const patientName = patient
-      ? `${patient.first_name} ${patient.last_name}`
-      : 'Patient inconnu';
-    const address = pp?.address ?? item.address ?? 'Adresse non renseignée';
-    const hasGPS = pp?.gps_lat != null && pp?.gps_lng != null;
-    const apptIndex = appointments.indexOf(item);
+    const hasGPS = item.gps != null;
+    const estimatedArrival = getEstimatedArrival(item);
+    const legInfo = getLegInfo(item);
 
-    // Find tour leg for this appointment (arrival info)
-    const leg = tourResult?.legs.find((l) => l.toIndex === apptIndex);
+    // Find display index
+    const ordered = getOrderedAppointments();
+    const displayIndex = ordered.findIndex((a) => a.id === item.id) + 1;
 
     return (
       <TouchableOpacity
@@ -478,29 +861,31 @@ const TourneeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         onPress={() => setSelectedId(isSelected ? null : item.id)}
       >
         <View style={styles.cardHeader}>
-          {/* Number badge */}
           <View style={[styles.numberBadge, { backgroundColor: config.color }]}>
-            <Text style={styles.numberText}>
-              {appointments.indexOf(item) + 1}
-            </Text>
+            <Text style={styles.numberText}>{displayIndex}</Text>
           </View>
 
-          {/* Time + patient */}
           <View style={styles.cardMainInfo}>
-            <Text style={[styles.cardTime, isCompleted && styles.textMuted]}>
-              {formatTime(item.time)}
-            </Text>
+            {estimatedArrival && (
+              <Text style={[styles.cardTime, isCompleted && styles.textMuted]}>
+                {estimatedArrival}
+              </Text>
+            )}
+            {item.time && !estimatedArrival && (
+              <Text style={[styles.cardTime, isCompleted && styles.textMuted]}>
+                {formatTime(item.time)}
+              </Text>
+            )}
             <Text
               style={[styles.cardPatientName, isCompleted && styles.textMuted]}
               numberOfLines={1}
             >
-              {patientName}
+              {item.patient_name}
             </Text>
             <Text style={styles.cardCareType}>{item.care_type}</Text>
-            <Text style={styles.cardDuration}>{item.duration_min ?? 60} min</Text>
+            <Text style={styles.cardDuration}>{item.duration_min} min</Text>
           </View>
 
-          {/* Status badge */}
           <View
             style={[
               styles.statusBadge,
@@ -508,9 +893,7 @@ const TourneeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
             ]}
           >
             <Ionicons name={config.icon} size={14} color={config.color} />
-            <Text style={[styles.statusText, { color: config.color }]}>
-              {config.label}
-            </Text>
+            <Text style={[styles.statusText, { color: config.color }]}>{config.label}</Text>
           </View>
         </View>
 
@@ -518,50 +901,27 @@ const TourneeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         <View style={styles.cardAddressRow}>
           <Ionicons name="location-outline" size={14} color={COLORS.TEXT_MUTED} />
           <Text style={styles.cardAddress} numberOfLines={1}>
-            {address}
+            {item.address_label ?? 'Adresse non renseignée'}
           </Text>
         </View>
 
-        {/* Travel info (OSRM) */}
-        {leg && leg.distanceKm > 0 && (
+        {/* Travel info */}
+        {legInfo && legInfo.distance > 0 && (
           <View style={styles.travelRow}>
             <Ionicons name="car-outline" size={14} color={COLORS.NURSE_PRIMARY} />
             <Text style={styles.travelText}>
-              {leg.distanceKm} km · {leg.durationMin} min
+              {legInfo.distance} km · {legInfo.duration} min
             </Text>
-            {leg.departureTime && apptIndex > 0 && (
-              <View style={styles.departureBadge}>
-                <Ionicons name="alarm-outline" size={12} color={COLORS.WHITE} />
-                <Text style={styles.departureText}>
-                  Partez {leg.departureTime}
-                </Text>
-              </View>
-            )}
           </View>
         )}
 
-        {/* Actions (shown when selected) */}
+        {/* Actions */}
         {isSelected && (
           <View style={styles.cardActions}>
             {hasGPS && (
               <TouchableOpacity
                 style={styles.actionBtn}
-                onPress={() => openNavigation(pp!.gps_lat!, pp!.gps_lng!)}
-              >
-                <Ionicons name="navigate" size={18} color={COLORS.WHITE} />
-                <Text style={styles.actionBtnText}>Y aller</Text>
-              </TouchableOpacity>
-            )}
-
-            {!hasGPS && pp?.address && (
-              <TouchableOpacity
-                style={styles.actionBtn}
-                onPress={() => {
-                  const encoded = encodeURIComponent(pp.address!);
-                  Linking.openURL(
-                    `https://www.google.com/maps/dir/?api=1&destination=${encoded}`
-                  );
-                }}
+                onPress={() => openNavigation(item.gps!.lat, item.gps!.lng)}
               >
                 <Ionicons name="navigate" size={18} color={COLORS.WHITE} />
                 <Text style={styles.actionBtnText}>Y aller</Text>
@@ -571,7 +931,7 @@ const TourneeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
             {!isCompleted && (
               <TouchableOpacity
                 style={[styles.actionBtn, { backgroundColor: COLORS.SUCCESS }]}
-                onPress={() => confirmComplete(item.id, patientName)}
+                onPress={() => confirmComplete(item.id, item.patient_name)}
                 disabled={isCompleting}
               >
                 {isCompleting ? (
@@ -585,10 +945,10 @@ const TourneeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
               </TouchableOpacity>
             )}
 
-            {patient?.phone && (
+            {item.patient_phone && (
               <TouchableOpacity
                 style={[styles.actionBtn, { backgroundColor: COLORS.INFO }]}
-                onPress={() => Linking.openURL(`tel:${patient.phone}`)}
+                onPress={() => Linking.openURL(`tel:${item.patient_phone}`)}
               >
                 <Ionicons name="call" size={18} color={COLORS.WHITE} />
                 <Text style={styles.actionBtnText}>Appeler</Text>
@@ -597,18 +957,26 @@ const TourneeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
 
             <TouchableOpacity
               style={[styles.actionBtn, styles.actionBtnOutline]}
-              onPress={() =>
+              onPress={() => {
+                const patientId = appointments.find(a => a.id === item.id)?.patient_file_id;
                 navigation.navigate('PatientDetail', {
-                  patientId: item.patient_file?.patient?.id,
-                  patientFileId: item.patient_file?.id,
-                })
-              }
+                  patientFileId: item.patient_file_id,
+                });
+              }}
             >
               <Ionicons name="person-outline" size={18} color={COLORS.NURSE_PRIMARY} />
-              <Text style={[styles.actionBtnText, { color: COLORS.NURSE_PRIMARY }]}>
-                Fiche
-              </Text>
+              <Text style={[styles.actionBtnText, { color: COLORS.NURSE_PRIMARY }]}>Fiche</Text>
             </TouchableOpacity>
+
+            {!isCompleted && (
+              <TouchableOpacity
+                style={[styles.actionBtn, { backgroundColor: COLORS.DANGER }]}
+                onPress={() => handleRemove(item.id, item.patient_name)}
+              >
+                <Ionicons name="trash-outline" size={18} color={COLORS.WHITE} />
+                <Text style={styles.actionBtnText}>Retirer</Text>
+              </TouchableOpacity>
+            )}
           </View>
         )}
       </TouchableOpacity>
@@ -630,13 +998,15 @@ const TourneeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     );
   }
 
+  const orderedAppointments = getOrderedAppointments();
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       {/* Header */}
       <View style={styles.header}>
         <View>
           <Text style={styles.headerTitle}>Ma Tournée</Text>
-          <Text style={styles.headerDate}>{formatDateLabel(today)}</Text>
+          <Text style={styles.headerDate}>{formatDateLabel(selectedDate)}</Text>
         </View>
         <TouchableOpacity
           style={styles.refreshBtn}
@@ -644,6 +1014,46 @@ const TourneeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
           <Ionicons name="refresh-outline" size={22} color={COLORS.NURSE_PRIMARY} />
+        </TouchableOpacity>
+      </View>
+
+      {/* Date strip */}
+      <DateStrip selectedDate={selectedDate} onSelect={setSelectedDate} />
+
+      {/* Departure time */}
+      <View style={styles.departureBar}>
+        <Ionicons name="time-outline" size={18} color={COLORS.NURSE_PRIMARY} />
+        <Text style={styles.departureLabel}>Départ :</Text>
+        {editingDeparture ? (
+          <View style={styles.departureEditRow}>
+            <TextInput
+              style={styles.departureInput}
+              value={departureInput}
+              onChangeText={setDepartureInput}
+              keyboardType="numbers-and-punctuation"
+              maxLength={5}
+              autoFocus
+              onBlur={saveDeparture}
+              onSubmitEditing={saveDeparture}
+              placeholder="HH:MM"
+              placeholderTextColor={COLORS.TEXT_MUTED}
+            />
+            <TouchableOpacity onPress={saveDeparture}>
+              <Ionicons name="checkmark" size={20} color={COLORS.SUCCESS} />
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <TouchableOpacity onPress={startEditDeparture} style={styles.departureValueBtn}>
+            <Text style={styles.departureValue}>{departureTime}</Text>
+            <Ionicons name="create-outline" size={14} color={COLORS.TEXT_MUTED} />
+          </TouchableOpacity>
+        )}
+        <TouchableOpacity
+          style={styles.addPatientBtn}
+          onPress={() => setShowAddModal(true)}
+        >
+          <Ionicons name="add" size={20} color={COLORS.WHITE} />
+          <Text style={styles.addPatientBtnText}>Ajouter</Text>
         </TouchableOpacity>
       </View>
 
@@ -690,26 +1100,22 @@ const TourneeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
       <View style={styles.statsBar}>
         <View style={styles.statItem}>
           <Text style={styles.statValue}>{totalRDV}</Text>
-          <Text style={styles.statLabel}>RDV</Text>
+          <Text style={styles.statLabel}>Patients</Text>
         </View>
         <View style={styles.statDivider} />
         <View style={styles.statItem}>
-          <Text style={[styles.statValue, { color: COLORS.SUCCESS }]}>
-            {completedRDV}
-          </Text>
+          <Text style={[styles.statValue, { color: COLORS.SUCCESS }]}>{completedRDV}</Text>
           <Text style={styles.statLabel}>Terminés</Text>
         </View>
         <View style={styles.statDivider} />
         <View style={styles.statItem}>
-          <Text style={[styles.statValue, { color: COLORS.WARNING }]}>
-            {remainingRDV}
-          </Text>
+          <Text style={[styles.statValue, { color: COLORS.WARNING }]}>{remainingRDV}</Text>
           <Text style={styles.statLabel}>Restants</Text>
         </View>
       </View>
 
       {/* Tour summary */}
-      {tourResult && (tourResult.legs.length > 0 || tourResult.departureFromHome) && (
+      {tourResult && tourResult.order.length > 0 && (
         <View style={styles.tourSummary}>
           {tourLoading ? (
             <ActivityIndicator size="small" color={COLORS.NURSE_PRIMARY} />
@@ -720,44 +1126,46 @@ const TourneeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                 <Text style={styles.tourSummaryText}>
                   {tourResult.totalDistanceKm} km · {tourResult.totalDurationMin} min de route
                 </Text>
-                {tourResult.nurseAddress && (
-                  <Text style={styles.tourSummarySubtext}>
-                    Départ : {tourResult.nurseAddress}
-                  </Text>
-                )}
               </View>
-              {tourResult.departureFromHome && (
-                <View style={styles.tourDepartureBadge}>
-                  <Ionicons name="alarm-outline" size={12} color={COLORS.WHITE} />
-                  <Text style={styles.tourDepartureText}>
-                    Partez {tourResult.departureFromHome}
-                  </Text>
-                </View>
-              )}
             </>
           )}
         </View>
       )}
 
-      {/* Appointments list */}
+      {/* Patients list */}
       {appointments.length === 0 ? (
         <View style={styles.emptyState}>
           <Ionicons name="calendar-outline" size={56} color={COLORS.BORDER} />
-          <Text style={styles.emptyTitle}>Aucun rendez-vous</Text>
+          <Text style={styles.emptyTitle}>Aucun patient</Text>
           <Text style={styles.emptySubtitle}>
-            Pas de tournée prévue pour aujourd'hui.
+            Ajoutez des patients à votre tournée pour {selectedDate === getTodayISO() ? "aujourd'hui" : 'ce jour'}.
           </Text>
+          <TouchableOpacity
+            style={styles.emptyButton}
+            onPress={() => setShowAddModal(true)}
+          >
+            <Ionicons name="add" size={18} color={COLORS.WHITE} />
+            <Text style={styles.emptyButtonText}>Ajouter un patient</Text>
+          </TouchableOpacity>
         </View>
       ) : (
         <FlatList
-          data={appointments}
+          data={orderedAppointments}
           keyExtractor={(item) => item.id}
-          renderItem={renderAppointmentCard}
+          renderItem={renderCard}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         />
       )}
+
+      {/* Add Patient Modal */}
+      <AddPatientModal
+        visible={showAddModal}
+        onClose={() => setShowAddModal(false)}
+        onAdd={handleAddPatient}
+        existingFileIds={appointments.map((a) => a.patient_file_id)}
+      />
     </SafeAreaView>
   );
 };
@@ -767,7 +1175,7 @@ const TourneeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
 // ---------------------------------------------------------------------------
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
-const MAP_HEIGHT = SCREEN_HEIGHT * 0.3;
+const MAP_HEIGHT = SCREEN_HEIGHT * 0.28;
 
 const styles = StyleSheet.create({
   container: {
@@ -813,6 +1221,103 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.NURSE_LIGHT,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  // Date strip
+  dateStrip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: COLORS.WHITE,
+    paddingHorizontal: SIZES.SM,
+    paddingVertical: SIZES.SM,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.BORDER,
+  },
+  dateChip: {
+    alignItems: 'center',
+    paddingVertical: SIZES.XS,
+    paddingHorizontal: SIZES.SM,
+    borderRadius: SIZES.BORDER_RADIUS_SM,
+    minWidth: 38,
+  },
+  dateChipSelected: {
+    backgroundColor: COLORS.NURSE_PRIMARY,
+  },
+  dateChipToday: {
+    backgroundColor: COLORS.NURSE_LIGHT,
+  },
+  dateChipDay: {
+    fontSize: 10,
+    color: COLORS.TEXT_MUTED,
+    textTransform: 'capitalize',
+  },
+  dateChipDaySelected: {
+    color: COLORS.WHITE,
+  },
+  dateChipNum: {
+    fontSize: SIZES.FONT_MD,
+    fontWeight: '700',
+    color: COLORS.TEXT_PRIMARY,
+  },
+  dateChipNumSelected: {
+    color: COLORS.WHITE,
+  },
+  // Departure bar
+  departureBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.WHITE,
+    paddingHorizontal: SIZES.LG,
+    paddingVertical: SIZES.SM,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.BORDER,
+    gap: SIZES.SM,
+  },
+  departureLabel: {
+    fontSize: SIZES.FONT_SM,
+    color: COLORS.TEXT_SECONDARY,
+    fontWeight: '600',
+  },
+  departureEditRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SIZES.XS,
+  },
+  departureInput: {
+    fontSize: SIZES.FONT_MD,
+    fontWeight: '700',
+    color: COLORS.NURSE_PRIMARY,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.NURSE_PRIMARY,
+    paddingHorizontal: SIZES.SM,
+    paddingVertical: 2,
+    minWidth: 60,
+    textAlign: 'center',
+  },
+  departureValueBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  departureValue: {
+    fontSize: SIZES.FONT_MD,
+    fontWeight: '700',
+    color: COLORS.NURSE_PRIMARY,
+  },
+  addPatientBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.NURSE_PRIMARY,
+    paddingHorizontal: SIZES.MD,
+    paddingVertical: SIZES.SM,
+    borderRadius: SIZES.BORDER_RADIUS_SM,
+    marginLeft: 'auto',
+    gap: 4,
+  },
+  addPatientBtnText: {
+    color: COLORS.WHITE,
+    fontSize: SIZES.FONT_SM,
+    fontWeight: '600',
   },
   // Map
   mapContainer: {
@@ -895,6 +1400,22 @@ const styles = StyleSheet.create({
     width: 1,
     height: 30,
     backgroundColor: COLORS.BORDER,
+  },
+  // Tour summary
+  tourSummary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.NURSE_LIGHT,
+    paddingVertical: SIZES.SM,
+    paddingHorizontal: SIZES.LG,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.BORDER,
+    gap: SIZES.SM,
+  },
+  tourSummaryText: {
+    fontSize: SIZES.FONT_SM,
+    color: COLORS.NURSE_PRIMARY,
+    fontWeight: '600',
   },
   // List
   listContent: {
@@ -993,7 +1514,7 @@ const styles = StyleSheet.create({
   textMuted: {
     opacity: 0.6,
   },
-  // Travel info (OSRM)
+  // Travel info
   travelRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1004,56 +1525,6 @@ const styles = StyleSheet.create({
     fontSize: SIZES.FONT_XS,
     color: COLORS.NURSE_PRIMARY,
     fontWeight: '600',
-  },
-  departureBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.NURSE_PRIMARY,
-    paddingHorizontal: SIZES.SM,
-    paddingVertical: 2,
-    borderRadius: SIZES.BORDER_RADIUS_SM,
-    gap: 3,
-    marginLeft: 'auto',
-  },
-  departureText: {
-    fontSize: 10,
-    color: COLORS.WHITE,
-    fontWeight: '700',
-  },
-  // Tour summary
-  tourSummary: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.NURSE_LIGHT,
-    paddingVertical: SIZES.SM,
-    paddingHorizontal: SIZES.LG,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.BORDER,
-    gap: SIZES.SM,
-  },
-  tourSummaryText: {
-    fontSize: SIZES.FONT_SM,
-    color: COLORS.NURSE_PRIMARY,
-    fontWeight: '600',
-  },
-  tourSummarySubtext: {
-    fontSize: SIZES.FONT_XS,
-    color: COLORS.TEXT_SECONDARY,
-    marginTop: 2,
-  },
-  tourDepartureBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.NURSE_PRIMARY,
-    paddingHorizontal: SIZES.SM,
-    paddingVertical: 3,
-    borderRadius: SIZES.BORDER_RADIUS_SM,
-    gap: 3,
-  },
-  tourDepartureText: {
-    fontSize: SIZES.FONT_XS,
-    color: COLORS.WHITE,
-    fontWeight: '700',
   },
   // Actions
   cardActions: {
@@ -1102,6 +1573,171 @@ const styles = StyleSheet.create({
     fontSize: SIZES.FONT_SM,
     color: COLORS.TEXT_MUTED,
     textAlign: 'center',
+  },
+  emptyButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.NURSE_PRIMARY,
+    paddingHorizontal: SIZES.LG,
+    paddingVertical: SIZES.MD,
+    borderRadius: SIZES.BORDER_RADIUS_MD,
+    gap: SIZES.XS,
+    marginTop: SIZES.SM,
+  },
+  emptyButtonText: {
+    color: COLORS.WHITE,
+    fontSize: SIZES.FONT_SM,
+    fontWeight: '600',
+  },
+  // Modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    paddingHorizontal: SIZES.MD,
+  },
+  modalContent: {
+    backgroundColor: COLORS.WHITE,
+    borderRadius: SIZES.BORDER_RADIUS_LG,
+    height: '85%',
+    maxHeight: '85%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: SIZES.LG,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.BORDER,
+  },
+  modalTitle: {
+    fontSize: SIZES.FONT_LG,
+    fontWeight: '700',
+    color: COLORS.TEXT_PRIMARY,
+  },
+  modalSectionTitle: {
+    fontSize: SIZES.FONT_SM,
+    fontWeight: '600',
+    color: COLORS.TEXT_SECONDARY,
+    paddingHorizontal: SIZES.LG,
+    paddingTop: SIZES.MD,
+    paddingBottom: SIZES.SM,
+  },
+  modalItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: SIZES.LG,
+    paddingVertical: SIZES.MD,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.BORDER,
+  },
+  modalItemSelected: {
+    backgroundColor: COLORS.NURSE_LIGHT,
+  },
+  modalItemName: {
+    fontSize: SIZES.FONT_MD,
+    fontWeight: '500',
+    color: COLORS.TEXT_PRIMARY,
+  },
+  modalItemSub: {
+    fontSize: SIZES.FONT_XS,
+    color: COLORS.TEXT_MUTED,
+    marginTop: 2,
+  },
+  modalEmptyText: {
+    fontSize: SIZES.FONT_SM,
+    color: COLORS.TEXT_MUTED,
+    textAlign: 'center',
+    padding: SIZES.LG,
+  },
+  // Add form (inside modal)
+  addForm: {
+    padding: SIZES.LG,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.BORDER,
+  },
+  formLabel: {
+    fontSize: SIZES.FONT_SM,
+    fontWeight: '600',
+    color: COLORS.TEXT_SECONDARY,
+    marginBottom: SIZES.XS,
+    marginTop: SIZES.SM,
+  },
+  selectBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.WHITE,
+    borderWidth: 1.5,
+    borderColor: COLORS.BORDER,
+    borderRadius: SIZES.BORDER_RADIUS_MD,
+    paddingHorizontal: SIZES.MD,
+    height: 44,
+  },
+  selectText: {
+    flex: 1,
+    fontSize: SIZES.FONT_MD,
+    color: COLORS.TEXT_PRIMARY,
+    marginLeft: SIZES.SM,
+  },
+  placeholder: {
+    color: COLORS.TEXT_MUTED,
+  },
+  durationRow: {
+    flexDirection: 'row',
+    gap: SIZES.SM,
+    flexWrap: 'wrap',
+  },
+  durationChip: {
+    paddingVertical: SIZES.SM,
+    paddingHorizontal: SIZES.MD,
+    borderRadius: SIZES.BORDER_RADIUS_FULL,
+    borderWidth: 1.5,
+    borderColor: COLORS.BORDER,
+    backgroundColor: COLORS.WHITE,
+  },
+  durationChipSelected: {
+    borderColor: COLORS.NURSE_PRIMARY,
+    backgroundColor: COLORS.NURSE_LIGHT,
+  },
+  durationChipText: {
+    fontSize: SIZES.FONT_SM,
+    fontWeight: '600',
+    color: COLORS.TEXT_SECONDARY,
+  },
+  durationChipTextSelected: {
+    color: COLORS.NURSE_PRIMARY,
+  },
+  inputWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.WHITE,
+    borderWidth: 1.5,
+    borderColor: COLORS.BORDER,
+    borderRadius: SIZES.BORDER_RADIUS_MD,
+    paddingHorizontal: SIZES.MD,
+    height: 44,
+  },
+  input: {
+    flex: 1,
+    fontSize: SIZES.FONT_MD,
+    color: COLORS.TEXT_PRIMARY,
+    marginLeft: SIZES.SM,
+    height: '100%',
+  },
+  addBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.NURSE_PRIMARY,
+    paddingVertical: SIZES.MD,
+    borderRadius: SIZES.BORDER_RADIUS_MD,
+    marginTop: SIZES.LG,
+    gap: SIZES.SM,
+  },
+  addBtnText: {
+    color: COLORS.WHITE,
+    fontSize: SIZES.FONT_MD,
+    fontWeight: '700',
   },
 });
 

@@ -19,7 +19,6 @@ import PatientsList from '../screens/nurse/PatientsList';
 import PatientDetail from '../screens/nurse/PatientDetail';
 import TourneeScreen from '../screens/nurse/TourneeScreen';
 import ProfileScreen from '../screens/nurse/ProfileScreen';
-import NewAppointmentScreen from '../screens/nurse/NewAppointmentScreen';
 
 // Écrans patient
 import PatientDashboard from '../screens/patient/PatientDashboard';
@@ -197,7 +196,6 @@ const AppNavigator = () => {
               <Stack.Screen name="PatientApp" component={PatientTabNavigator} />
             )}
             <Stack.Screen name="PatientDetail" component={PatientDetail} />
-            <Stack.Screen name="NewAppointment" component={NewAppointmentScreen} />
           </>
         )}
       </Stack.Navigator>

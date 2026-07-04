@@ -136,30 +136,6 @@ const SEED_USERS: SeedUser[] = [
       emergency_contact: '0696100016',
     },
   },
-  {
-    email: 'patient7@soinlokal.com',
-    password: 'patient123',
-    label: 'Patient — Firmin Bellevue',
-    metadata: {
-      first_name: 'Firmin',
-      last_name: 'Bellevue',
-      user_type: 'patient',
-      phone: '0696100007',
-      emergency_contact: '0696100017',
-    },
-  },
-  {
-    email: 'patient8@soinlokal.com',
-    password: 'patient123',
-    label: 'Patient — Anaïs Placide',
-    metadata: {
-      first_name: 'Anaïs',
-      last_name: 'Placide',
-      user_type: 'patient',
-      phone: '0696100008',
-      emergency_contact: '0696100018',
-    },
-  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -169,75 +145,57 @@ const SEED_USERS: SeedUser[] = [
 const PATIENT_EXTRAS: PatientExtra[] = [
   {
     email: 'patient1@soinlokal.com',
-    address: '1 Place Kléber, 67000 Strasbourg',
+    address: '12 Rue d\'Obernai, 67000 Strasbourg',
     dob: '1945-03-12',
-    gps_lat: 48.583092,
-    gps_lng: 7.746501,
+    gps_lat: 48.5853,
+    gps_lng: 7.7485,
     medical_notes: 'Diabète type 2, hypertension artérielle. Suivi régulier glycémie.',
     allergies: ['Pénicilline'],
   },
   {
     email: 'patient2@soinlokal.com',
-    address: '10 Rue des Grandes Arcades, 67000 Strasbourg',
+    address: '6 Rue Rubens, 67200 Strasbourg',
     dob: '1938-07-25',
-    gps_lat: 48.582821,
-    gps_lng: 7.746899,
+    gps_lat: 48.5725,
+    gps_lng: 7.7340,
     medical_notes: 'Insuffisance cardiaque légère. Pansement chronique jambe gauche.',
     allergies: [],
   },
   {
     email: 'patient3@soinlokal.com',
-    address: '15 Rue du 22 Novembre, 67000 Strasbourg',
+    address: '1 Rue de Bourgogne, 67100 Strasbourg',
     dob: '1952-11-03',
-    gps_lat: 48.582845,
-    gps_lng: 7.743109,
+    gps_lat: 48.5765,
+    gps_lng: 7.7650,
     medical_notes: 'Post-opératoire prothèse de hanche. Kinésithérapie 2x/semaine.',
     allergies: ['Aspirine', 'Iode'],
   },
   {
     email: 'patient4@soinlokal.com',
-    address: '5 Rue des Orfèvres, 67000 Strasbourg',
+    address: 'Königsberger Str. 22, 77694 Kehl, Allemagne',
     dob: '1941-01-18',
-    gps_lat: 48.582738,
-    gps_lng: 7.748870,
+    gps_lat: 48.5725,
+    gps_lng: 7.8130,
     medical_notes: 'Alzheimer débutant. Prise de sang mensuelle (bilan hépatique).',
     allergies: [],
   },
   {
     email: 'patient5@soinlokal.com',
-    address: '25 Avenue de la Forêt Noire, 67000 Strasbourg',
+    address: '14 Sent. de l\'Aubépine, 67000 Strasbourg',
     dob: '1955-09-07',
-    gps_lat: 48.585317,
-    gps_lng: 7.767110,
+    gps_lat: 48.5785,
+    gps_lng: 7.7620,
     medical_notes: 'Diabète type 1 insulinodépendant. Contrôle glycémie 3x/semaine.',
     allergies: ['Sulfamides'],
   },
   {
     email: 'patient6@soinlokal.com',
-    address: '8 Rue de la Division Leclerc, 67000 Strasbourg',
+    address: '18 Rue de Barr, 67460 Souffelweyersheim',
     dob: '1933-05-30',
-    gps_lat: 48.580503,
-    gps_lng: 7.746648,
+    gps_lat: 48.6355,
+    gps_lng: 7.7360,
     medical_notes: 'Polyarthrite rhumatoïde. Injection hebdomadaire Méthotrexate.',
     allergies: ['Latex'],
-  },
-  {
-    email: 'patient7@soinlokal.com',
-    address: '12 Rue du Faubourg National, 67000 Strasbourg',
-    dob: '1948-12-14',
-    gps_lat: 48.582599,
-    gps_lng: 7.737538,
-    medical_notes: 'BPCO (bronchopneumopathie). Oxygénothérapie domiciliaire.',
-    allergies: ['Ibuprofène'],
-  },
-  {
-    email: 'patient8@soinlokal.com',
-    address: '3 Quai des Pêcheurs, 67000 Strasbourg',
-    dob: '1960-04-22',
-    gps_lat: 48.582166,
-    gps_lng: 7.757071,
-    medical_notes: 'Insuffisance rénale chronique. Dialyse péritonéale à domicile.',
-    allergies: [],
   },
 ];
 
@@ -257,7 +215,8 @@ async function seedUser(user: SeedUser): Promise<string | null> {
 
   const alreadyExists = existing.users.find((u) => u.email === user.email);
   if (alreadyExists) {
-    console.log(`   ⏭  User already exists (id: ${alreadyExists.id}) — skipping.`);
+    console.log(`   ⏭  User already exists (id: ${alreadyExists.id}) — ensuring profile exists.`);
+    await ensureProfile(alreadyExists.id, user.email, user.metadata);
     return alreadyExists.id;
   }
 
@@ -276,6 +235,68 @@ async function seedUser(user: SeedUser): Promise<string | null> {
 
   console.log(`   ✅ Created user ${data.user.id}`);
   return data.user.id;
+}
+
+async function ensureProfile(userId: string, email: string, metadata: Record<string, unknown>): Promise<void> {
+  const { data: existing } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('id', userId)
+    .single();
+
+  if (existing) {
+    console.log(`      Profile already exists.`);
+    return;
+  }
+
+  console.log(`      Creating missing profile...`);
+
+  // Insert base profile
+  const { error: profileError } = await supabase.from('profiles').insert({
+    id: userId,
+    email: email,
+    first_name: metadata.first_name as string ?? null,
+    last_name: metadata.last_name as string ?? null,
+    user_type: metadata.user_type as string ?? null,
+    phone: metadata.phone as string ?? null,
+    verified: (metadata.verified as boolean) ?? false,
+  });
+
+  if (profileError) {
+    console.error(`      ❌ Error creating profile: ${profileError.message}`);
+    return;
+  }
+
+  console.log(`      ✅ Profile created.`);
+
+  // Insert role-specific profile
+  if (metadata.user_type === 'nurse') {
+    const { error: nurseError } = await supabase.from('nurse_profiles').insert({
+      profile_id: userId,
+      adeli: metadata.adeli as string ?? null,
+      specialties: metadata.specialties as string[] ?? null,
+      zone: metadata.zone as string ?? null,
+      address: metadata.address as string ?? null,
+      gps_lat: metadata.gps_lat as number ?? null,
+      gps_lng: metadata.gps_lng as number ?? null,
+    });
+    if (nurseError) {
+      console.error(`      ❌ Error creating nurse_profile: ${nurseError.message}`);
+    } else {
+      console.log(`      ✅ Nurse profile created.`);
+    }
+  } else if (metadata.user_type === 'patient') {
+    const { error: patientError } = await supabase.from('patient_profiles').insert({
+      profile_id: userId,
+      address: metadata.address as string ?? null,
+      emergency_contact: metadata.emergency_contact as string ?? null,
+    });
+    if (patientError) {
+      console.error(`      ❌ Error creating patient_profile: ${patientError.message}`);
+    } else {
+      console.log(`      ✅ Patient profile created.`);
+    }
+  }
 }
 
 async function updatePatientProfile(extra: PatientExtra): Promise<void> {
