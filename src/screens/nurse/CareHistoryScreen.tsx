@@ -4,13 +4,16 @@ import {
   Text,
   StyleSheet,
   FlatList,
+  TouchableOpacity,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase, type Appointment } from '../../utils/supabase';
 import { COLORS, SIZES } from '../../utils/constants';
+import CompletionModal, { type CareNotesData } from '../../components/CompletionModal';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -35,23 +38,30 @@ function formatTime(time: string | null): string {
 // Component
 // ---------------------------------------------------------------------------
 
-const PatientCareHistory: React.FC = () => {
+const CareHistoryScreen: React.FC<{ navigation: any; route: any }> = ({
+  navigation,
+  route,
+}) => {
+  const { patientId, patientName } = route.params;
   const { user } = useAuth();
   const [history, setHistory] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null);
+  const [saving, setSaving] = useState(false);
 
   const fetchHistory = useCallback(async () => {
     if (!user) return;
     setLoading(true);
     try {
-      const { data: files } = await supabase
+      const { data: file } = await supabase
         .from('patient_files')
         .select('id')
-        .eq('patient_id', user.id);
+        .eq('patient_id', patientId)
+        .eq('nurse_id', user.id)
+        .single();
 
-      const fileIds = (files ?? []).map((f: any) => f.id);
-
-      if (fileIds.length === 0) {
+      if (!file) {
         setHistory([]);
         return;
       }
@@ -59,28 +69,69 @@ const PatientCareHistory: React.FC = () => {
       const { data, error } = await supabase
         .from('appointments')
         .select('*')
-        .in('patient_file_id', fileIds)
+        .eq('patient_file_id', file.id)
         .eq('status', 'completed')
-        .eq('visible_to_patient', true)
         .order('date', { ascending: false })
         .order('time', { ascending: false });
 
       if (error) {
-        console.error('[PatientCareHistory] fetch error:', error.message);
+        console.error('[CareHistory] fetch error:', error.message);
         return;
       }
 
       setHistory((data as Appointment[]) ?? []);
     } catch (err) {
-      console.error('[PatientCareHistory] unexpected:', err);
+      console.error('[CareHistory] unexpected:', err);
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [patientId, user]);
 
   useEffect(() => {
     fetchHistory();
   }, [fetchHistory]);
+
+  const handleSaveNotes = async (data: CareNotesData) => {
+    if (!editingAppointment || !user) return;
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from('appointments')
+        .update({
+          care_performed: data.care_performed || null,
+          observations: data.observations || null,
+          remarks: data.remarks || null,
+          visible_to_patient: data.visible_to_patient,
+        })
+        .eq('id', editingAppointment.id)
+        .eq('nurse_id', user.id);
+
+      if (error) {
+        Alert.alert('Erreur', error.message);
+        return;
+      }
+
+      setHistory((prev) =>
+        prev.map((a) =>
+          a.id === editingAppointment.id
+            ? {
+                ...a,
+                care_performed: data.care_performed || undefined,
+                observations: data.observations || undefined,
+                remarks: data.remarks || undefined,
+                visible_to_patient: data.visible_to_patient,
+              }
+            : a
+        )
+      );
+      setEditModalVisible(false);
+      setEditingAppointment(null);
+    } catch (err) {
+      Alert.alert('Erreur', 'Une erreur inattendue est survenue.');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   // -------------------------------------------------------------------------
   // Render item
@@ -89,13 +140,24 @@ const PatientCareHistory: React.FC = () => {
   const renderItem = ({ item }: { item: Appointment }) => (
     <View style={styles.card}>
       <View style={styles.cardHeader}>
-        <View style={styles.careTypeBadge}>
-          <Text style={styles.careTypeText}>{item.care_type}</Text>
+        <View style={styles.cardHeaderLeft}>
+          <View style={styles.careTypeBadge}>
+            <Text style={styles.careTypeText}>{item.care_type}</Text>
+          </View>
+          <Text style={styles.cardDate}>
+            {formatDate(item.date)}
+            {item.time ? ` · ${formatTime(item.time)}` : ''}
+          </Text>
         </View>
-        <Text style={styles.cardDate}>
-          {formatDate(item.date)}
-          {item.time ? ` · ${formatTime(item.time)}` : ''}
-        </Text>
+        <TouchableOpacity
+          style={styles.editBtn}
+          onPress={() => {
+            setEditingAppointment(item);
+            setEditModalVisible(true);
+          }}
+        >
+          <Ionicons name="create-outline" size={18} color={COLORS.NURSE_PRIMARY} />
+        </TouchableOpacity>
       </View>
 
       {item.duration_min ? (
@@ -127,8 +189,19 @@ const PatientCareHistory: React.FC = () => {
       ) : null}
 
       {!item.care_performed && !item.observations && !item.remarks ? (
-        <Text style={styles.noNotes}>Soin réalisé — aucune note détaillée</Text>
+        <Text style={styles.noNotes}>Aucune note renseignée</Text>
       ) : null}
+
+      <View style={styles.visibilityRow}>
+        <Ionicons
+          name={item.visible_to_patient ? 'eye-outline' : 'eye-off-outline'}
+          size={14}
+          color={item.visible_to_patient ? COLORS.NURSE_PRIMARY : COLORS.TEXT_MUTED}
+        />
+        <Text style={[styles.visibilityText, item.visible_to_patient && { color: COLORS.NURSE_PRIMARY }]}>
+          {item.visible_to_patient ? 'Visible par le patient' : 'Masqué pour le patient'}
+        </Text>
+      </View>
     </View>
   );
 
@@ -140,21 +213,32 @@ const PatientCareHistory: React.FC = () => {
     <SafeAreaView style={styles.container} edges={['top']}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Historique des soins</Text>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Ionicons name="chevron-back" size={24} color={COLORS.TEXT_PRIMARY} />
+        </TouchableOpacity>
+        <View style={styles.headerCenter}>
+          <Text style={styles.headerTitle}>Historique</Text>
+          <Text style={styles.headerSubtitle}>{patientName}</Text>
+        </View>
+        <View style={{ width: 40 }} />
       </View>
 
       {/* Content */}
       {loading ? (
         <View style={styles.centerWrap}>
-          <ActivityIndicator size="large" color={COLORS.PATIENT_PRIMARY} />
-          <Text style={styles.loadingText}>Chargement...</Text>
+          <ActivityIndicator size="large" color={COLORS.NURSE_PRIMARY} />
+          <Text style={styles.loadingText}>Chargement de l'historique...</Text>
         </View>
       ) : history.length === 0 ? (
         <View style={styles.centerWrap}>
           <Ionicons name="document-text-outline" size={56} color={COLORS.BORDER} />
           <Text style={styles.emptyTitle}>Aucun soin</Text>
           <Text style={styles.emptySubtitle}>
-            Vos soins réalisés apparaîtront ici lorsque votre infirmier(e) les aura documentés et rendus visibles.
+            L'historique des soins apparaîtra ici une fois les soins terminés.
           </Text>
         </View>
       ) : (
@@ -164,6 +248,29 @@ const PatientCareHistory: React.FC = () => {
           renderItem={renderItem}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
+        />
+      )}
+
+      {/* Edit Modal */}
+      {editingAppointment && (
+        <CompletionModal
+          visible={editModalVisible}
+          patientName={patientName}
+          careType={editingAppointment.care_type}
+          date={editingAppointment.date}
+          time={editingAppointment.time}
+          existingData={{
+            care_performed: editingAppointment.care_performed ?? undefined,
+            observations: editingAppointment.observations ?? undefined,
+            remarks: editingAppointment.remarks ?? undefined,
+            visible_to_patient: editingAppointment.visible_to_patient,
+          }}
+          onClose={() => {
+            setEditModalVisible(false);
+            setEditingAppointment(null);
+          }}
+          onSave={handleSaveNotes}
+          saving={saving}
         />
       )}
     </SafeAreaView>
@@ -180,16 +287,35 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.BACKGROUND,
   },
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: SIZES.LG,
-    paddingVertical: SIZES.LG,
+    paddingVertical: SIZES.MD,
     backgroundColor: COLORS.WHITE,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.BORDER,
   },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: COLORS.BACKGROUND,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerCenter: {
+    alignItems: 'center',
+  },
   headerTitle: {
-    fontSize: SIZES.FONT_XL,
+    fontSize: SIZES.FONT_LG,
     fontWeight: '700',
     color: COLORS.TEXT_PRIMARY,
+  },
+  headerSubtitle: {
+    fontSize: SIZES.FONT_XS,
+    color: COLORS.TEXT_MUTED,
+    marginTop: 2,
   },
   centerWrap: {
     flex: 1,
@@ -228,14 +354,18 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.06,
     shadowRadius: 4,
     elevation: 2,
-    borderLeftWidth: 4,
-    borderLeftColor: COLORS.PATIENT_PRIMARY,
   },
   cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
     marginBottom: SIZES.SM,
   },
+  cardHeaderLeft: {
+    flex: 1,
+  },
   careTypeBadge: {
-    backgroundColor: COLORS.PATIENT_LIGHT,
+    backgroundColor: COLORS.NURSE_LIGHT,
     paddingHorizontal: SIZES.SM,
     paddingVertical: 3,
     borderRadius: SIZES.BORDER_RADIUS_FULL,
@@ -245,11 +375,19 @@ const styles = StyleSheet.create({
   careTypeText: {
     fontSize: SIZES.FONT_XS,
     fontWeight: '600',
-    color: COLORS.PATIENT_PRIMARY,
+    color: COLORS.NURSE_PRIMARY,
   },
   cardDate: {
     fontSize: SIZES.FONT_SM,
     color: COLORS.TEXT_SECONDARY,
+  },
+  editBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: COLORS.NURSE_LIGHT,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   durationRow: {
     flexDirection: 'row',
@@ -283,7 +421,18 @@ const styles = StyleSheet.create({
     fontSize: SIZES.FONT_SM,
     color: COLORS.TEXT_MUTED,
     fontStyle: 'italic',
+    marginBottom: SIZES.SM,
+  },
+  visibilityRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: SIZES.XS,
+  },
+  visibilityText: {
+    fontSize: SIZES.FONT_XS,
+    color: COLORS.TEXT_MUTED,
   },
 });
 
-export default PatientCareHistory;
+export default CareHistoryScreen;

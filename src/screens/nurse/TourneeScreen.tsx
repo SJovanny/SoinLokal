@@ -30,6 +30,7 @@ import {
 } from '../../utils/routing';
 import { STRASBOURG_CENTER } from '../../utils/mapbox';
 import { openNavigation } from '../../utils/navigation';
+import CompletionModal, { type CareNotesData } from '../../components/CompletionModal';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -38,6 +39,7 @@ import { openNavigation } from '../../utils/navigation';
 interface TourAppointment {
   id: string;
   patient_file_id: string;
+  patient_id: string;
   nurse_id: string;
   date: string;
   time: string | null;
@@ -47,6 +49,10 @@ interface TourAppointment {
   address: string | null;
   notes: string | null;
   completion_note: string | null;
+  care_performed: string | null;
+  observations: string | null;
+  remarks: string | null;
+  visible_to_patient: boolean;
   patient_name: string;
   patient_phone: string | null;
   gps: GPSPoint | null;
@@ -489,6 +495,9 @@ const TourneeScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, 
   const [departureTime, setDepartureTime] = useState(getCurrentTimeHHMM());
   const [editingDeparture, setEditingDeparture] = useState(false);
   const [departureInput, setDepartureInput] = useState('');
+  const [completionModalVisible, setCompletionModalVisible] = useState(false);
+  const [completingAppointment, setCompletingAppointment] = useState<TourAppointment | null>(null);
+  const [savingNotes, setSavingNotes] = useState(false);
 
   // Open add modal from navigation params
   useEffect(() => {
@@ -511,6 +520,7 @@ const TourneeScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, 
         .select(`
           id, patient_file_id, nurse_id, date, time, care_type, duration_min,
           status, address, notes, completion_note,
+          care_performed, observations, remarks, visible_to_patient,
           patient_file:patient_files!patient_file_id(
             id, patient_id,
             patient:profiles!patient_id(id, first_name, last_name, phone)
@@ -554,6 +564,7 @@ const TourneeScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, 
         return {
           id: row.id,
           patient_file_id: row.patient_file_id,
+          patient_id: patientId,
           nurse_id: row.nurse_id,
           date: row.date,
           time: row.time,
@@ -563,6 +574,10 @@ const TourneeScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, 
           address: row.address,
           notes: row.notes,
           completion_note: row.completion_note,
+          care_performed: row.care_performed,
+          observations: row.observations,
+          remarks: row.remarks,
+          visible_to_patient: row.visible_to_patient ?? false,
           patient_name: patient ? `${patient.first_name} ${patient.last_name}` : 'Patient inconnu',
           patient_phone: patient?.phone ?? null,
           gps: pp?.gps_lat != null && pp?.gps_lng != null
@@ -727,13 +742,20 @@ const TourneeScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, 
   // Mark as completed
   // -------------------------------------------------------------------------
 
-  const handleComplete = async (appointmentId: string) => {
-    setCompletingId(appointmentId);
+  const handleComplete = async (data: CareNotesData) => {
+    if (!completingAppointment) return;
+    setSavingNotes(true);
     try {
       const { error } = await supabase
         .from('appointments')
-        .update({ status: 'completed' })
-        .eq('id', appointmentId)
+        .update({
+          status: 'completed',
+          care_performed: data.care_performed || null,
+          observations: data.observations || null,
+          remarks: data.remarks || null,
+          visible_to_patient: data.visible_to_patient,
+        })
+        .eq('id', completingAppointment.id)
         .eq('nurse_id', user?.id ?? '');
 
       if (error) {
@@ -743,25 +765,77 @@ const TourneeScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, 
 
       setAppointments((prev) =>
         prev.map((a) =>
-          a.id === appointmentId ? { ...a, status: 'completed' } : a
+          a.id === completingAppointment.id
+            ? {
+                ...a,
+                status: 'completed',
+                care_performed: data.care_performed || null,
+                observations: data.observations || null,
+                remarks: data.remarks || null,
+                visible_to_patient: data.visible_to_patient,
+              }
+            : a
         )
       );
+      setCompletionModalVisible(false);
+      setCompletingAppointment(null);
     } catch (err) {
       Alert.alert('Erreur', 'Une erreur inattendue est survenue.');
     } finally {
-      setCompletingId(null);
+      setSavingNotes(false);
     }
   };
 
-  const confirmComplete = (appointmentId: string, patientName: string) => {
-    Alert.alert(
-      'Confirmer le soin',
-      `Marquer le soin de ${patientName} comme terminé ?`,
-      [
-        { text: 'Annuler', style: 'cancel' },
-        { text: 'Terminé', onPress: () => handleComplete(appointmentId) },
-      ]
-    );
+  const handleUpdateNotes = async (data: CareNotesData) => {
+    if (!completingAppointment) return;
+    setSavingNotes(true);
+    try {
+      const { error } = await supabase
+        .from('appointments')
+        .update({
+          care_performed: data.care_performed || null,
+          observations: data.observations || null,
+          remarks: data.remarks || null,
+          visible_to_patient: data.visible_to_patient,
+        })
+        .eq('id', completingAppointment.id)
+        .eq('nurse_id', user?.id ?? '');
+
+      if (error) {
+        Alert.alert('Erreur', error.message);
+        return;
+      }
+
+      setAppointments((prev) =>
+        prev.map((a) =>
+          a.id === completingAppointment.id
+            ? {
+                ...a,
+                care_performed: data.care_performed || null,
+                observations: data.observations || null,
+                remarks: data.remarks || null,
+                visible_to_patient: data.visible_to_patient,
+              }
+            : a
+        )
+      );
+      setCompletionModalVisible(false);
+      setCompletingAppointment(null);
+    } catch (err) {
+      Alert.alert('Erreur', 'Une erreur inattendue est survenue.');
+    } finally {
+      setSavingNotes(false);
+    }
+  };
+
+  const openCompleteModal = (appointment: TourAppointment) => {
+    setCompletingAppointment(appointment);
+    setCompletionModalVisible(true);
+  };
+
+  const openEditNotesModal = (appointment: TourAppointment) => {
+    setCompletingAppointment(appointment);
+    setCompletionModalVisible(true);
   };
 
   // -------------------------------------------------------------------------
@@ -797,7 +871,9 @@ const TourneeScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, 
     const withGPS = appointments.filter((a) => a.gps);
     const withoutGPS = appointments.filter((a) => !a.gps);
 
-    const ordered = tourResult.order.map((idx) => withGPS[idx]);
+    const ordered = tourResult.order
+      .map((idx) => withGPS[idx])
+      .filter((a): a is TourAppointment => a != null);
     return [...ordered, ...withoutGPS];
   };
 
@@ -833,7 +909,9 @@ const TourneeScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, 
 
   const withGPSAppointments = appointments.filter((a) => a.gps);
   const orderedForMarkers = tourResult && tourResult.order.length > 0
-    ? tourResult.order.map((idx) => withGPSAppointments[idx])
+    ? tourResult.order
+        .map((idx) => withGPSAppointments[idx])
+        .filter((a): a is TourAppointment => a != null)
     : withGPSAppointments;
 
   const markers = useMemo(
@@ -975,7 +1053,7 @@ const TourneeScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, 
             {!isCompleted && (
               <TouchableOpacity
                 style={[styles.actionBtn, { backgroundColor: COLORS.SUCCESS }]}
-                onPress={() => confirmComplete(item.id, item.patient_name)}
+                onPress={() => openCompleteModal(item)}
                 disabled={isCompleting}
               >
                 {isCompleting ? (
@@ -986,6 +1064,16 @@ const TourneeScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, 
                     <Text style={styles.actionBtnText}>Terminé</Text>
                   </>
                 )}
+              </TouchableOpacity>
+            )}
+
+            {isCompleted && (
+              <TouchableOpacity
+                style={[styles.actionBtn, { backgroundColor: COLORS.WARNING }]}
+                onPress={() => openEditNotesModal(item)}
+              >
+                <Ionicons name="create-outline" size={18} color={COLORS.WHITE} />
+                <Text style={styles.actionBtnText}>Notes</Text>
               </TouchableOpacity>
             )}
 
@@ -1002,9 +1090,8 @@ const TourneeScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, 
             <TouchableOpacity
               style={[styles.actionBtn, styles.actionBtnOutline]}
               onPress={() => {
-                const patientId = appointments.find(a => a.id === item.id)?.patient_file_id;
                 navigation.navigate('PatientDetail', {
-                  patientFileId: item.patient_file_id,
+                  patientId: item.patient_id,
                 });
               }}
             >
@@ -1210,6 +1297,33 @@ const TourneeScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, 
         onAdd={handleAddPatient}
         existingFileIds={appointments.map((a) => a.patient_file_id)}
       />
+
+      {/* Completion Modal */}
+      {completingAppointment && (
+        <CompletionModal
+          visible={completionModalVisible}
+          patientName={completingAppointment.patient_name}
+          careType={completingAppointment.care_type}
+          date={completingAppointment.date}
+          time={completingAppointment.time}
+          existingData={
+            completingAppointment.status === 'completed'
+              ? {
+                  care_performed: completingAppointment.care_performed ?? undefined,
+                  observations: completingAppointment.observations ?? undefined,
+                  remarks: completingAppointment.remarks ?? undefined,
+                  visible_to_patient: completingAppointment.visible_to_patient,
+                }
+              : undefined
+          }
+          onClose={() => {
+            setCompletionModalVisible(false);
+            setCompletingAppointment(null);
+          }}
+          onSave={completingAppointment.status === 'completed' ? handleUpdateNotes : handleComplete}
+          saving={savingNotes}
+        />
+      )}
     </SafeAreaView>
   );
 };

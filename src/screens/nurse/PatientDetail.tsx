@@ -10,7 +10,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { supabase, type Profile, type PatientProfile } from '../../utils/supabase';
+import { useAuth } from '../../contexts/AuthContext';
+import { supabase, type Profile, type PatientProfile, type Appointment } from '../../utils/supabase';
 import { COLORS, SIZES } from '../../utils/constants';
 
 // ---------------------------------------------------------------------------
@@ -55,10 +56,19 @@ const PatientDetail: React.FC<{ navigation: any; route: any }> = ({
   route,
 }) => {
   const { patientId } = route.params;
+  const { user } = useAuth();
   const [data, setData] = useState<PatientData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [careHistory, setCareHistory] = useState<Appointment[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(true);
 
   useEffect(() => {
+    if (!patientId) {
+      setLoading(false);
+      setLoadingHistory(false);
+      return;
+    }
+
     const fetchPatient = async () => {
       setLoading(true);
       try {
@@ -94,8 +104,47 @@ const PatientDetail: React.FC<{ navigation: any; route: any }> = ({
       }
     };
 
+    const fetchCareHistory = async () => {
+      if (!user) return;
+      setLoadingHistory(true);
+      try {
+        const { data: file } = await supabase
+          .from('patient_files')
+          .select('id')
+          .eq('patient_id', patientId)
+          .eq('nurse_id', user.id)
+          .single();
+
+        if (!file) {
+          setCareHistory([]);
+          return;
+        }
+
+        const { data: history, error } = await supabase
+          .from('appointments')
+          .select('*')
+          .eq('patient_file_id', file.id)
+          .eq('status', 'completed')
+          .order('date', { ascending: false })
+          .order('time', { ascending: false })
+          .limit(5);
+
+        if (error) {
+          console.error('[PatientDetail] history error:', error.message);
+          return;
+        }
+
+        setCareHistory((history as Appointment[]) ?? []);
+      } catch (err) {
+        console.error('[PatientDetail] history unexpected:', err);
+      } finally {
+        setLoadingHistory(false);
+      }
+    };
+
     fetchPatient();
-  }, [patientId]);
+    fetchCareHistory();
+  }, [patientId, user]);
 
   // -------------------------------------------------------------------------
   // Loading
@@ -233,6 +282,36 @@ const PatientDetail: React.FC<{ navigation: any; route: any }> = ({
           ) : null}
         </View>
 
+        {/* Soins réalisés */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionTitle}>Soins réalisés</Text>
+            {careHistory.length > 0 && (
+              <TouchableOpacity
+                onPress={() =>
+                  navigation.navigate('CareHistory', {
+                    patientId,
+                    patientName: `${profile.first_name} ${profile.last_name}`,
+                  })
+                }
+              >
+                <Text style={styles.seeAllText}>Voir tout</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {loadingHistory ? (
+            <ActivityIndicator size="small" color={COLORS.NURSE_PRIMARY} style={{ paddingVertical: SIZES.MD }} />
+          ) : careHistory.length === 0 ? (
+            <View style={styles.emptyHistory}>
+              <Ionicons name="document-text-outline" size={32} color={COLORS.BORDER} />
+              <Text style={styles.emptyHistoryText}>Aucun soin enregistré</Text>
+            </View>
+          ) : (
+            careHistory.map((apt) => <CareHistoryCard key={apt.id} appointment={apt} />)
+          )}
+        </View>
+
         {/* Actions */}
         <View style={styles.actionsRow}>
           <TouchableOpacity style={styles.actionButton}>
@@ -273,6 +352,32 @@ function InfoRow({
         <Text style={styles.infoLabel}>{label}</Text>
         <Text style={styles.infoValue}>{value}</Text>
       </View>
+    </View>
+  );
+}
+
+function formatCareDate(dateStr: string): string {
+  const d = new Date(dateStr + 'T12:00:00');
+  return d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+function CareHistoryCard({ appointment }: { appointment: Appointment }) {
+  return (
+    <View style={styles.careCard}>
+      <View style={styles.careCardHeader}>
+        <View style={styles.careTypeBadge}>
+          <Text style={styles.careTypeText}>{appointment.care_type}</Text>
+        </View>
+        <Text style={styles.careDate}>
+          {formatCareDate(appointment.date)}
+          {appointment.time ? ` · ${appointment.time.substring(0, 5)}` : ''}
+        </Text>
+      </View>
+      {appointment.care_performed ? (
+        <Text style={styles.careNote} numberOfLines={2}>
+          {appointment.care_performed}
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -385,6 +490,61 @@ const styles = StyleSheet.create({
     paddingBottom: SIZES.SM,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.BORDER,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: SIZES.SM,
+    paddingBottom: SIZES.SM,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.BORDER,
+  },
+  seeAllText: {
+    fontSize: SIZES.FONT_SM,
+    fontWeight: '600',
+    color: COLORS.NURSE_PRIMARY,
+  },
+  emptyHistory: {
+    alignItems: 'center',
+    paddingVertical: SIZES.LG,
+    gap: SIZES.SM,
+  },
+  emptyHistoryText: {
+    fontSize: SIZES.FONT_SM,
+    color: COLORS.TEXT_MUTED,
+  },
+  careCard: {
+    backgroundColor: COLORS.BACKGROUND,
+    borderRadius: SIZES.BORDER_RADIUS_SM,
+    padding: SIZES.SM,
+    marginBottom: SIZES.SM,
+  },
+  careCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  careTypeBadge: {
+    backgroundColor: COLORS.NURSE_LIGHT,
+    paddingHorizontal: SIZES.SM,
+    paddingVertical: 2,
+    borderRadius: SIZES.BORDER_RADIUS_FULL,
+  },
+  careTypeText: {
+    fontSize: SIZES.FONT_XS,
+    fontWeight: '600',
+    color: COLORS.NURSE_PRIMARY,
+  },
+  careDate: {
+    fontSize: SIZES.FONT_XS,
+    color: COLORS.TEXT_MUTED,
+  },
+  careNote: {
+    fontSize: SIZES.FONT_SM,
+    color: COLORS.TEXT_SECONDARY,
+    lineHeight: 18,
   },
   // Info row
   infoRow: {

@@ -101,19 +101,23 @@ export interface PatientFile {
 }
 
 export interface Appointment {
-  id:                string;
-  patient_file_id:   string;
-  nurse_id:          string;
-  date:              string;
-  time:              string | null;
-  care_type:         string;
-  duration_min:      number;
-  status:            'pending' | 'confirmed' | 'completed' | 'cancelled';
-  address?:          string;
-  notes?:            string;
-  completion_note?:  string;
-  created_at:        string;
-  updated_at:        string;
+  id:                  string;
+  patient_file_id:     string;
+  nurse_id:            string;
+  date:                string;
+  time:                string | null;
+  care_type:           string;
+  duration_min:        number;
+  status:              'pending' | 'confirmed' | 'completed' | 'cancelled';
+  address?:            string;
+  notes?:              string;
+  completion_note?:    string;
+  care_performed?:     string;
+  observations?:       string;
+  remarks?:            string;
+  visible_to_patient:  boolean;
+  created_at:          string;
+  updated_at:          string;
 }
 
 export interface FamilyLink {
