@@ -132,3 +132,10 @@ export interface Message {
   is_read:           boolean;
   created_at:        string;
 }
+
+export interface NurseCareType {
+  id:                string;
+  nurse_id:          string;
+  name:              string;
+  created_at:        string;
+}

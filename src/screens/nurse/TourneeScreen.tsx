@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -208,7 +208,9 @@ function AddPatientModal({
   const [careType, setCareType] = useState('');
   const [durationMin, setDurationMin] = useState(30);
   const [time, setTime] = useState('');
-  const [showCareTypeModal, setShowCareTypeModal] = useState(false);
+  const [showCareTypeDropdown, setShowCareTypeDropdown] = useState(false);
+  const [customCareTypes, setCustomCareTypes] = useState<string[]>([]);
+  const [newCareTypeInput, setNewCareTypeInput] = useState('');
 
   useEffect(() => {
     if (!visible || !user) return;
@@ -217,14 +219,24 @@ function AddPatientModal({
     setCareType('');
     setDurationMin(30);
     setTime('');
+    setNewCareTypeInput('');
 
-    const loadPatients = async () => {
-      const { data: files } = await supabase
-        .from('patient_files')
-        .select('id, patient_id')
-        .eq('nurse_id', user.id)
-        .eq('is_active', true);
+    const loadData = async () => {
+      const [filesResult, customTypesResult] = await Promise.all([
+        supabase
+          .from('patient_files')
+          .select('id, patient_id')
+          .eq('nurse_id', user.id)
+          .eq('is_active', true),
+        supabase
+          .from('nurse_care_types')
+          .select('name')
+          .eq('nurse_id', user.id),
+      ]);
 
+      setCustomCareTypes((customTypesResult.data ?? []).map((t: any) => t.name));
+
+      const files = filesResult.data;
       if (!files || files.length === 0) {
         setPatients([]);
         setLoading(false);
@@ -264,8 +276,23 @@ function AddPatientModal({
       setLoading(false);
     };
 
-    loadPatients();
+    loadData();
   }, [visible, user, existingFileIds]);
+
+  const addCustomCareType = async (name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed || customCareTypes.includes(trimmed) || CARE_TYPES.includes(trimmed) || !user) return;
+
+    setCustomCareTypes((prev) => [...prev, trimmed]);
+    setCareType(trimmed);
+    setNewCareTypeInput('');
+    setShowCareTypeDropdown(false);
+
+    await supabase.from('nurse_care_types').insert({
+      nurse_id: user.id,
+      name: trimmed,
+    });
+  };
 
   const handleAdd = () => {
     if (!selectedPatient) {
@@ -281,76 +308,118 @@ function AddPatientModal({
   };
 
   return (
-    <>
-      {/* Main Modal — patient selection + form */}
-      <Modal visible={visible} animationType="fade" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Ajouter un patient</Text>
-              <TouchableOpacity onPress={onClose}>
-                <Ionicons name="close" size={24} color={COLORS.TEXT_PRIMARY} />
-              </TouchableOpacity>
-            </View>
+    <Modal visible={visible} animationType="fade" transparent>
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContent}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Ajouter un patient</Text>
+            <TouchableOpacity onPress={onClose}>
+              <Ionicons name="close" size={24} color={COLORS.TEXT_PRIMARY} />
+            </TouchableOpacity>
+          </View>
 
-            <KeyboardAvoidingView
+          <KeyboardAvoidingView
+            style={{ flex: 1 }}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          >
+            <ScrollView
               style={{ flex: 1 }}
-              behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+              contentContainerStyle={{ paddingBottom: 20 }}
+              keyboardShouldPersistTaps="handled"
             >
-              <ScrollView
-                style={{ flex: 1 }}
-                contentContainerStyle={{ paddingBottom: 20 }}
-                keyboardShouldPersistTaps="handled"
-              >
-                {/* Patient list */}
-                <Text style={styles.modalSectionTitle}>
-                  {patients.length === 0 ? 'Aucun patient disponible' : 'Choisir un patient'}
-                </Text>
-
-                {loading ? (
-                  <ActivityIndicator size="small" color={COLORS.NURSE_PRIMARY} style={{ padding: 20 }} />
-                ) : patients.length === 0 ? (
-                  <Text style={styles.modalEmptyText}>
-                    Tous vos patients sont déjà dans la tournée.
+              {!selectedPatient ? (
+                <>
+                  {/* Step 1 — Patient list */}
+                  <Text style={styles.modalSectionTitle}>
+                    {patients.length === 0 ? 'Aucun patient disponible' : 'Choisir un patient'}
                   </Text>
-                ) : (
-                  patients.map((item) => (
-                    <TouchableOpacity
-                      key={item.patient_file_id}
-                      style={[
-                        styles.modalItem,
-                        selectedPatient?.patient_file_id === item.patient_file_id && styles.modalItemSelected,
-                      ]}
-                      onPress={() => setSelectedPatient(item)}
-                    >
-                      <Ionicons name="person" size={20} color={COLORS.NURSE_PRIMARY} />
-                      <View style={{ flex: 1, marginLeft: SIZES.SM }}>
-                        <Text style={styles.modalItemName}>{item.name}</Text>
-                        {item.address ? (
-                          <Text style={styles.modalItemSub} numberOfLines={1}>{item.address}</Text>
-                        ) : null}
-                      </View>
-                      {selectedPatient?.patient_file_id === item.patient_file_id && (
-                        <Ionicons name="checkmark-circle" size={22} color={COLORS.SUCCESS} />
-                      )}
-                    </TouchableOpacity>
-                  ))
-                )}
 
-                {/* Form — shown when patient is selected */}
-                {selectedPatient && (
+                  {loading ? (
+                    <ActivityIndicator size="small" color={COLORS.NURSE_PRIMARY} style={{ padding: 20 }} />
+                  ) : patients.length === 0 ? (
+                    <Text style={styles.modalEmptyText}>
+                      Tous vos patients sont déjà dans la tournée.
+                    </Text>
+                  ) : (
+                    patients.map((item) => (
+                      <TouchableOpacity
+                        key={item.patient_file_id}
+                        style={[styles.modalItem]}
+                        onPress={() => setSelectedPatient(item)}
+                      >
+                        <Ionicons name="person" size={20} color={COLORS.NURSE_PRIMARY} />
+                        <View style={{ flex: 1, marginLeft: SIZES.SM }}>
+                          <Text style={styles.modalItemName}>{item.name}</Text>
+                          {item.address ? (
+                            <Text style={styles.modalItemSub} numberOfLines={1}>{item.address}</Text>
+                          ) : null}
+                        </View>
+                        <Ionicons name="chevron-forward" size={18} color={COLORS.TEXT_MUTED} />
+                      </TouchableOpacity>
+                    ))
+                  )}
+                </>
+              ) : (
+                <>
+                  {/* Step 2 — Form */}
+                  <View style={styles.selectedPatientRow}>
+                    <Ionicons name="person" size={20} color={COLORS.NURSE_PRIMARY} />
+                    <Text style={styles.selectedPatientName} numberOfLines={1}>{selectedPatient.name}</Text>
+                    <TouchableOpacity onPress={() => setSelectedPatient(null)}>
+                      <Text style={styles.changeBtn}>Changer</Text>
+                    </TouchableOpacity>
+                  </View>
+
                   <View style={styles.addForm}>
                     <Text style={styles.formLabel}>Type de soin *</Text>
                     <TouchableOpacity
                       style={styles.selectBtn}
-                      onPress={() => setShowCareTypeModal(true)}
+                      onPress={() => setShowCareTypeDropdown(!showCareTypeDropdown)}
                     >
                       <Ionicons name="medkit-outline" size={18} color={COLORS.TEXT_MUTED} />
                       <Text style={[styles.selectText, !careType && styles.placeholder]}>
                         {careType || 'Sélectionner'}
                       </Text>
-                      <Ionicons name="chevron-down" size={16} color={COLORS.TEXT_MUTED} />
+                      <Ionicons name={showCareTypeDropdown ? 'chevron-up' : 'chevron-down'} size={16} color={COLORS.TEXT_MUTED} />
                     </TouchableOpacity>
+
+                    {showCareTypeDropdown && (
+                      <View style={styles.careTypeDropdown}>
+                        <View style={styles.careTypeInputRow}>
+                          <TextInput
+                            style={styles.careTypeInput}
+                            placeholder="Nouveau soin..."
+                            placeholderTextColor={COLORS.TEXT_MUTED}
+                            value={newCareTypeInput}
+                            onChangeText={setNewCareTypeInput}
+                            onSubmitEditing={() => addCustomCareType(newCareTypeInput)}
+                            returnKeyType="done"
+                          />
+                          <TouchableOpacity
+                            style={styles.careTypeAddBtn}
+                            onPress={() => addCustomCareType(newCareTypeInput)}
+                          >
+                            <Ionicons name="add" size={20} color={COLORS.WHITE} />
+                          </TouchableOpacity>
+                        </View>
+                        {[...customCareTypes, ...CARE_TYPES].map((item) => (
+                          <TouchableOpacity
+                            key={item}
+                            style={[styles.modalItem, careType === item && styles.modalItemSelected]}
+                            onPress={() => {
+                              setCareType(item);
+                              setShowCareTypeDropdown(false);
+                            }}
+                          >
+                            <Ionicons name="medkit" size={18} color={COLORS.NURSE_PRIMARY} />
+                            <Text style={[styles.modalItemName, { marginLeft: SIZES.SM, flex: 1 }]}>{item}</Text>
+                            {careType === item && (
+                              <Ionicons name="checkmark-circle" size={20} color={COLORS.SUCCESS} />
+                            )}
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    )}
 
                     <Text style={styles.formLabel}>Durée</Text>
                     <View style={styles.durationRow}>
@@ -391,45 +460,13 @@ function AddPatientModal({
                       <Text style={styles.addBtnText}>Ajouter à la tournée</Text>
                     </TouchableOpacity>
                   </View>
-                )}
-              </ScrollView>
-            </KeyboardAvoidingView>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Care Type Modal — sibling, not nested */}
-      <Modal visible={showCareTypeModal} animationType="fade" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Type de soin</Text>
-              <TouchableOpacity onPress={() => setShowCareTypeModal(false)}>
-                <Ionicons name="close" size={24} color={COLORS.TEXT_PRIMARY} />
-              </TouchableOpacity>
-            </View>
-            <ScrollView>
-              {CARE_TYPES.map((item) => (
-                <TouchableOpacity
-                  key={item}
-                  style={[styles.modalItem, careType === item && styles.modalItemSelected]}
-                  onPress={() => {
-                    setCareType(item);
-                    setShowCareTypeModal(false);
-                  }}
-                >
-                  <Ionicons name="medkit" size={20} color={COLORS.NURSE_PRIMARY} />
-                  <Text style={[styles.modalItemName, { marginLeft: SIZES.SM, flex: 1 }]}>{item}</Text>
-                  {careType === item && (
-                    <Ionicons name="checkmark-circle" size={22} color={COLORS.SUCCESS} />
-                  )}
-                </TouchableOpacity>
-              ))}
+                </>
+              )}
             </ScrollView>
-          </View>
+          </KeyboardAvoidingView>
         </View>
-      </Modal>
-    </>
+      </View>
+    </Modal>
   );
 }
 
@@ -799,24 +836,30 @@ const TourneeScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, 
     ? tourResult.order.map((idx) => withGPSAppointments[idx])
     : withGPSAppointments;
 
-  const markers = orderedForMarkers.map((a, index) => {
-    const config = STATUS_CONFIG[a.status] ?? STATUS_CONFIG.pending;
-    return {
-      id: a.id,
-      coordinate: {
-        latitude: a.gps!.lat,
-        longitude: a.gps!.lng,
-      },
-      title: a.patient_name,
-      subtitle: `${a.care_type} — ${a.duration_min} min`,
-      index: index + 1,
-      color: config.color,
-    };
-  });
+  const markers = useMemo(
+    () =>
+      orderedForMarkers.map((a, index) => {
+        const config = STATUS_CONFIG[a.status] ?? STATUS_CONFIG.pending;
+        return {
+          id: a.id,
+          coordinate: {
+            latitude: a.gps!.lat,
+            longitude: a.gps!.lng,
+          },
+          title: a.patient_name,
+          subtitle: `${a.care_type} — ${a.duration_min} min`,
+          index: index + 1,
+          color: config.color,
+        };
+      }),
+    [orderedForMarkers],
+  );
 
   // -------------------------------------------------------------------------
-  // Fit map to markers
+  // Fit map to markers (only once on initial load)
   // -------------------------------------------------------------------------
+
+  const hasFitted = useRef(false);
 
   const fitMapToMarkers = useCallback(() => {
     if (markers.length === 0 || !mapRef.current) return;
@@ -828,7 +871,8 @@ const TourneeScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, 
   }, [markers]);
 
   useEffect(() => {
-    if (!loading && markers.length > 0) {
+    if (!loading && markers.length > 0 && !hasFitted.current) {
+      hasFitted.current = true;
       setTimeout(fitMapToMarkers, 500);
     }
   }, [loading, markers.length, fitMapToMarkers]);
@@ -1644,11 +1688,68 @@ const styles = StyleSheet.create({
     color: COLORS.TEXT_MUTED,
     marginTop: 2,
   },
+  careTypeInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: SIZES.SM,
+    paddingVertical: SIZES.SM,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.BORDER,
+    gap: SIZES.SM,
+  },
+  careTypeInput: {
+    flex: 1,
+    height: 44,
+    borderWidth: 1.5,
+    borderColor: COLORS.BORDER,
+    borderRadius: SIZES.BORDER_RADIUS_MD,
+    paddingHorizontal: SIZES.MD,
+    fontSize: SIZES.FONT_MD,
+    color: COLORS.TEXT_PRIMARY,
+  },
+  careTypeAddBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: SIZES.BORDER_RADIUS_MD,
+    backgroundColor: COLORS.NURSE_PRIMARY,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   modalEmptyText: {
     fontSize: SIZES.FONT_SM,
     color: COLORS.TEXT_MUTED,
     textAlign: 'center',
     padding: SIZES.LG,
+  },
+  // Selected patient row
+  selectedPatientRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: SIZES.LG,
+    paddingVertical: SIZES.MD,
+    backgroundColor: COLORS.NURSE_LIGHT,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.BORDER,
+  },
+  selectedPatientName: {
+    flex: 1,
+    fontSize: SIZES.FONT_MD,
+    fontWeight: '600',
+    color: COLORS.TEXT_PRIMARY,
+    marginLeft: SIZES.SM,
+  },
+  changeBtn: {
+    fontSize: SIZES.FONT_SM,
+    fontWeight: '600',
+    color: COLORS.NURSE_PRIMARY,
+  },
+  // Care type dropdown
+  careTypeDropdown: {
+    borderWidth: 1.5,
+    borderColor: COLORS.BORDER,
+    borderRadius: SIZES.BORDER_RADIUS_MD,
+    marginTop: SIZES.XS,
+    maxHeight: 400,
   },
   // Add form (inside modal)
   addForm: {

@@ -31,16 +31,6 @@ interface SeedUser {
   label: string;
 }
 
-interface PatientExtra {
-  email: string;
-  address: string;
-  dob: string; // YYYY-MM-DD
-  gps_lat: number;
-  gps_lng: number;
-  medical_notes: string;
-  allergies: string[];
-}
-
 // ---------------------------------------------------------------------------
 // Seed data — Users
 // ---------------------------------------------------------------------------
@@ -139,16 +129,43 @@ const SEED_USERS: SeedUser[] = [
 ];
 
 // ---------------------------------------------------------------------------
-// Patient extra data (GPS, DOB, medical notes)
+// Geocoding via BAN API (api-adresse.data.gouv.fr)
 // ---------------------------------------------------------------------------
 
-const PATIENT_EXTRAS: PatientExtra[] = [
+async function geocodeAddress(address: string): Promise<{ lat: number; lng: number } | null> {
+  const url = `https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(address)}&limit=1`;
+  try {
+    const res = await fetch(url);
+    const data = await res.json();
+    const feature = data?.features?.[0];
+    if (!feature) {
+      console.warn(`   ⚠️  No geocoding result for: ${address}`);
+      return null;
+    }
+    return { lat: feature.geometry.coordinates[1], lng: feature.geometry.coordinates[0] };
+  } catch (err: any) {
+    console.warn(`   ⚠️  Geocoding error for ${address}: ${err?.message}`);
+    return null;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Patient extra data (DOB, medical notes — GPS will be geocoded from address)
+// ---------------------------------------------------------------------------
+
+interface PatientSeed {
+  email: string;
+  address: string;
+  dob: string;
+  medical_notes: string;
+  allergies: string[];
+}
+
+const PATIENT_EXTRAS: PatientSeed[] = [
   {
     email: 'patient1@soinlokal.com',
     address: '12 Rue d\'Obernai, 67000 Strasbourg',
     dob: '1945-03-12',
-    gps_lat: 48.5853,
-    gps_lng: 7.7485,
     medical_notes: 'Diabète type 2, hypertension artérielle. Suivi régulier glycémie.',
     allergies: ['Pénicilline'],
   },
@@ -156,8 +173,6 @@ const PATIENT_EXTRAS: PatientExtra[] = [
     email: 'patient2@soinlokal.com',
     address: '6 Rue Rubens, 67200 Strasbourg',
     dob: '1938-07-25',
-    gps_lat: 48.5725,
-    gps_lng: 7.7340,
     medical_notes: 'Insuffisance cardiaque légère. Pansement chronique jambe gauche.',
     allergies: [],
   },
@@ -165,17 +180,13 @@ const PATIENT_EXTRAS: PatientExtra[] = [
     email: 'patient3@soinlokal.com',
     address: '1 Rue de Bourgogne, 67100 Strasbourg',
     dob: '1952-11-03',
-    gps_lat: 48.5765,
-    gps_lng: 7.7650,
     medical_notes: 'Post-opératoire prothèse de hanche. Kinésithérapie 2x/semaine.',
     allergies: ['Aspirine', 'Iode'],
   },
   {
     email: 'patient4@soinlokal.com',
-    address: 'Königsberger Str. 22, 77694 Kehl, Allemagne',
+    address: 'Königstraße 100, 77694 Kehl, Deutschland',
     dob: '1941-01-18',
-    gps_lat: 48.5725,
-    gps_lng: 7.8130,
     medical_notes: 'Alzheimer débutant. Prise de sang mensuelle (bilan hépatique).',
     allergies: [],
   },
@@ -183,8 +194,6 @@ const PATIENT_EXTRAS: PatientExtra[] = [
     email: 'patient5@soinlokal.com',
     address: '14 Sent. de l\'Aubépine, 67000 Strasbourg',
     dob: '1955-09-07',
-    gps_lat: 48.5785,
-    gps_lng: 7.7620,
     medical_notes: 'Diabète type 1 insulinodépendant. Contrôle glycémie 3x/semaine.',
     allergies: ['Sulfamides'],
   },
@@ -192,8 +201,6 @@ const PATIENT_EXTRAS: PatientExtra[] = [
     email: 'patient6@soinlokal.com',
     address: '18 Rue de Barr, 67460 Souffelweyersheim',
     dob: '1933-05-30',
-    gps_lat: 48.6355,
-    gps_lng: 7.7360,
     medical_notes: 'Polyarthrite rhumatoïde. Injection hebdomadaire Méthotrexate.',
     allergies: ['Latex'],
   },
@@ -299,7 +306,7 @@ async function ensureProfile(userId: string, email: string, metadata: Record<str
   }
 }
 
-async function updatePatientProfile(extra: PatientExtra): Promise<void> {
+async function updatePatientProfile(extra: PatientSeed): Promise<void> {
   console.log(`\n→ Updating patient_profiles for ${extra.email}`);
 
   // Get user id by email
@@ -310,16 +317,28 @@ async function updatePatientProfile(extra: PatientExtra): Promise<void> {
     return;
   }
 
+  // Geocode address via BAN API
+  console.log(`   📍 Geocoding: ${extra.address}`);
+  const coord = await geocodeAddress(extra.address);
+
+  const updateData: any = {
+    address: extra.address,
+    dob: extra.dob,
+    medical_notes: extra.medical_notes,
+    allergies: extra.allergies,
+  };
+
+  if (coord) {
+    updateData.gps_lat = coord.lat;
+    updateData.gps_lng = coord.lng;
+    console.log(`   📍 GPS: ${coord.lat}, ${coord.lng}`);
+  } else {
+    console.warn(`   ⚠️  No GPS coordinates for ${extra.address} — pin will not appear on map`);
+  }
+
   const { error } = await supabase
     .from('patient_profiles')
-    .update({
-      address: extra.address,
-      dob: extra.dob,
-      gps_lat: extra.gps_lat,
-      gps_lng: extra.gps_lng,
-      medical_notes: extra.medical_notes,
-      allergies: extra.allergies,
-    })
+    .update(updateData)
     .eq('profile_id', user.id);
 
   if (error) {
@@ -327,7 +346,7 @@ async function updatePatientProfile(extra: PatientExtra): Promise<void> {
     return;
   }
 
-  console.log(`   ✅ Updated patient_profiles (GPS: ${extra.gps_lat}, ${extra.gps_lng})`);
+  console.log(`   ✅ Updated patient_profiles`);
 }
 
 async function createPatientFile(patientEmail: string, nurseId: string): Promise<void> {
