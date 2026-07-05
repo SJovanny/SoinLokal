@@ -118,6 +118,7 @@ export interface Appointment {
   visible_to_patient:  boolean;
   created_at:          string;
   updated_at:          string;
+  nurse?:              { id: string; first_name: string; last_name: string };
 }
 
 export interface FamilyLink {

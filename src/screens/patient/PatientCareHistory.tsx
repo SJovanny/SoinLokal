@@ -58,7 +58,7 @@ const PatientCareHistory: React.FC = () => {
 
       const { data, error } = await supabase
         .from('appointments')
-        .select('*')
+        .select('*, nurse:profiles!nurse_id(id, first_name, last_name)')
         .in('patient_file_id', fileIds)
         .eq('status', 'completed')
         .eq('visible_to_patient', true)
@@ -97,6 +97,13 @@ const PatientCareHistory: React.FC = () => {
           {item.time ? ` · ${formatTime(item.time)}` : ''}
         </Text>
       </View>
+
+      {item.nurse && (
+        <View style={styles.nurseRow}>
+          <Ionicons name="person-outline" size={14} color={COLORS.TEXT_MUTED} />
+          <Text style={styles.nurseName}>{item.nurse.first_name} {item.nurse.last_name}</Text>
+        </View>
+      )}
 
       {item.duration_min ? (
         <View style={styles.durationRow}>
@@ -260,6 +267,17 @@ const styles = StyleSheet.create({
   durationText: {
     fontSize: SIZES.FONT_XS,
     color: COLORS.TEXT_MUTED,
+  },
+  nurseRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: SIZES.SM,
+  },
+  nurseName: {
+    fontSize: SIZES.FONT_SM,
+    fontWeight: '600',
+    color: COLORS.TEXT_SECONDARY,
   },
   // Notes
   noteBlock: {
