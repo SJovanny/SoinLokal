@@ -25,6 +25,7 @@ import ProfileScreen from '../screens/nurse/ProfileScreen';
 import PatientDashboard from '../screens/patient/PatientDashboard';
 import PatientCareHistory from '../screens/patient/PatientCareHistory';
 import MessagingScreen from '../screens/shared/MessagingScreen';
+import ChatScreen from '../screens/shared/ChatScreen';
 
 // Écrans famille
 import FamilyDashboard from '../screens/family/FamilyDashboard';
@@ -267,6 +268,7 @@ const AppNavigator = () => {
             <Stack.Screen name="CareHistory" component={CareHistoryScreen} />
             <Stack.Screen name="AddManagedPatient" component={AddManagedPatient} />
             <Stack.Screen name="NurseProfileView" component={NurseProfileView} />
+            <Stack.Screen name="ChatScreen" component={ChatScreen} />
           </>
         )}
       </Stack.Navigator>
