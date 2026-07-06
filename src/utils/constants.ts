@@ -12,6 +12,9 @@ export const COLORS = {
   PATIENT_PRIMARY: '#4A90E2',
   PATIENT_LIGHT:   '#EBF4FF',
   PATIENT_DARK:    '#1A5FA8',
+  FAMILY_PRIMARY:  '#7C4DFF',
+  FAMILY_LIGHT:    '#EDE7F6',
+  FAMILY_DARK:     '#4A148C',
 
   // Semantic
   SUCCESS: '#4CAF50',
@@ -71,8 +74,10 @@ export type SizeKey = keyof typeof SIZES;
 // Theme helper
 // ---------------------------------------------------------------------------
 
-export function getThemeColor(userType: 'nurse' | 'patient' | string): string {
-  return userType === 'nurse' ? COLORS.NURSE_PRIMARY : COLORS.PATIENT_PRIMARY;
+export function getThemeColor(userType: 'nurse' | 'patient' | 'family' | string): string {
+  if (userType === 'nurse') return COLORS.NURSE_PRIMARY;
+  if (userType === 'family') return COLORS.FAMILY_PRIMARY;
+  return COLORS.PATIENT_PRIMARY;
 }
 
 // ---------------------------------------------------------------------------

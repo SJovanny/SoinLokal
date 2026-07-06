@@ -21,6 +21,9 @@ import { COLORS, SIZES } from '../../utils/constants';
 interface PatientData {
   profile: Profile;
   patientProfile: PatientProfile | null;
+  managedByName: string | null;
+  managedByEmail: string | null;
+  managedByPhone: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -55,12 +58,13 @@ const PatientDetail: React.FC<{ navigation: any; route: any }> = ({
   navigation,
   route,
 }) => {
-  const { patientId } = route.params;
+  const { patientId, patientFileId } = route.params;
   const { user } = useAuth();
   const [data, setData] = useState<PatientData | null>(null);
   const [loading, setLoading] = useState(true);
   const [careHistory, setCareHistory] = useState<Appointment[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(true);
+  const [removing, setRemoving] = useState(false);
 
   useEffect(() => {
     if (!patientId) {
@@ -93,9 +97,29 @@ const PatientDetail: React.FC<{ navigation: any; route: any }> = ({
           console.error('[PatientDetail] patient_profiles error:', ppErr.message);
         }
 
+        // Fetch managed_by info if applicable
+        let managedByName: string | null = null;
+        let managedByEmail: string | null = null;
+        let managedByPhone: string | null = null;
+        if (pp?.managed_by) {
+          const { data: managerProfile } = await supabase
+            .from('profiles')
+            .select('first_name, last_name, email, phone')
+            .eq('id', pp.managed_by)
+            .single();
+          if (managerProfile) {
+            managedByName = `${managerProfile.first_name} ${managerProfile.last_name}`;
+            managedByEmail = managerProfile.email ?? null;
+            managedByPhone = managerProfile.phone ?? null;
+          }
+        }
+
         setData({
           profile: profile as Profile,
           patientProfile: (pp as PatientProfile) ?? null,
+          managedByName,
+          managedByEmail,
+          managedByPhone,
         });
       } catch (err) {
         console.error('[PatientDetail] unexpected:', err);
@@ -147,6 +171,46 @@ const PatientDetail: React.FC<{ navigation: any; route: any }> = ({
   }, [patientId, user]);
 
   // -------------------------------------------------------------------------
+  // Remove patient from my list
+  // -------------------------------------------------------------------------
+
+  const handleRemovePatient = () => {
+    if (!patientFileId) return;
+
+    Alert.alert(
+      'Retirer ce patient',
+      `Êtes-vous sûr de vouloir retirer ${data?.profile.first_name} ${data?.profile.last_name} de votre liste ?\n\nLes soins enregistrés seront conservés mais vous ne pourrez plus planifier de nouveaux rendez-vous.`,
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Retirer',
+          style: 'destructive',
+          onPress: async () => {
+            setRemoving(true);
+            try {
+              const { error } = await supabase
+                .from('patient_files')
+                .update({ is_active: false })
+                .eq('id', patientFileId);
+
+              if (error) {
+                Alert.alert('Erreur', error.message);
+                return;
+              }
+
+              navigation.goBack();
+            } catch (err) {
+              Alert.alert('Erreur', 'Une erreur inattendue est survenue.');
+            } finally {
+              setRemoving(false);
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  // -------------------------------------------------------------------------
   // Loading
   // -------------------------------------------------------------------------
 
@@ -171,7 +235,7 @@ const PatientDetail: React.FC<{ navigation: any; route: any }> = ({
     );
   }
 
-  const { profile, patientProfile: pp } = data;
+  const { profile, patientProfile: pp, managedByName, managedByEmail, managedByPhone } = data;
   const age = calcAge(pp?.dob);
 
   // -------------------------------------------------------------------------
@@ -223,6 +287,20 @@ const PatientDetail: React.FC<{ navigation: any; route: any }> = ({
           <InfoRow icon="mail-outline" label="Email" value={profile.email ?? '—'} />
           <InfoRow icon="call-outline" label="Téléphone" value={profile.phone ?? '—'} />
         </View>
+
+        {/* Proche / Tuteur */}
+        {managedByName && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Proche / Tuteur</Text>
+            <InfoRow icon="people-outline" label="Nom" value={managedByName} iconColor={COLORS.FAMILY_PRIMARY} />
+            {managedByPhone && (
+              <InfoRow icon="call-outline" label="Téléphone" value={managedByPhone} />
+            )}
+            {managedByEmail && (
+              <InfoRow icon="mail-outline" label="Email" value={managedByEmail} />
+            )}
+          </View>
+        )}
 
         {/* Informations personnelles */}
         <View style={styles.section}>
@@ -325,6 +403,24 @@ const PatientDetail: React.FC<{ navigation: any; route: any }> = ({
             <Text style={styles.actionText}>Itinéraire</Text>
           </TouchableOpacity>
         </View>
+
+        {/* Remove patient */}
+        {patientFileId && (
+          <TouchableOpacity
+            style={styles.removeButton}
+            onPress={handleRemovePatient}
+            disabled={removing}
+          >
+            {removing ? (
+              <ActivityIndicator size="small" color={COLORS.DANGER} />
+            ) : (
+              <>
+                <Ionicons name="trash-outline" size={18} color={COLORS.DANGER} />
+                <Text style={styles.removeButtonText}>Retirer de ma liste</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -590,6 +686,24 @@ const styles = StyleSheet.create({
     color: COLORS.WHITE,
     fontSize: SIZES.FONT_SM,
     fontWeight: '600',
+  },
+  // Remove button
+  removeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SIZES.SM,
+    marginTop: SIZES.MD,
+    paddingVertical: SIZES.MD,
+    borderRadius: SIZES.BORDER_RADIUS_MD,
+    borderWidth: 1.5,
+    borderColor: COLORS.DANGER,
+    backgroundColor: COLORS.WHITE,
+  },
+  removeButtonText: {
+    fontSize: SIZES.FONT_SM,
+    fontWeight: '600',
+    color: COLORS.DANGER,
   },
 });
 

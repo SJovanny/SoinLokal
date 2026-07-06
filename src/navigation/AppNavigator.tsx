@@ -26,6 +26,12 @@ import PatientDashboard from '../screens/patient/PatientDashboard';
 import PatientCareHistory from '../screens/patient/PatientCareHistory';
 import MessagingScreen from '../screens/shared/MessagingScreen';
 
+// Écrans famille
+import FamilyDashboard from '../screens/family/FamilyDashboard';
+import FamilyProfile from '../screens/family/FamilyProfile';
+import AddManagedPatient from '../screens/family/AddManagedPatient';
+import NurseProfileView from '../screens/family/NurseProfileView';
+
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
 
@@ -169,6 +175,65 @@ const PatientTabNavigator = () => (
   </Tab.Navigator>
 );
 
+// Navigation pour les familles
+const FamilyTabNavigator = () => (
+  <Tab.Navigator
+    screenOptions={({ route }) => ({
+      headerShown: false,
+      tabBarIcon: ({ focused, color, size }) => {
+        let iconName: React.ComponentProps<typeof Ionicons>['name'] | undefined;
+        switch (route.name) {
+          case 'Suivi':
+            iconName = focused ? 'heart' : 'heart-outline';
+            break;
+          case 'Messages':
+            iconName = focused ? 'chatbubbles' : 'chatbubbles-outline';
+            break;
+          case 'Profil':
+            iconName = focused ? 'person' : 'person-outline';
+            break;
+        }
+        return <Ionicons name={iconName!} size={size} color={color} />;
+      },
+      tabBarActiveTintColor: '#7C4DFF',
+      tabBarInactiveTintColor: 'gray',
+      tabBarStyle: {
+        backgroundColor: 'white',
+        borderTopColor: '#e0e0e0',
+        borderTopWidth: 1,
+        paddingBottom: 5,
+        paddingTop: 5,
+        height: 60,
+      },
+    })}
+  >
+    <Tab.Screen
+      name="Suivi"
+      component={FamilyDashboard}
+      options={{
+        title: 'Suivi',
+        headerShown: false,
+      }}
+    />
+    <Tab.Screen
+      name="Messages"
+      component={MessagingScreen}
+      options={{
+        title: 'Messages',
+        headerShown: false,
+      }}
+    />
+    <Tab.Screen
+      name="Profil"
+      component={FamilyProfile}
+      options={{
+        title: 'Profil',
+        headerShown: false,
+      }}
+    />
+  </Tab.Navigator>
+);
+
 // Navigation principale
 const AppNavigator = () => {
   const { user, userProfile, loading } = useAuth();
@@ -193,11 +258,15 @@ const AppNavigator = () => {
           <>
             {userProfile?.user_type === 'nurse' ? (
               <Stack.Screen name="NurseApp" component={NurseTabNavigator} />
+            ) : userProfile?.user_type === 'family' ? (
+              <Stack.Screen name="FamilyApp" component={FamilyTabNavigator} />
             ) : (
               <Stack.Screen name="PatientApp" component={PatientTabNavigator} />
             )}
             <Stack.Screen name="PatientDetail" component={PatientDetail} />
             <Stack.Screen name="CareHistory" component={CareHistoryScreen} />
+            <Stack.Screen name="AddManagedPatient" component={AddManagedPatient} />
+            <Stack.Screen name="NurseProfileView" component={NurseProfileView} />
           </>
         )}
       </Stack.Navigator>

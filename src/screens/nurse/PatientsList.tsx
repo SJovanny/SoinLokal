@@ -27,6 +27,7 @@ interface PatientWithProfile {
   email: string | null;
   phone: string | null;
   patient_profiles: PatientProfile | null;
+  managed_by_name?: string | null;
 }
 
 interface MyPatient {
@@ -102,12 +103,25 @@ const PatientsList: React.FC<{ navigation: any; route: any }> = ({
       // Step 2: Fetch patient_profiles separately
       const patientIds = (data ?? []).map((row: any) => row.patient_id).filter(Boolean);
       let ppMap: Record<string, any> = {};
+      let managedByMap: Record<string, string> = {}; // managed_by id -> name
       if (patientIds.length > 0) {
         const { data: profiles } = await supabase
           .from('patient_profiles')
-          .select('id, profile_id, dob, address, address_label, emergency_contact, medical_notes, allergies, created_at, updated_at')
+          .select('id, profile_id, dob, address, address_label, emergency_contact, medical_notes, allergies, is_managed, managed_by, created_at, updated_at')
           .in('profile_id', patientIds);
         (profiles ?? []).forEach((pp: any) => { ppMap[pp.profile_id] = pp; });
+
+        // Fetch managed_by names (family members)
+        const managedByIds = [...new Set((profiles ?? []).map((pp: any) => pp.managed_by).filter(Boolean))];
+        if (managedByIds.length > 0) {
+          const { data: familyProfiles } = await supabase
+            .from('profiles')
+            .select('id, first_name, last_name')
+            .in('id', managedByIds);
+          (familyProfiles ?? []).forEach((fp: any) => {
+            managedByMap[fp.id] = `${fp.first_name} ${fp.last_name}`;
+          });
+        }
       }
 
       // Step 3: Merge
@@ -115,12 +129,14 @@ const PatientsList: React.FC<{ navigation: any; route: any }> = ({
         const patient = Array.isArray(row.patient)
           ? row.patient[0] ?? null
           : row.patient ?? null;
+        const pp = ppMap[row.patient_id] ?? null;
         return {
           id: row.id,
           patient_id: row.patient_id,
           patient: {
             ...patient,
-            patient_profiles: ppMap[row.patient_id] ?? null,
+            patient_profiles: pp,
+            managed_by_name: pp?.managed_by ? managedByMap[pp.managed_by] ?? null : null,
           },
         };
       });
@@ -272,11 +288,17 @@ const PatientsList: React.FC<{ navigation: any; route: any }> = ({
           <Ionicons name="person" size={24} color={COLORS.NURSE_PRIMARY} />
         </View>
 
-        <View style={styles.cardInfo}>
-          <Text style={styles.cardName}>
-            {patient.first_name} {patient.last_name}
-          </Text>
-          {pp?.address ? (
+          <View style={styles.cardInfo}>
+            <Text style={styles.cardName}>
+              {patient.first_name} {patient.last_name}
+            </Text>
+            {patient.managed_by_name ? (
+              <View style={styles.managedBadge}>
+                <Ionicons name="people-outline" size={12} color={COLORS.FAMILY_PRIMARY} />
+                <Text style={styles.managedBadgeText}>Géré par {patient.managed_by_name}</Text>
+              </View>
+            ) : null}
+            {pp?.address ? (
             <View style={styles.cardMetaRow}>
               <Ionicons name="location-outline" size={14} color={COLORS.TEXT_MUTED} />
               <Text style={styles.cardMeta} numberOfLines={1}>
@@ -607,6 +629,23 @@ const styles = StyleSheet.create({
     color: COLORS.TEXT_SECONDARY,
     marginLeft: 6,
     flex: 1,
+  },
+  // Managed badge
+  managedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 4,
+    backgroundColor: COLORS.FAMILY_LIGHT,
+    paddingHorizontal: SIZES.SM,
+    paddingVertical: 2,
+    borderRadius: SIZES.BORDER_RADIUS_FULL,
+    alignSelf: 'flex-start',
+  },
+  managedBadgeText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: COLORS.FAMILY_PRIMARY,
   },
   // Add button
   addButton: {

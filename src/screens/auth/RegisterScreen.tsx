@@ -12,11 +12,13 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
-import { getThemeColor } from '../../utils/constants';
+import { getThemeColor, COLORS } from '../../utils/constants';
 
 const RegisterScreen = ({ navigation, route }: { navigation: any; route: any }) => {
-  const { userType } = route.params || { userType: 'nurse' };
+  const { userType: initialUserType } = route.params || { userType: 'nurse' };
   const { register } = useAuth();
+
+  const [userType, setUserType] = useState<'patient' | 'family' | 'nurse'>(initialUserType);
 
   const [formData, setFormData] = useState({
     email: '',
@@ -87,9 +89,13 @@ const RegisterScreen = ({ navigation, route }: { navigation: any; route: any }) 
               zone: formData.zone,
               verified: false, // Infirmières doivent être vérifiées
             }
-          : {
+          : userType === 'patient'
+          ? {
               address: formData.address,
               emergencyContact: formData.emergencyContact,
+            }
+          : {
+              // Family — no extra fields needed
             }),
       };
 
@@ -99,6 +105,8 @@ const RegisterScreen = ({ navigation, route }: { navigation: any; route: any }) 
         'Inscription réussie',
         userType === 'nurse'
           ? 'Votre compte a été créé. Il sera activé après vérification de vos informations professionnelles.'
+          : userType === 'family'
+          ? 'Votre compte proche a été créé avec succès. L\'équipe soignante pourra vous lier au dossier de votre proche.'
           : 'Votre compte a été créé avec succès.',
       );
     } catch (error: any) {
@@ -131,6 +139,8 @@ const RegisterScreen = ({ navigation, route }: { navigation: any; route: any }) 
           <Text style={styles.headerSubtitle}>
             {userType === 'nurse'
               ? 'Rejoignez le réseau des infirmières libérales'
+              : userType === 'family'
+              ? 'Suivez les soins de votre proche'
               : 'Accédez à vos soins en toute simplicité'}
           </Text>
         </View>
@@ -236,28 +246,81 @@ const RegisterScreen = ({ navigation, route }: { navigation: any; route: any }) 
               <Text style={styles.sectionTitle}>Informations complémentaires</Text>
             </View>
 
-            <View style={styles.inputContainer}>
-              <Ionicons name="home-outline" size={20} color="#94A3B8" style={styles.inputIcon} />
-              <TextInput
-                style={styles.input}
-                placeholder="Adresse"
-                placeholderTextColor="#94A3B8"
-                value={formData.address}
-                onChangeText={v => handleInputChange('address', v)}
-                multiline
-              />
+            {/* Subtle role toggle */}
+            <View style={styles.roleToggleContainer}>
+              <TouchableOpacity
+                style={[
+                  styles.roleToggleBtn,
+                  userType === 'patient' && { backgroundColor: COLORS.PATIENT_LIGHT, borderColor: COLORS.PATIENT_PRIMARY },
+                ]}
+                onPress={() => setUserType('patient')}
+                activeOpacity={0.7}
+              >
+                <Ionicons
+                  name="person-outline"
+                  size={16}
+                  color={userType === 'patient' ? COLORS.PATIENT_PRIMARY : COLORS.TEXT_MUTED}
+                />
+                <Text style={[
+                  styles.roleToggleText,
+                  userType === 'patient' && { color: COLORS.PATIENT_PRIMARY, fontWeight: '600' },
+                ]}>Patient</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.roleToggleBtn,
+                  userType === 'family' && { backgroundColor: COLORS.FAMILY_LIGHT, borderColor: COLORS.FAMILY_PRIMARY },
+                ]}
+                onPress={() => setUserType('family')}
+                activeOpacity={0.7}
+              >
+                <Ionicons
+                  name="people-outline"
+                  size={16}
+                  color={userType === 'family' ? COLORS.FAMILY_PRIMARY : COLORS.TEXT_MUTED}
+                />
+                <Text style={[
+                  styles.roleToggleText,
+                  userType === 'family' && { color: COLORS.FAMILY_PRIMARY, fontWeight: '600' },
+                ]}>Proche / Famille</Text>
+              </TouchableOpacity>
             </View>
 
-            <View style={styles.inputContainer}>
-              <Ionicons name="person-add-outline" size={20} color="#94A3B8" style={styles.inputIcon} />
-              <TextInput
-                style={styles.input}
-                placeholder="Contact d'urgence"
-                placeholderTextColor="#94A3B8"
-                value={formData.emergencyContact}
-                onChangeText={v => handleInputChange('emergencyContact', v)}
-              />
-            </View>
+            {userType === 'patient' && (
+              <>
+                <View style={styles.inputContainer}>
+                  <Ionicons name="home-outline" size={20} color="#94A3B8" style={styles.inputIcon} />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Adresse"
+                    placeholderTextColor="#94A3B8"
+                    value={formData.address}
+                    onChangeText={v => handleInputChange('address', v)}
+                    multiline
+                  />
+                </View>
+
+                <View style={styles.inputContainer}>
+                  <Ionicons name="person-add-outline" size={20} color="#94A3B8" style={styles.inputIcon} />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Contact d'urgence"
+                    placeholderTextColor="#94A3B8"
+                    value={formData.emergencyContact}
+                    onChangeText={v => handleInputChange('emergencyContact', v)}
+                  />
+                </View>
+              </>
+            )}
+
+            {userType === 'family' && (
+              <View style={styles.familyHint}>
+                <Ionicons name="information-circle-outline" size={18} color={COLORS.FAMILY_PRIMARY} />
+                <Text style={styles.familyHintText}>
+                  En tant que proche, vous pourrez suivre les soins et rendez-vous de votre aidé, et communiquer avec l'équipe soignante.
+                </Text>
+              </View>
+            )}
           </View>
         )}
 
@@ -468,6 +531,41 @@ const styles = StyleSheet.create({
   footerLink: {
     fontSize: 15,
     fontWeight: 'bold',
+  },
+  roleToggleContainer: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 16,
+  },
+  roleToggleBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#E0E0E0',
+    backgroundColor: 'white',
+  },
+  roleToggleText: {
+    fontSize: 14,
+    color: '#94A3B8',
+  },
+  familyHint: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    backgroundColor: COLORS.FAMILY_LIGHT,
+    padding: 16,
+    borderRadius: 12,
+  },
+  familyHintText: {
+    flex: 1,
+    fontSize: 14,
+    color: COLORS.FAMILY_DARK,
+    lineHeight: 20,
   },
 });
 

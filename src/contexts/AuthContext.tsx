@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { type Session, type User, type AuthError } from '@supabase/supabase-js';
 
-import { supabase, type Profile, type NurseProfile, type PatientProfile } from '../utils/supabase';
+import { supabase, type Profile, type NurseProfile, type PatientProfile, type FamilyLink } from '../utils/supabase';
 import { debugLog } from '../utils/devConfig';
 
 // ---------------------------------------------------------------------------
@@ -26,6 +26,7 @@ export interface AuthContextType {
   userProfile:      Profile | null;
   nurseProfile:     NurseProfile | null;
   patientProfile:   PatientProfile | null;
+  familyLinks:      FamilyLink[];
   loading:          boolean;
   login:            (email: string, password: string) => Promise<{ data: unknown; error: AuthError | null }>;
   register:         (email: string, password: string, profile: RegisterProfileInput) => Promise<{ data: unknown; error: AuthError | null }>;
@@ -61,6 +62,7 @@ export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element
   const [userProfile, setUserProfile] = useState<Profile | null>(null);
   const [nurseProfile, setNurseProfile] = useState<NurseProfile | null>(null);
   const [patientProfile, setPatientProfile] = useState<PatientProfile | null>(null);
+  const [familyLinks, setFamilyLinks]   = useState<FamilyLink[]>([]);
   const [loading, setLoading]         = useState<boolean>(true);
 
   // -------------------------------------------------------------------------
@@ -131,6 +133,7 @@ export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element
             .single<NurseProfile>();
           setNurseProfile(nurse ?? null);
           setPatientProfile(null);
+          setFamilyLinks([]);
         } else if (data.user_type === 'patient') {
           const { data: patient } = await supabase
             .from('patient_profiles')
@@ -139,9 +142,19 @@ export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element
             .single<PatientProfile>();
           setPatientProfile(patient ?? null);
           setNurseProfile(null);
+          setFamilyLinks([]);
+        } else if (data.user_type === 'family') {
+          const { data: links } = await supabase
+            .from('family_links')
+            .select('*')
+            .eq('family_user_id', userId);
+          setFamilyLinks((links as FamilyLink[]) ?? []);
+          setNurseProfile(null);
+          setPatientProfile(null);
         } else {
           setNurseProfile(null);
           setPatientProfile(null);
+          setFamilyLinks([]);
         }
       }
     } catch (err) {
@@ -221,6 +234,7 @@ export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element
       setUserProfile(null);
       setNurseProfile(null);
       setPatientProfile(null);
+      setFamilyLinks([]);
       setLoading(false);
       throw err;
     }
@@ -251,6 +265,7 @@ export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element
     userProfile,
     nurseProfile,
     patientProfile,
+    familyLinks,
     loading,
     login,
     register,

@@ -55,6 +55,29 @@ const SEED_USERS: SeedUser[] = [
     },
   },
   {
+    email: 'famille@soinlokal.com',
+    password: 'famille',
+    label: 'Famille — Julie Beausoleil',
+    metadata: {
+      first_name: 'Julie',
+      last_name: 'Beausoleil',
+      user_type: 'family',
+      phone: '0696200001',
+    },
+  },
+  {
+    email: 'managed.hugo@soinlokal.local',
+    password: 'managed_seed_32chars_abcdef123456',
+    label: 'Patient géré — Hugo Francis (par Julie)',
+    metadata: {
+      first_name: 'Hugo',
+      last_name: 'Francis',
+      user_type: 'patient',
+      phone: '0696300001',
+      emergency_contact: '0696300002',
+    },
+  },
+  {
     email: 'patient1@soinlokal.com',
     password: 'patient123',
     label: 'Patient — Lucien Beausoleil',
@@ -162,6 +185,13 @@ interface PatientSeed {
 }
 
 const PATIENT_EXTRAS: PatientSeed[] = [
+  {
+    email: 'managed.hugo@soinlokal.local',
+    address: '5 Rue de la Krutenau, 67000 Strasbourg',
+    dob: '1940-06-15',
+    medical_notes: 'Arthrose sévère. Difficulté de déplacement. Besoin d\'aide pour les soins quotidiens.',
+    allergies: [],
+  },
   {
     email: 'patient1@soinlokal.com',
     address: '12 Rue d\'Obernai, 67000 Strasbourg',
@@ -303,6 +333,8 @@ async function ensureProfile(userId: string, email: string, metadata: Record<str
     } else {
       console.log(`      ✅ Patient profile created.`);
     }
+  } else if (metadata.user_type === 'family') {
+    console.log(`      ✅ Family user — no additional profile needed.`);
   }
 }
 
@@ -403,6 +435,94 @@ async function clearAppointments(): Promise<void> {
   console.log('   ✅ All appointments deleted');
 }
 
+async function createFamilyLink(familyEmail: string, patientEmail: string, permissions: 'read_only' | 'can_message'): Promise<void> {
+  console.log(`\n→ Creating family_link: ${familyEmail} → ${patientEmail}`);
+
+  const { data: existing } = await supabase.auth.admin.listUsers();
+  const familyUser = existing?.users.find((u) => u.email === familyEmail);
+  const patientUser = existing?.users.find((u) => u.email === patientEmail);
+
+  if (!familyUser) {
+    console.error(`   ❌ Family user ${familyEmail} not found`);
+    return;
+  }
+  if (!patientUser) {
+    console.error(`   ❌ Patient ${patientEmail} not found`);
+    return;
+  }
+
+  // Get patient_file for this patient
+  const { data: patientFile } = await supabase
+    .from('patient_files')
+    .select('id')
+    .eq('patient_id', patientUser.id)
+    .limit(1)
+    .single();
+
+  if (!patientFile) {
+    console.error(`   ❌ No patient_file found for ${patientEmail}`);
+    return;
+  }
+
+  // Check if link already exists
+  const { data: existingLink } = await supabase
+    .from('family_links')
+    .select('id')
+    .eq('family_user_id', familyUser.id)
+    .eq('patient_file_id', patientFile.id)
+    .single();
+
+  if (existingLink) {
+    console.log(`   ⏭  Family link already exists — skipping.`);
+    return;
+  }
+
+  const { error } = await supabase.from('family_links').insert({
+    family_user_id: familyUser.id,
+    patient_file_id: patientFile.id,
+    permissions,
+  });
+
+  if (error) {
+    console.error(`   ❌ Error creating family_link: ${error.message}`);
+    return;
+  }
+
+  console.log(`   ✅ Created family_link (${permissions})`);
+}
+
+async function markPatientAsManaged(patientEmail: string, familyEmail: string): Promise<void> {
+  console.log(`\n→ Marking ${patientEmail} as managed by ${familyEmail}`);
+
+  const { data: existing } = await supabase.auth.admin.listUsers();
+  const patientUser = existing?.users.find((u) => u.email === patientEmail);
+  const familyUser = existing?.users.find((u) => u.email === familyEmail);
+
+  if (!patientUser) {
+    console.error(`   ❌ Patient ${patientEmail} not found`);
+    return;
+  }
+  if (!familyUser) {
+    console.error(`   ❌ Family user ${familyEmail} not found`);
+    return;
+  }
+
+  const { error } = await supabase
+    .from('patient_profiles')
+    .update({
+      managed_by: familyUser.id,
+      is_managed: true,
+    })
+    .eq('profile_id', patientUser.id);
+
+  if (error) {
+    console.error(`   ❌ Error marking as managed: ${error.message}`);
+    return;
+  }
+
+  console.log(`   ✅ Marked as managed by ${familyEmail}`);
+}
+
 async function updateNurseProfile(nurseId: string): Promise<void> {
   console.log(`\n→ Updating nurse_profiles for admin@soinlokal.com`);
 
@@ -464,22 +584,33 @@ async function seed(): Promise<void> {
     await updatePatientProfile(extra);
   }
 
-  // Step 4: Link patients to nurse
+  // Step 3.5: Mark managed patient (Hugo Francis) as managed by Julie
+  await markPatientAsManaged('managed.hugo@soinlokal.local', 'famille@soinlokal.com');
+
+  // Step 4: Link patients to nurse (skip managed patient — nurse will add manually)
   if (nurseId) {
     for (const extra of PATIENT_EXTRAS) {
+      if (extra.email.startsWith('managed.')) continue; // managed patients not auto-linked
       await createPatientFile(extra.email, nurseId);
     }
   } else {
     console.error('\n❌ Nurse admin@soinlokal.com not found — cannot create patient_files');
   }
 
+  // Step 5: Create family link (famille@soinlokal.com → patient1)
+  await createFamilyLink('famille@soinlokal.com', 'patient1@soinlokal.com', 'can_message');
+
   // Summary
   console.log('\n─────────────────────────────────────────────');
   console.log('Seeding complete.\n');
   console.log('Login credentials:');
   console.log(`  Nurse:   admin@soinlokal.com / admin123`);
+  console.log(`  Famille: famille@soinlokal.com / famille`);
+  console.log(`  Patient géré: managed.hugo@soinlokal.local (créé par Julie, visible dans son dashboard)`);
   for (const extra of PATIENT_EXTRAS) {
-    console.log(`  Patient: ${extra.email} / patient123`);
+    if (!extra.email.startsWith('managed.')) {
+      console.log(`  Patient: ${extra.email} / patient123`);
+    }
   }
   console.log('─────────────────────────────────────────────\n');
 }
