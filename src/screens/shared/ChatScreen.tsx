@@ -78,27 +78,49 @@ const ChatScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, rou
       .on(
         'postgres_changes',
         {
-          event: 'INSERT',
+          event: '*',
           schema: 'public',
           table: 'messages',
           filter: `patient_file_id=eq.${patientFileId}`,
         },
-        (payload) => {
-          const newMsg = payload.new as Message;
-          setMessages((prev) => {
-            const exists = prev.some((m) => m.id === newMsg.id);
-            if (exists) return prev;
-            return [...prev, newMsg];
-          });
-          if (newMsg.author_id !== user.id && newMsg.author_id !== managedPatientId) {
-            supabase
-              .from('messages')
-              .update({ is_read: true })
-              .eq('id', newMsg.id);
+        async (payload) => {
+          if (payload.eventType === 'INSERT') {
+            const newMsg = payload.new as Message;
+            setMessages((prev) => {
+              const exists = prev.some((m) => m.id === newMsg.id);
+              if (exists) return prev;
+              return [...prev, newMsg];
+            });
+            setTimeout(() => {
+              flatListRef.current?.scrollToEnd({ animated: true });
+            }, 100);
+            if (newMsg.author_id !== user.id && newMsg.author_id !== managedPatientId) {
+              try {
+                await supabase
+                  .from('messages')
+                  .update({ is_read: true })
+                  .eq('id', newMsg.id);
+              } catch (e) {
+                console.warn('[ChatScreen] mark as read error:', e);
+              }
+            }
+          } else if (payload.eventType === 'UPDATE') {
+            const updated = payload.new as Message;
+            setMessages((prev) =>
+              prev.map((m) => (m.id === updated.id ? { ...m, ...updated } : m))
+            );
           }
         },
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('[ChatScreen] channel subscribed:', patientFileId);
+        } else if (status === 'CHANNEL_ERROR') {
+          console.warn('[ChatScreen] channel error:', patientFileId);
+        } else if (status === 'TIMED_OUT') {
+          console.warn('[ChatScreen] channel timed out:', patientFileId);
+        }
+      });
 
     return () => {
       supabase.removeChannel(channel);

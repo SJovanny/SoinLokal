@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -73,6 +73,7 @@ const PatientDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
   const [appointments, setAppointments] = useState<UpcomingAppointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const fileIdsRef = useRef<string[]>([]);
 
   // -------------------------------------------------------------------------
   // Fetch data
@@ -92,9 +93,12 @@ const PatientDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
       const fileIds = (myFiles ?? []).map((f: any) => f.id);
 
       if (fileIds.length === 0) {
+        fileIdsRef.current = [];
         setLoading(false);
         return;
       }
+
+      fileIdsRef.current = fileIds;
 
       // Upcoming appointments count
       const { count: upcomingCount } = await supabase
@@ -173,6 +177,38 @@ const PatientDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
     setLoading(true);
     fetchData().finally(() => setLoading(false));
   }, [fetchData]);
+
+  useEffect(() => {
+    if (!user) return;
+
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const channel = supabase
+      .channel('messages:dashboard')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'messages' },
+        (payload) => {
+          const msg = payload.new as { patient_file_id: string };
+          if (fileIdsRef.current.includes(msg.patient_file_id)) {
+            if (debounceTimer) clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(() => {
+              fetchData();
+            }, 300);
+          }
+        },
+      )
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('[PatientDashboard] realtime channel subscribed');
+        }
+      });
+
+    return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      supabase.removeChannel(channel);
+    };
+  }, [user, fetchData]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);

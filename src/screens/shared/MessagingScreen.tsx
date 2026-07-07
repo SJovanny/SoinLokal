@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -33,6 +33,7 @@ const MessagingScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const fileIdsRef = useRef<string[]>([]);
 
   const themeColor = getThemeColor(userProfile?.user_type ?? 'patient');
 
@@ -221,9 +222,12 @@ const MessagingScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
       }
 
       if (fileIds.length === 0) {
+        fileIdsRef.current = [];
         setConversations([]);
         return;
       }
+
+      fileIdsRef.current = fileIds;
 
       const { data: messages } = await supabase
         .from('messages')
@@ -284,6 +288,40 @@ const MessagingScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     setLoading(true);
     fetchConversations().finally(() => setLoading(false));
   }, [fetchConversations]);
+
+  useEffect(() => {
+    if (!user) return;
+
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const channel = supabase
+      .channel('messages:list')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'messages' },
+        (payload) => {
+          const msg = payload.new as { patient_file_id: string };
+          if (fileIdsRef.current.includes(msg.patient_file_id)) {
+            if (debounceTimer) clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(() => {
+              fetchConversations();
+            }, 300);
+          }
+        },
+      )
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('[MessagingScreen] realtime channel subscribed');
+        } else if (status === 'CHANNEL_ERROR') {
+          console.warn('[MessagingScreen] realtime channel error');
+        }
+      });
+
+    return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      supabase.removeChannel(channel);
+    };
+  }, [user, fetchConversations]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
