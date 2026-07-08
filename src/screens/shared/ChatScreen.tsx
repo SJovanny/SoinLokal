@@ -29,6 +29,7 @@ const ChatScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, rou
   const patientFileId: string = route.params.patientFileId;
   const participantName: string = route.params.participantName;
   const participantSubtitle: string = route.params.participantSubtitle ?? '';
+  const participantId: string = route.params.participantId ?? '';
   const managedPatientId: string | undefined = route.params.managedPatientId;
   const hasGuardian: boolean = route.params.hasGuardian ?? false;
   const { user, userProfile } = useAuth();
@@ -169,6 +170,21 @@ const ChatScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, rou
     return d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
   };
 
+  const navigateToProfile = () => {
+    if (!participantId) return;
+
+    if (userProfile?.user_type === 'nurse') {
+      navigation.navigate('PatientDetail', {
+        patientId: participantId,
+        patientFileId,
+      });
+    } else {
+      navigation.navigate('NurseProfileView', {
+        nurseId: participantId,
+      });
+    }
+  };
+
   const formatDateHeader = (dateStr: string) => {
     const d = new Date(dateStr);
     const now = new Date();
@@ -244,7 +260,7 @@ const ChatScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, rou
           <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
             <Ionicons name="chevron-back" size={24} color={themeColor} />
           </TouchableOpacity>
-          <View style={styles.headerCenter}>
+          <TouchableOpacity style={styles.headerCenter} onPress={navigateToProfile}>
             <Text style={styles.headerName} numberOfLines={1}>
               {participantName}
             </Text>
@@ -253,7 +269,10 @@ const ChatScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, rou
                 {participantSubtitle}
               </Text>
             )}
-          </View>
+            {participantId && (
+              <Ionicons name="chevron-forward" size={12} color={COLORS.TEXT_MUTED} style={styles.headerChevron} />
+            )}
+          </TouchableOpacity>
           <View style={styles.headerPlaceholder} />
         </View>
         <View style={styles.centerWrap}>
@@ -271,7 +290,7 @@ const ChatScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, rou
         <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
           <Ionicons name="chevron-back" size={24} color={themeColor} />
         </TouchableOpacity>
-        <View style={styles.headerCenter}>
+        <TouchableOpacity style={styles.headerCenter} onPress={navigateToProfile}>
           <Text style={styles.headerName} numberOfLines={1}>
             {participantName}
           </Text>
@@ -280,7 +299,10 @@ const ChatScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, rou
               {participantSubtitle}
             </Text>
           )}
-        </View>
+          {participantId && (
+            <Ionicons name="chevron-forward" size={12} color={COLORS.TEXT_MUTED} style={styles.headerChevron} />
+          )}
+        </TouchableOpacity>
         <View style={styles.headerPlaceholder} />
       </View>
 
@@ -375,6 +397,9 @@ const styles = StyleSheet.create({
   },
   headerPlaceholder: {
     width: 44,
+  },
+  headerChevron: {
+    marginLeft: 4,
   },
   keyboardView: {
     flex: 1,

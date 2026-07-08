@@ -20,6 +20,7 @@ import { COLORS, SIZES, getThemeColor } from '../../utils/constants';
 interface Conversation {
   patientFileId: string;
   patientId: string;
+  participantId: string;
   isManaged: boolean;
   hasGuardian: boolean;
   participantName: string;
@@ -88,6 +89,7 @@ const MessagingScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         participantName: fileInfoMap[fid]?.participantName ?? 'Inconnu',
         participantSubtitle: fileInfoMap[fid]?.participantSubtitle ?? '',
         patientId: fileInfoMap[fid]?.patientId ?? '',
+        participantId: fileInfoMap[fid]?.participantId ?? '',
         isManaged: fileInfoMap[fid]?.isManaged ?? false,
         hasGuardian: fileInfoMap[fid]?.hasGuardian ?? false,
         lastMessage: latestPerFile[fid]?.content ?? 'Aucun message',
@@ -193,6 +195,7 @@ const MessagingScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           patientFileId: item.patientFileId,
           participantName: item.participantName,
           participantSubtitle: item.participantSubtitle,
+          participantId: item.participantId,
           hasGuardian: item.hasGuardian,
           ...(item.isManaged ? { managedPatientId: item.patientId } : {}),
         })

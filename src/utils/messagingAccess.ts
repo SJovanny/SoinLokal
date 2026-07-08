@@ -12,6 +12,7 @@ export interface AccessibleFileInfo {
   participantName: string;
   participantSubtitle: string;
   patientId: string;
+  participantId: string;
   isManaged: boolean;
   hasGuardian: boolean;
 }
@@ -74,6 +75,7 @@ export async function resolveAccessibleFileIds(
           participantName: profileMap[f.patient_id] ?? 'Patient',
           participantSubtitle: isProxied ? 'Patient (suivi par un proche)' : 'Patient',
           patientId: f.patient_id,
+          participantId: f.patient_id,
           isManaged: false,
           hasGuardian: isProxied,
         };
@@ -104,6 +106,7 @@ export async function resolveAccessibleFileIds(
           participantName: profileMap[f.nurse_id] ?? 'Infirmière',
           participantSubtitle: 'Infirmière',
           patientId: user.id,
+          participantId: f.nurse_id,
           isManaged: false,
           hasGuardian: false,
         };
@@ -149,6 +152,7 @@ export async function resolveAccessibleFileIds(
               ? `Patient : ${patientMap[f.patient_id]}`
               : 'Patient',
             patientId: f.patient_id,
+            participantId: f.nurse_id,
             isManaged: false,
             hasGuardian: false,
           };
@@ -205,6 +209,7 @@ export async function resolveAccessibleFileIds(
                 ? `Patient : ${profileMap[f.patient_id]}`
                 : 'Patient',
               patientId: f.patient_id,
+              participantId: f.nurse_id,
               isManaged: true,
               hasGuardian: true,
             };
