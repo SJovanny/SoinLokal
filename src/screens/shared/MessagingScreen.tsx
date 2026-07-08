@@ -10,8 +10,11 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../../contexts/AuthContext';
+import { useMessageCount } from '../../contexts/MessageCountContext';
 import { supabase } from '../../utils/supabase';
+import { resolveAccessibleFileIds } from '../../utils/messagingAccess';
 import { COLORS, SIZES, getThemeColor } from '../../utils/constants';
 
 interface Conversation {
@@ -29,6 +32,7 @@ interface Conversation {
 
 const MessagingScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { user, userProfile, familyLinks } = useAuth();
+  const { refreshUnreadCount } = useMessageCount();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -41,185 +45,7 @@ const MessagingScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     if (!user || !userProfile) return;
 
     try {
-      const role = userProfile.user_type;
-      const fileIds: string[] = [];
-      const fileInfoMap: Record<string, { participantName: string; participantSubtitle: string; patientId: string; isManaged: boolean; hasGuardian: boolean }> = {};
-
-      if (role === 'nurse') {
-        const { data: files } = await supabase
-          .from('patient_files')
-          .select('id, patient_id')
-          .eq('nurse_id', user.id)
-          .eq('is_active', true);
-
-        if (files && files.length > 0) {
-          const patientIds = [...new Set(files.map((f: any) => f.patient_id))];
-          const { data: profiles } = await supabase
-            .from('profiles')
-            .select('id, first_name, last_name')
-            .in('id', patientIds);
-
-          const profileMap: Record<string, string> = {};
-          (profiles ?? []).forEach((p: any) => {
-            profileMap[p.id] = `${p.first_name} ${p.last_name}`;
-          });
-
-          let hasGuardianSet = new Set<string>();
-          const { data: guardianData } = await supabase
-            .from('patient_profiles')
-            .select('profile_id')
-            .in('profile_id', patientIds)
-            .not('managed_by', 'is', null);
-          if (guardianData) {
-            guardianData.forEach((g: any) => hasGuardianSet.add(g.profile_id));
-          }
-
-          files.forEach((f: any) => {
-            const isProxied = hasGuardianSet.has(f.patient_id);
-            fileIds.push(f.id);
-            fileInfoMap[f.id] = {
-              participantName: profileMap[f.patient_id] ?? 'Patient',
-              participantSubtitle: isProxied ? 'Patient (suivi par un proche)' : 'Patient',
-              patientId: f.patient_id,
-              isManaged: false,
-              hasGuardian: isProxied,
-            };
-          });
-        }
-      } else if (role === 'patient') {
-        const { data: files } = await supabase
-          .from('patient_files')
-          .select('id, nurse_id')
-          .eq('patient_id', user.id)
-          .eq('is_active', true);
-
-        if (files && files.length > 0) {
-          const nurseIds = [...new Set(files.map((f: any) => f.nurse_id))];
-          const { data: profiles } = await supabase
-            .from('profiles')
-            .select('id, first_name, last_name')
-            .in('id', nurseIds);
-
-          const profileMap: Record<string, string> = {};
-          (profiles ?? []).forEach((p: any) => {
-            profileMap[p.id] = `${p.first_name} ${p.last_name}`;
-          });
-
-          files.forEach((f: any) => {
-            fileIds.push(f.id);
-            fileInfoMap[f.id] = {
-              participantName: profileMap[f.nurse_id] ?? 'Infirmière',
-              participantSubtitle: 'Infirmière',
-              patientId: user.id,
-              isManaged: false,
-              hasGuardian: false,
-            };
-          });
-        }
-      } else if (role === 'family') {
-        if (familyLinks.length > 0) {
-          const linkedFileIds = familyLinks.map((l) => l.patient_file_id);
-          const { data: files } = await supabase
-            .from('patient_files')
-            .select('id, patient_id, nurse_id')
-            .in('id', linkedFileIds);
-
-          if (files && files.length > 0) {
-            const patientIds = [...new Set(files.map((f: any) => f.patient_id))];
-            const nurseIds = [...new Set(files.map((f: any) => f.nurse_id).filter(Boolean))];
-
-            const { data: patientProfiles } = await supabase
-              .from('profiles')
-              .select('id, first_name, last_name')
-              .in('id', patientIds);
-            const patientMap: Record<string, string> = {};
-            (patientProfiles ?? []).forEach((p: any) => {
-              patientMap[p.id] = `${p.first_name} ${p.last_name}`;
-            });
-
-            let nurseMap: Record<string, string> = {};
-            if (nurseIds.length > 0) {
-              const { data: nurseProfiles } = await supabase
-                .from('profiles')
-                .select('id, first_name, last_name')
-                .in('id', nurseIds);
-              (nurseProfiles ?? []).forEach((p: any) => {
-                nurseMap[p.id] = `${p.first_name} ${p.last_name}`;
-              });
-            }
-
-            files.forEach((f: any) => {
-              fileIds.push(f.id);
-              fileInfoMap[f.id] = {
-                participantName: nurseMap[f.nurse_id] ?? 'Infirmière',
-                participantSubtitle: patientMap[f.patient_id]
-                  ? `Patient : ${patientMap[f.patient_id]}`
-                  : 'Patient',
-                patientId: f.patient_id,
-                isManaged: false,
-                hasGuardian: false,
-              };
-            });
-          }
-        }
-
-        const { data: managedProfiles } = await supabase
-          .from('patient_profiles')
-          .select('profile_id')
-          .eq('managed_by', user.id)
-          .eq('is_managed', true);
-
-        if (managedProfiles && managedProfiles.length > 0) {
-          const existingIds = new Set(fileIds);
-          const managedIds = managedProfiles
-            .map((p: any) => p.profile_id)
-            .filter((id: string) => !existingIds.has(id));
-
-          if (managedIds.length > 0) {
-            const { data: managedFiles } = await supabase
-              .from('patient_files')
-              .select('id, patient_id, nurse_id')
-              .in('patient_id', managedIds);
-
-            if (managedFiles && managedFiles.length > 0) {
-              const { data: profiles } = await supabase
-                .from('profiles')
-                .select('id, first_name, last_name')
-                .in('id', managedFiles.map((f: any) => f.patient_id));
-
-              const profileMap: Record<string, string> = {};
-              (profiles ?? []).forEach((p: any) => {
-                profileMap[p.id] = `${p.first_name} ${p.last_name}`;
-              });
-
-              const nurseIds = [...new Set(managedFiles.map((f: any) => f.nurse_id).filter(Boolean))];
-              let nurseMap: Record<string, string> = {};
-              if (nurseIds.length > 0) {
-                const { data: nurseProfiles } = await supabase
-                  .from('profiles')
-                  .select('id, first_name, last_name')
-                  .in('id', nurseIds);
-                (nurseProfiles ?? []).forEach((p: any) => {
-                  nurseMap[p.id] = `${p.first_name} ${p.last_name}`;
-                });
-              }
-
-              managedFiles.forEach((f: any) => {
-                fileIds.push(f.id);
-                fileInfoMap[f.id] = {
-                  participantName: nurseMap[f.nurse_id] ?? 'Infirmière',
-                  participantSubtitle: profileMap[f.patient_id]
-                    ? `Patient : ${profileMap[f.patient_id]}`
-                    : 'Patient',
-                  patientId: f.patient_id,
-                  isManaged: true,
-                  hasGuardian: true,
-                };
-              });
-            }
-          }
-        }
-      }
+      const { fileIds, fileInfoMap } = await resolveAccessibleFileIds(user, userProfile, familyLinks);
 
       if (fileIds.length === 0) {
         fileIdsRef.current = [];
@@ -278,19 +104,31 @@ const MessagingScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
 
       setConversations(convs);
       setError(null);
+      refreshUnreadCount();
     } catch (err) {
       console.error('[MessagingScreen] error:', err);
       setError('Impossible de charger les conversations');
     }
-  }, [user, userProfile, familyLinks]);
+  }, [user, userProfile, familyLinks, refreshUnreadCount]);
 
+  useFocusEffect(
+    useCallback(() => {
+      setLoading(true);
+      fetchConversations().finally(() => setLoading(false));
+    }, [fetchConversations])
+  );
+
+  // Keep the latest fetchConversations in a ref so the realtime subscription
+  // below only reconnects when the user actually changes (login/logout),
+  // not on every AuthContext refresh (which hands out new object/array
+  // references for `userProfile`/`familyLinks` even when unchanged).
+  const fetchConversationsRef = useRef(fetchConversations);
   useEffect(() => {
-    setLoading(true);
-    fetchConversations().finally(() => setLoading(false));
+    fetchConversationsRef.current = fetchConversations;
   }, [fetchConversations]);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user?.id) return;
 
     let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -304,7 +142,7 @@ const MessagingScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           if (fileIdsRef.current.includes(msg.patient_file_id)) {
             if (debounceTimer) clearTimeout(debounceTimer);
             debounceTimer = setTimeout(() => {
-              fetchConversations();
+              fetchConversationsRef.current();
             }, 300);
           }
         },
@@ -321,7 +159,7 @@ const MessagingScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
       if (debounceTimer) clearTimeout(debounceTimer);
       supabase.removeChannel(channel);
     };
-  }, [user, fetchConversations]);
+  }, [user?.id]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);

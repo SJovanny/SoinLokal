@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
+import { useMessageCount } from '../../contexts/MessageCountContext';
 import { supabase } from '../../utils/supabase';
 import { COLORS, SIZES } from '../../utils/constants';
 import LogoutButton from '../../components/LogoutButton';
@@ -32,7 +33,6 @@ interface UpcomingAppointment {
 interface Stats {
   upcomingRDV: number;
   recentCares: number;
-  unreadMessages: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -67,13 +67,13 @@ const STATUS_CONFIG: Record<string, { color: string; label: string }> = {
 
 const PatientDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { userProfile, user } = useAuth();
+  const { unreadCount } = useMessageCount();
   const today = getTodayISO();
 
-  const [stats, setStats] = useState<Stats>({ upcomingRDV: 0, recentCares: 0, unreadMessages: 0 });
+  const [stats, setStats] = useState<Stats>({ upcomingRDV: 0, recentCares: 0 });
   const [appointments, setAppointments] = useState<UpcomingAppointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const fileIdsRef = useRef<string[]>([]);
 
   // -------------------------------------------------------------------------
   // Fetch data
@@ -93,12 +93,9 @@ const PatientDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
       const fileIds = (myFiles ?? []).map((f: any) => f.id);
 
       if (fileIds.length === 0) {
-        fileIdsRef.current = [];
         setLoading(false);
         return;
       }
-
-      fileIdsRef.current = fileIds;
 
       // Upcoming appointments count
       const { count: upcomingCount } = await supabase
@@ -114,18 +111,9 @@ const PatientDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
         .in('patient_file_id', fileIds)
         .eq('status', 'completed');
 
-      // Unread messages
-      const { count: msgCount } = await supabase
-        .from('messages')
-        .select('id', { count: 'exact', head: true })
-        .in('patient_file_id', fileIds)
-        .eq('is_read', false)
-        .neq('author_id', user.id);
-
       setStats({
         upcomingRDV: upcomingCount ?? 0,
         recentCares: recentCount ?? 0,
-        unreadMessages: msgCount ?? 0,
       });
 
       // Fetch next 5 appointments
@@ -177,38 +165,6 @@ const PatientDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
     setLoading(true);
     fetchData().finally(() => setLoading(false));
   }, [fetchData]);
-
-  useEffect(() => {
-    if (!user) return;
-
-    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
-
-    const channel = supabase
-      .channel('messages:dashboard')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'messages' },
-        (payload) => {
-          const msg = payload.new as { patient_file_id: string };
-          if (fileIdsRef.current.includes(msg.patient_file_id)) {
-            if (debounceTimer) clearTimeout(debounceTimer);
-            debounceTimer = setTimeout(() => {
-              fetchData();
-            }, 300);
-          }
-        },
-      )
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          console.log('[PatientDashboard] realtime channel subscribed');
-        }
-      });
-
-    return () => {
-      if (debounceTimer) clearTimeout(debounceTimer);
-      supabase.removeChannel(channel);
-    };
-  }, [user, fetchData]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -303,8 +259,8 @@ const PatientDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
               <Text style={styles.statusLabel}>Soins reçus</Text>
             </View>
             <View style={styles.statusItem}>
-              <Text style={[styles.statusValue, stats.unreadMessages > 0 && { color: COLORS.WARNING }]}>
-                {stats.unreadMessages}
+              <Text style={[styles.statusValue, unreadCount > 0 && { color: COLORS.WARNING }]}>
+                {unreadCount}
               </Text>
               <Text style={styles.statusLabel}>Messages</Text>
             </View>

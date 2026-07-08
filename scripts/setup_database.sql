@@ -231,6 +231,23 @@ create policy "Users send messages in their files" on public.messages
       where nurse_id = auth.uid() or patient_id = auth.uid()
     )
   );
+-- Participants can mark messages as read (is_read) in their own files.
+-- Without this, RLS silently blocks all UPDATE statements (0 rows affected,
+-- no error), so messages never get marked as read.
+drop policy if exists "Users mark messages read in their files" on public.messages;
+create policy "Users mark messages read in their files" on public.messages
+  for update using (
+    patient_file_id in (
+      select id from public.patient_files
+      where nurse_id = auth.uid() or patient_id = auth.uid()
+    )
+  )
+  with check (
+    patient_file_id in (
+      select id from public.patient_files
+      where nurse_id = auth.uid() or patient_id = auth.uid()
+    )
+  );
 
 -- ==============================================================================
 -- 4. TRIGGER: auto-create profile on auth user creation

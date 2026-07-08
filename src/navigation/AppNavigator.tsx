@@ -3,8 +3,10 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
+import { COLORS } from '../utils/constants';
 
 import { useAuth } from '../contexts/AuthContext';
+import { useMessageCount } from '../contexts/MessageCountContext';
 import SplashScreen from '../components/SplashScreen';
 
 // Écrans d'authentification
@@ -37,7 +39,9 @@ const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
 
 // Navigation pour les infirmières
-const NurseTabNavigator = () => (
+const NurseTabNavigator = () => {
+  const { unreadCount } = useMessageCount();
+  return (
   <Tab.Navigator
     screenOptions={({ route }) => ({
       headerShown: false, // Masquer le header en haut
@@ -103,7 +107,9 @@ const NurseTabNavigator = () => (
       component={MessagingScreen}
       options={{
         title: 'Messages',
-        headerShown: false
+        headerShown: false,
+        tabBarBadge: unreadCount > 0 ? unreadCount : undefined,
+        tabBarBadgeStyle: { backgroundColor: COLORS.DANGER },
       }}
     />
     <Tab.Screen
@@ -115,10 +121,13 @@ const NurseTabNavigator = () => (
       }}
     />
   </Tab.Navigator>
-);
+  );
+};
 
 // Navigation pour les patients
-const PatientTabNavigator = () => (
+const PatientTabNavigator = () => {
+  const { unreadCount } = useMessageCount();
+  return (
   <Tab.Navigator
     screenOptions={({ route }) => ({
       headerShown: false, // Masquer le header en haut
@@ -170,14 +179,19 @@ const PatientTabNavigator = () => (
       component={MessagingScreen}
       options={{
         title: 'Messages',
-        headerShown: false
+        headerShown: false,
+        tabBarBadge: unreadCount > 0 ? unreadCount : undefined,
+        tabBarBadgeStyle: { backgroundColor: COLORS.DANGER },
       }}
     />
   </Tab.Navigator>
-);
+  );
+};
 
 // Navigation pour les familles
-const FamilyTabNavigator = () => (
+const FamilyTabNavigator = () => {
+  const { unreadCount } = useMessageCount();
+  return (
   <Tab.Navigator
     screenOptions={({ route }) => ({
       headerShown: false,
@@ -222,6 +236,8 @@ const FamilyTabNavigator = () => (
       options={{
         title: 'Messages',
         headerShown: false,
+        tabBarBadge: unreadCount > 0 ? unreadCount : undefined,
+        tabBarBadgeStyle: { backgroundColor: COLORS.DANGER },
       }}
     />
     <Tab.Screen
@@ -233,7 +249,8 @@ const FamilyTabNavigator = () => (
       }}
     />
   </Tab.Navigator>
-);
+  );
+};
 
 // Navigation principale
 const AppNavigator = () => {

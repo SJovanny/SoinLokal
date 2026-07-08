@@ -13,6 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
+import { useMessageCount } from '../../contexts/MessageCountContext';
 import { supabase, type Message } from '../../utils/supabase';
 import { COLORS, SIZES, getThemeColor } from '../../utils/constants';
 
@@ -31,6 +32,7 @@ const ChatScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, rou
   const managedPatientId: string | undefined = route.params.managedPatientId;
   const hasGuardian: boolean = route.params.hasGuardian ?? false;
   const { user, userProfile } = useAuth();
+  const { refreshUnreadCount } = useMessageCount();
   const themeColor = getThemeColor(userProfile?.user_type ?? 'patient');
   const effectiveAuthorId = managedPatientId || user?.id;
 
@@ -67,7 +69,13 @@ const ChatScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, rou
         query = query.neq('author_id', managedPatientId);
       }
 
-      await query;
+      const { error } = await query;
+      if (error) {
+        console.warn('[ChatScreen] mark as read error:', error.message);
+      }
+      // Refresh the shared badge immediately instead of waiting on the
+      // debounced realtime round-trip in MessageCountContext.
+      refreshUnreadCount();
     };
 
     fetchMessages().then(() => setLoading(false));
@@ -100,6 +108,7 @@ const ChatScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, rou
                   .from('messages')
                   .update({ is_read: true })
                   .eq('id', newMsg.id);
+                refreshUnreadCount();
               } catch (e) {
                 console.warn('[ChatScreen] mark as read error:', e);
               }
@@ -125,7 +134,7 @@ const ChatScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, rou
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [patientFileId, user]);
+  }, [patientFileId, user?.id, refreshUnreadCount]);
 
   const sendMessage = async () => {
     const trimmed = inputText.trim();

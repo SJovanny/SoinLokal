@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
+import { useMessageCount } from '../../contexts/MessageCountContext';
 import { supabase } from '../../utils/supabase';
 import { COLORS, SIZES } from '../../utils/constants';
 import LogoutButton from '../../components/LogoutButton';
@@ -51,7 +52,6 @@ interface RecentCare {
 interface Stats {
   upcomingRDV: number;
   recentCares: number;
-  unreadMessages: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -86,10 +86,11 @@ const STATUS_CONFIG: Record<string, { color: string; label: string }> = {
 
 const FamilyDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { userProfile, user, familyLinks, fetchProfile } = useAuth();
+  const { unreadCount } = useMessageCount();
   const today = getTodayISO();
 
   const [linkedPatients, setLinkedPatients] = useState<LinkedPatient[]>([]);
-  const [stats, setStats] = useState<Stats>({ upcomingRDV: 0, recentCares: 0, unreadMessages: 0 });
+  const [stats, setStats] = useState<Stats>({ upcomingRDV: 0, recentCares: 0 });
   const [appointments, setAppointments] = useState<UpcomingAppointment[]>([]);
   const [recentCares, setRecentCares] = useState<RecentCare[]>([]);
   const [loading, setLoading] = useState(true);
@@ -239,7 +240,7 @@ const FamilyDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
       .map(p => p.patientFileId as string);
 
     if (fileIds.length === 0) {
-      setStats({ upcomingRDV: 0, recentCares: 0, unreadMessages: 0 });
+      setStats({ upcomingRDV: 0, recentCares: 0 });
       return;
     }
 
@@ -257,17 +258,9 @@ const FamilyDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
         .in('patient_file_id', fileIds)
         .eq('status', 'completed');
 
-      const { count: msgCount } = await supabase
-        .from('messages')
-        .select('id', { count: 'exact', head: true })
-        .in('patient_file_id', fileIds)
-        .eq('is_read', false)
-        .neq('author_id', user.id);
-
       setStats({
         upcomingRDV: upcomingCount ?? 0,
         recentCares: recentCount ?? 0,
-        unreadMessages: msgCount ?? 0,
       });
 
       // Upcoming appointments
@@ -522,8 +515,8 @@ const FamilyDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
               <Text style={styles.statLabel}>Soins reçus</Text>
             </View>
             <View style={styles.statItem}>
-              <Text style={[styles.statValue, stats.unreadMessages > 0 && { color: COLORS.WARNING }]}>
-                {stats.unreadMessages}
+              <Text style={[styles.statValue, unreadCount > 0 && { color: COLORS.WARNING }]}>
+                {unreadCount}
               </Text>
               <Text style={styles.statLabel}>Messages</Text>
             </View>

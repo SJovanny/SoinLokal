@@ -1,0 +1,248 @@
+import { supabase, type FamilyLink } from './supabase';
+
+// ---------------------------------------------------------------------------
+// Shared logic to resolve which `patient_file_id`s a user can message in,
+// based on their role (nurse / patient / family, including managed/proxy
+// patients). Extracted from MessagingScreen so it can be reused by the
+// global unread-count computation (MessageCountContext) without duplicating
+// this branching a 4th time across the app.
+// ---------------------------------------------------------------------------
+
+export interface AccessibleFileInfo {
+  participantName: string;
+  participantSubtitle: string;
+  patientId: string;
+  isManaged: boolean;
+  hasGuardian: boolean;
+}
+
+export interface AccessibleFiles {
+  fileIds: string[];
+  fileInfoMap: Record<string, AccessibleFileInfo>;
+}
+
+interface MinimalUser {
+  id: string;
+}
+
+interface MinimalUserProfile {
+  user_type: 'patient' | 'family' | 'nurse';
+}
+
+export async function resolveAccessibleFileIds(
+  user: MinimalUser,
+  userProfile: MinimalUserProfile,
+  familyLinks: FamilyLink[],
+): Promise<AccessibleFiles> {
+  const role = userProfile.user_type;
+  const fileIds: string[] = [];
+  const fileInfoMap: Record<string, AccessibleFileInfo> = {};
+
+  if (role === 'nurse') {
+    const { data: files } = await supabase
+      .from('patient_files')
+      .select('id, patient_id')
+      .eq('nurse_id', user.id)
+      .eq('is_active', true);
+
+    if (files && files.length > 0) {
+      const patientIds = [...new Set(files.map((f: any) => f.patient_id))];
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, first_name, last_name')
+        .in('id', patientIds);
+
+      const profileMap: Record<string, string> = {};
+      (profiles ?? []).forEach((p: any) => {
+        profileMap[p.id] = `${p.first_name} ${p.last_name}`;
+      });
+
+      const hasGuardianSet = new Set<string>();
+      const { data: guardianData } = await supabase
+        .from('patient_profiles')
+        .select('profile_id')
+        .in('profile_id', patientIds)
+        .not('managed_by', 'is', null);
+      if (guardianData) {
+        guardianData.forEach((g: any) => hasGuardianSet.add(g.profile_id));
+      }
+
+      files.forEach((f: any) => {
+        const isProxied = hasGuardianSet.has(f.patient_id);
+        fileIds.push(f.id);
+        fileInfoMap[f.id] = {
+          participantName: profileMap[f.patient_id] ?? 'Patient',
+          participantSubtitle: isProxied ? 'Patient (suivi par un proche)' : 'Patient',
+          patientId: f.patient_id,
+          isManaged: false,
+          hasGuardian: isProxied,
+        };
+      });
+    }
+  } else if (role === 'patient') {
+    const { data: files } = await supabase
+      .from('patient_files')
+      .select('id, nurse_id')
+      .eq('patient_id', user.id)
+      .eq('is_active', true);
+
+    if (files && files.length > 0) {
+      const nurseIds = [...new Set(files.map((f: any) => f.nurse_id))];
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, first_name, last_name')
+        .in('id', nurseIds);
+
+      const profileMap: Record<string, string> = {};
+      (profiles ?? []).forEach((p: any) => {
+        profileMap[p.id] = `${p.first_name} ${p.last_name}`;
+      });
+
+      files.forEach((f: any) => {
+        fileIds.push(f.id);
+        fileInfoMap[f.id] = {
+          participantName: profileMap[f.nurse_id] ?? 'Infirmière',
+          participantSubtitle: 'Infirmière',
+          patientId: user.id,
+          isManaged: false,
+          hasGuardian: false,
+        };
+      });
+    }
+  } else if (role === 'family') {
+    if (familyLinks.length > 0) {
+      const linkedFileIds = familyLinks.map((l) => l.patient_file_id);
+      const { data: files } = await supabase
+        .from('patient_files')
+        .select('id, patient_id, nurse_id')
+        .in('id', linkedFileIds);
+
+      if (files && files.length > 0) {
+        const patientIds = [...new Set(files.map((f: any) => f.patient_id))];
+        const nurseIds = [...new Set(files.map((f: any) => f.nurse_id).filter(Boolean))];
+
+        const { data: patientProfiles } = await supabase
+          .from('profiles')
+          .select('id, first_name, last_name')
+          .in('id', patientIds);
+        const patientMap: Record<string, string> = {};
+        (patientProfiles ?? []).forEach((p: any) => {
+          patientMap[p.id] = `${p.first_name} ${p.last_name}`;
+        });
+
+        let nurseMap: Record<string, string> = {};
+        if (nurseIds.length > 0) {
+          const { data: nurseProfiles } = await supabase
+            .from('profiles')
+            .select('id, first_name, last_name')
+            .in('id', nurseIds);
+          (nurseProfiles ?? []).forEach((p: any) => {
+            nurseMap[p.id] = `${p.first_name} ${p.last_name}`;
+          });
+        }
+
+        files.forEach((f: any) => {
+          fileIds.push(f.id);
+          fileInfoMap[f.id] = {
+            participantName: nurseMap[f.nurse_id] ?? 'Infirmière',
+            participantSubtitle: patientMap[f.patient_id]
+              ? `Patient : ${patientMap[f.patient_id]}`
+              : 'Patient',
+            patientId: f.patient_id,
+            isManaged: false,
+            hasGuardian: false,
+          };
+        });
+      }
+    }
+
+    const { data: managedProfiles } = await supabase
+      .from('patient_profiles')
+      .select('profile_id')
+      .eq('managed_by', user.id)
+      .eq('is_managed', true);
+
+    if (managedProfiles && managedProfiles.length > 0) {
+      const existingIds = new Set(fileIds);
+      const managedIds = managedProfiles
+        .map((p: any) => p.profile_id)
+        .filter((id: string) => !existingIds.has(id));
+
+      if (managedIds.length > 0) {
+        const { data: managedFiles } = await supabase
+          .from('patient_files')
+          .select('id, patient_id, nurse_id')
+          .in('patient_id', managedIds);
+
+        if (managedFiles && managedFiles.length > 0) {
+          const { data: profiles } = await supabase
+            .from('profiles')
+            .select('id, first_name, last_name')
+            .in('id', managedFiles.map((f: any) => f.patient_id));
+
+          const profileMap: Record<string, string> = {};
+          (profiles ?? []).forEach((p: any) => {
+            profileMap[p.id] = `${p.first_name} ${p.last_name}`;
+          });
+
+          const nurseIds = [...new Set(managedFiles.map((f: any) => f.nurse_id).filter(Boolean))];
+          let nurseMap: Record<string, string> = {};
+          if (nurseIds.length > 0) {
+            const { data: nurseProfiles } = await supabase
+              .from('profiles')
+              .select('id, first_name, last_name')
+              .in('id', nurseIds);
+            (nurseProfiles ?? []).forEach((p: any) => {
+              nurseMap[p.id] = `${p.first_name} ${p.last_name}`;
+            });
+          }
+
+          managedFiles.forEach((f: any) => {
+            fileIds.push(f.id);
+            fileInfoMap[f.id] = {
+              participantName: nurseMap[f.nurse_id] ?? 'Infirmière',
+              participantSubtitle: profileMap[f.patient_id]
+                ? `Patient : ${profileMap[f.patient_id]}`
+                : 'Patient',
+              patientId: f.patient_id,
+              isManaged: true,
+              hasGuardian: true,
+            };
+          });
+        }
+      }
+    }
+  }
+
+  return { fileIds, fileInfoMap };
+}
+
+// ---------------------------------------------------------------------------
+// Count unread messages across a set of accessible files, excluding the
+// user's own messages (including messages sent as a proxy for a managed
+// patient). This is the single formula used everywhere "unread messages"
+// is displayed (tab bar badge, dashboards) so the numbers never diverge.
+// ---------------------------------------------------------------------------
+
+export async function countUnreadMessages(
+  userId: string,
+  fileIds: string[],
+  fileInfoMap: Record<string, AccessibleFileInfo>,
+): Promise<number> {
+  if (fileIds.length === 0) return 0;
+
+  const { data: unreadMessages } = await supabase
+    .from('messages')
+    .select('patient_file_id, author_id')
+    .in('patient_file_id', fileIds)
+    .eq('is_read', false);
+
+  if (!unreadMessages) return 0;
+
+  return unreadMessages.reduce((count: number, m: any) => {
+    const info = fileInfoMap[m.patient_file_id];
+    const proxyPatientId = info?.isManaged ? info.patientId : null;
+    const isMyMessage = m.author_id === userId || m.author_id === proxyPatientId;
+    return isMyMessage ? count : count + 1;
+  }, 0);
+}

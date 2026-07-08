@@ -5,6 +5,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { TamaguiProvider } from 'tamagui';
 import config from './tamagui.config';
 import { AuthProvider } from './src/contexts/AuthContext';
+import { MessageCountProvider } from './src/contexts/MessageCountContext';
 import AppNavigator from './src/navigation/AppNavigator';
 import CustomSplashScreen from './src/components/SplashScreen';
 
@@ -26,7 +27,9 @@ export default function App() {
     <SafeAreaProvider>
       <TamaguiProvider config={config} defaultTheme="light">
         <AuthProvider>
-          <AppNavigator />
+          <MessageCountProvider>
+            <AppNavigator />
+          </MessageCountProvider>
           <StatusBar style="auto" />
         </AuthProvider>
       </TamaguiProvider>
