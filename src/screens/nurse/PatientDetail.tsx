@@ -7,12 +7,14 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase, type Profile, type PatientProfile, type Appointment } from '../../utils/supabase';
 import { COLORS, SIZES } from '../../utils/constants';
+import { openNavigation } from '../../utils/navigation';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -239,6 +241,27 @@ const PatientDetail: React.FC<{ navigation: any; route: any }> = ({
   const age = calcAge(pp?.dob);
 
   // -------------------------------------------------------------------------
+  // Actions
+  // -------------------------------------------------------------------------
+
+  const handleCall = () => {
+    const phone = profile?.phone;
+    if (phone) {
+      Linking.openURL(`tel:${phone}`);
+    } else {
+      Alert.alert('Information', 'Aucun numéro de téléphone renseigné.');
+    }
+  };
+
+  const handleItinerary = () => {
+    if (pp?.gps_lat != null && pp?.gps_lng != null) {
+      openNavigation(pp.gps_lat, pp.gps_lng);
+    } else {
+      Alert.alert('Information', 'Adresse non géolocalisée. Impossible d\'ouvrir l\'itinéraire.');
+    }
+  };
+
+  // -------------------------------------------------------------------------
   // Render
   // -------------------------------------------------------------------------
 
@@ -392,12 +415,13 @@ const PatientDetail: React.FC<{ navigation: any; route: any }> = ({
 
         {/* Actions */}
         <View style={styles.actionsRow}>
-          <TouchableOpacity style={styles.actionButton}>
+          <TouchableOpacity style={styles.actionButton} onPress={handleCall}>
             <Ionicons name="call" size={20} color={COLORS.WHITE} />
             <Text style={styles.actionText}>Appeler</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.actionButton, { backgroundColor: COLORS.INFO }]}
+            onPress={handleItinerary}
           >
             <Ionicons name="navigate" size={20} color={COLORS.WHITE} />
             <Text style={styles.actionText}>Itinéraire</Text>
