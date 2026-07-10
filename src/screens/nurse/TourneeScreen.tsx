@@ -603,11 +603,25 @@ const TourneeScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, 
   // Calculate tour when appointments or departure time change
   // -------------------------------------------------------------------------
 
+  // Reset the (possibly stale, previous-date) tour result synchronously as
+  // soon as the selected date changes, before the new appointments/tour are
+  // fetched/computed. This avoids a window where markers/cards briefly
+  // apply a previous tournée's order to the newly loaded appointments.
   useEffect(() => {
+    setTourResult(null);
+  }, [selectedDate]);
+
+  // Guards against a race where the user switches dates quickly: only the
+  // most recent tour calculation is allowed to commit its result.
+  const tourRequestIdRef = useRef(0);
+
+  useEffect(() => {
+    const requestId = ++tourRequestIdRef.current;
+
     const calculateTour = async () => {
       const withGPS = appointments.filter((a) => a.gps);
       if (withGPS.length === 0) {
-        setTourResult(null);
+        if (tourRequestIdRef.current === requestId) setTourResult(null);
         return;
       }
 
@@ -644,12 +658,12 @@ const TourneeScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, 
         }
 
         if (!nurseGPS) {
-          setTourResult(null);
-          setTourLoading(false);
+          if (tourRequestIdRef.current === requestId) setTourResult(null);
           return;
         }
 
         const stops: FlexibleTourStop[] = withGPS.map((a) => ({
+          id: a.id,
           gps: a.gps!,
           careType: a.care_type,
           durationMin: a.duration_min,
@@ -658,11 +672,11 @@ const TourneeScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, 
         }));
 
         const result = await flexibleTour(nurseGPS, stops, departureTime);
-        setTourResult(result);
+        if (tourRequestIdRef.current === requestId) setTourResult(result);
       } catch (err) {
         console.error('[Tournee] tour calculation error:', err);
       } finally {
-        setTourLoading(false);
+        if (tourRequestIdRef.current === requestId) setTourLoading(false);
       }
     };
 
@@ -866,33 +880,34 @@ const TourneeScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, 
   // -------------------------------------------------------------------------
 
   const getOrderedAppointments = (): TourAppointment[] => {
-    if (!tourResult || tourResult.order.length === 0) return appointments;
+    if (!tourResult || tourResult.orderIds.length === 0) return appointments;
 
-    const withGPS = appointments.filter((a) => a.gps);
+    const byId = new Map(appointments.map((a) => [a.id, a]));
     const withoutGPS = appointments.filter((a) => !a.gps);
 
-    const ordered = tourResult.order
-      .map((idx) => withGPS[idx])
+    const ordered = tourResult.orderIds
+      .map((id) => byId.get(id))
       .filter((a): a is TourAppointment => a != null);
-    return [...ordered, ...withoutGPS];
+
+    // Any appointment not present in tourResult (e.g. stale result still
+    // catching up after appointments changed) falls back to being appended
+    // rather than silently dropped or mismatched.
+    const orderedIds = new Set(ordered.map((a) => a.id));
+    const missing = appointments.filter((a) => a.gps && !orderedIds.has(a.id));
+
+    return [...ordered, ...missing, ...withoutGPS];
   };
 
   const getEstimatedArrival = (appt: TourAppointment): string | null => {
     if (!tourResult) return null;
-    const withGPS = appointments.filter((a) => a.gps);
-    const idx = withGPS.findIndex((a) => a.id === appt.id);
-    if (idx === -1) return null;
-    return tourResult.estimatedArrivals[idx] || null;
+    return tourResult.estimatedArrivals[appt.id] || null;
   };
 
-  const getLegInfo = (appt: TourAppointment): { distance: number; duration: number } | null => {
+  const getLegInfo = (appt: TourAppointment): { distance: number; duration: number; estimated: boolean } | null => {
     if (!tourResult) return null;
-    const withGPS = appointments.filter((a) => a.gps);
-    const idx = withGPS.findIndex((a) => a.id === appt.id);
-    if (idx === -1) return null;
-    const leg = tourResult.legs.find((l) => l.toIndex === idx);
+    const leg = tourResult.legs.find((l) => l.toId === appt.id);
     if (!leg) return null;
-    return { distance: leg.distanceKm, duration: leg.durationMin };
+    return { distance: leg.distanceKm, duration: leg.durationMin, estimated: leg.estimated };
   };
 
   // -------------------------------------------------------------------------
@@ -907,12 +922,11 @@ const TourneeScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, 
   // Map markers (in optimized order)
   // -------------------------------------------------------------------------
 
-  const withGPSAppointments = appointments.filter((a) => a.gps);
-  const orderedForMarkers = tourResult && tourResult.order.length > 0
-    ? tourResult.order
-        .map((idx) => withGPSAppointments[idx])
-        .filter((a): a is TourAppointment => a != null)
-    : withGPSAppointments;
+  // Reuse the same ID-based ordering as the card list so that markers and
+  // cards are always in sync, even while a fresh tourResult is still being
+  // computed for a newly selected date (stale/unknown ids are simply
+  // appended rather than mis-indexed into the wrong appointment).
+  const orderedForMarkers = getOrderedAppointments().filter((a) => a.gps);
 
   const markers = useMemo(
     () =>
@@ -934,10 +948,11 @@ const TourneeScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, 
   );
 
   // -------------------------------------------------------------------------
-  // Fit map to markers (only once on initial load)
+  // Fit map to markers (re-fit whenever the selected date/tournée changes,
+  // not just on the very first load)
   // -------------------------------------------------------------------------
 
-  const hasFitted = useRef(false);
+  const fittedDateRef = useRef<string | null>(null);
 
   const fitMapToMarkers = useCallback(() => {
     if (markers.length === 0 || !mapRef.current) return;
@@ -949,11 +964,11 @@ const TourneeScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, 
   }, [markers]);
 
   useEffect(() => {
-    if (!loading && markers.length > 0 && !hasFitted.current) {
-      hasFitted.current = true;
+    if (!loading && markers.length > 0 && fittedDateRef.current !== selectedDate) {
+      fittedDateRef.current = selectedDate;
       setTimeout(fitMapToMarkers, 500);
     }
-  }, [loading, markers.length, fitMapToMarkers]);
+  }, [loading, markers.length, selectedDate, fitMapToMarkers]);
 
   // -------------------------------------------------------------------------
   // Render patient card
@@ -1032,8 +1047,19 @@ const TourneeScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, 
           <View style={styles.travelRow}>
             <Ionicons name="car-outline" size={14} color={COLORS.NURSE_PRIMARY} />
             <Text style={styles.travelText}>
-              {legInfo.distance} km · {legInfo.duration} min
+              {legInfo.estimated ? '~ ' : ''}{legInfo.distance} km · {legInfo.duration} min
             </Text>
+            {legInfo.estimated && (
+              <Text style={styles.estimatedBadgeText}>estimé</Text>
+            )}
+          </View>
+        )}
+
+        {/* Fixed-time conflict warning */}
+        {tourResult?.conflicts[item.id] && (
+          <View style={styles.conflictRow}>
+            <Ionicons name="warning-outline" size={13} color={COLORS.WARNING} />
+            <Text style={styles.conflictText}>Horaire fixe difficile à respecter</Text>
           </View>
         )}
 
@@ -1246,7 +1272,7 @@ const TourneeScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, 
       </View>
 
       {/* Tour summary */}
-      {tourResult && tourResult.order.length > 0 && (
+      {tourResult && tourResult.orderIds.length > 0 && (
         <View style={styles.tourSummary}>
           {tourLoading ? (
             <ActivityIndicator size="small" color={COLORS.NURSE_PRIMARY} />
@@ -1257,6 +1283,14 @@ const TourneeScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, 
                 <Text style={styles.tourSummaryText}>
                   {tourResult.totalDistanceKm} km · {tourResult.totalDurationMin} min de route
                 </Text>
+                {Object.values(tourResult.conflicts).some(Boolean) && (
+                  <View style={styles.conflictRow}>
+                    <Ionicons name="warning-outline" size={13} color={COLORS.WARNING} />
+                    <Text style={styles.conflictText}>
+                      Un ou plusieurs horaires fixes ne pourront pas être respectés avec ce trajet
+                    </Text>
+                  </View>
+                )}
               </View>
             </>
           )}
@@ -1683,6 +1717,23 @@ const styles = StyleSheet.create({
     fontSize: SIZES.FONT_XS,
     color: COLORS.NURSE_PRIMARY,
     fontWeight: '600',
+  },
+  estimatedBadgeText: {
+    fontSize: SIZES.FONT_XS - 1,
+    color: COLORS.TEXT_MUTED,
+    fontStyle: 'italic',
+  },
+  conflictRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: SIZES.XS,
+    gap: SIZES.XS,
+  },
+  conflictText: {
+    fontSize: SIZES.FONT_XS,
+    color: COLORS.WARNING,
+    fontWeight: '600',
+    flexShrink: 1,
   },
   // Actions
   cardActions: {

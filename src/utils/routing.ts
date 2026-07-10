@@ -29,6 +29,9 @@ export interface TourLeg {
   distanceKm: number;
   durationMin: number;
   departureTime: string; // "HH:MM" — when to leave to arrive on time
+  /** true when this leg's distance/duration is a straight-line estimate
+   * (no real road-routing data available), not a real Directions API result. */
+  estimated: boolean;
 }
 
 export interface TourResult {
@@ -104,12 +107,27 @@ async function fetchRoute(from: GPSPoint, to: GPSPoint): Promise<{ distanceKm: n
 export interface MatrixEntry {
   distanceKm: number;
   durationMin: number;
+  /** true when this entry is a straight-line (haversine) fallback estimate,
+   * not a real road-routing result from the Directions API. */
+  estimated: boolean;
 }
 
 const matrixCache = new Map<string, MatrixEntry>();
 
+// Cap the cache size to avoid unbounded memory growth over a long session.
+const MAX_MATRIX_CACHE_ENTRIES = 5000;
+
 function matrixKey(a: GPSPoint, b: GPSPoint): string {
   return `${a.lat.toFixed(4)},${a.lng.toFixed(4)}-${b.lat.toFixed(4)},${b.lng.toFixed(4)}`;
+}
+
+function cacheSet(key: string, entry: MatrixEntry) {
+  if (matrixCache.size >= MAX_MATRIX_CACHE_ENTRIES) {
+    // Evict the oldest entry (Map preserves insertion order).
+    const oldestKey = matrixCache.keys().next().value;
+    if (oldestKey !== undefined) matrixCache.delete(oldestKey);
+  }
+  matrixCache.set(key, entry);
 }
 
 export async function getPairDistance(a: GPSPoint, b: GPSPoint): Promise<MatrixEntry> {
@@ -118,20 +136,151 @@ export async function getPairDistance(a: GPSPoint, b: GPSPoint): Promise<MatrixE
   if (cached) return cached;
 
   const osrm = await fetchRoute(a, b);
-  const entry: MatrixEntry = osrm ?? {
-    distanceKm: Math.round(haversineDistance(a, b) * 100) / 100,
-    durationMin: Math.round((haversineDistance(a, b) / 40) * 60 * 10) / 10, // ~40 km/h avg
-  };
+  const entry: MatrixEntry = osrm
+    ? { ...osrm, estimated: false }
+    : {
+        distanceKm: Math.round(haversineDistance(a, b) * 100) / 100,
+        durationMin: Math.round((haversineDistance(a, b) / 40) * 60 * 10) / 10, // ~40 km/h avg
+        estimated: true,
+      };
 
-  matrixCache.set(key, entry);
-  matrixCache.set(matrixKey(b, a), entry); // symmetric
+  cacheSet(key, entry);
+  cacheSet(matrixKey(b, a), entry); // symmetric
   return entry;
 }
 
 // ---------------------------------------------------------------------------
-// Nearest-neighbor tour (async, uses OSRM)
+// Nearest-neighbor tour (async, uses OSRM) + bounded 2-opt refinement
 // ---------------------------------------------------------------------------
 // Returns { order, totalDistance, totalDuration, legs }
+
+// Precomputes the full pairwise distance matrix for a set of points, in
+// parallel (bounded batches), so that both the nearest-neighbor construction
+// and the 2-opt refinement pass can look up any pair instantly from cache
+// instead of awaiting a sequential network round-trip per comparison.
+async function buildFullMatrix(points: GPSPoint[]): Promise<MatrixEntry[][]> {
+  const n = points.length;
+  const matrix: MatrixEntry[][] = Array.from({ length: n }, () => new Array(n));
+  const pairs: Array<[number, number]> = [];
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 1; j < n; j++) pairs.push([i, j]);
+  }
+
+  const BATCH_SIZE = 12; // avoid firing hundreds of requests at once
+  for (let b = 0; b < pairs.length; b += BATCH_SIZE) {
+    const batch = pairs.slice(b, b + BATCH_SIZE);
+    const results = await Promise.all(
+      batch.map(([i, j]) => getPairDistance(points[i], points[j])),
+    );
+    batch.forEach(([i, j], k) => {
+      matrix[i][j] = results[k];
+      matrix[j][i] = results[k];
+    });
+  }
+  for (let i = 0; i < n; i++) {
+    matrix[i][i] = { distanceKm: 0, durationMin: 0, estimated: false };
+  }
+  return matrix;
+}
+
+function nearestNeighborFromMatrix(matrix: MatrixEntry[][], n: number): number[] {
+  const visited = new Set<number>([0]);
+  const order = [0];
+  let current = 0;
+  for (let step = 1; step < n; step++) {
+    let nearest = -1;
+    let best = Infinity;
+    for (let i = 0; i < n; i++) {
+      if (visited.has(i)) continue;
+      if (matrix[current][i].distanceKm < best) {
+        best = matrix[current][i].distanceKm;
+        nearest = i;
+      }
+    }
+    if (nearest >= 0) {
+      visited.add(nearest);
+      order.push(nearest);
+      current = nearest;
+    }
+  }
+  return order;
+}
+
+function tourDistanceFromMatrix(matrix: MatrixEntry[][], order: number[]): number {
+  let total = 0;
+  for (let i = 0; i < order.length - 1; i++) {
+    total += matrix[order[i]][order[i + 1]].distanceKm;
+  }
+  return total;
+}
+
+const TWO_OPT_MAX_PASSES = 6;
+
+/**
+ * Bounded 2-opt improvement pass. The tour is a path (not a cycle): the
+ * first point (index 0 in `order`, typically the nurse's start / a fixed
+ * anchor) is kept fixed in position; interior edges can be reversed.
+ * Runs a small, capped number of full passes so it stays fast even with
+ * ~30 points (n^2 comparisons per pass, all using cached distances).
+ */
+function twoOptImprove(matrix: MatrixEntry[][], order: number[]): number[] {
+  const n = order.length;
+  if (n < 4) return order;
+
+  let improved = true;
+  let passes = 0;
+  const result = [...order];
+
+  while (improved && passes < TWO_OPT_MAX_PASSES) {
+    improved = false;
+    passes++;
+    for (let i = 0; i < n - 2; i++) {
+      for (let j = i + 2; j < n; j++) {
+        const a = result[i];
+        const b = result[i + 1];
+        const c = result[j];
+        const d = j + 1 < n ? result[j + 1] : null;
+
+        const before = matrix[a][b].distanceKm + (d !== null ? matrix[c][d].distanceKm : 0);
+        const after = matrix[a][c].distanceKm + (d !== null ? matrix[b][d].distanceKm : 0);
+
+        if (after < before - 1e-6) {
+          // Reverse segment [i+1, j]
+          let left = i + 1;
+          let right = j;
+          while (left < right) {
+            const tmp = result[left];
+            result[left] = result[right];
+            result[right] = tmp;
+            left++;
+            right--;
+          }
+          improved = true;
+        }
+      }
+    }
+  }
+
+  return result;
+}
+
+function buildLegsFromOrder(matrix: MatrixEntry[][], order: number[]): TourLeg[] {
+  const legs: TourLeg[] = [];
+  for (let i = 0; i < order.length - 1; i++) {
+    const from = order[i];
+    const to = order[i + 1];
+    const entry = matrix[from][to];
+    legs.push({
+      fromIndex: from,
+      toIndex: to,
+      distanceKm: entry.distanceKm,
+      durationMin: entry.durationMin,
+      departureTime: '',
+      estimated: entry.estimated,
+    });
+  }
+  return legs;
+}
 
 export async function nearestNeighborTour(points: GPSPoint[]): Promise<TourResult> {
   if (points.length === 0) {
@@ -141,45 +290,16 @@ export async function nearestNeighborTour(points: GPSPoint[]): Promise<TourResul
     return { order: [0], totalDistanceKm: 0, totalDurationMin: 0, legs: [] };
   }
 
-  const visited = new Set<number>();
-  const order: number[] = [0];
-  visited.add(0);
-  let current = 0;
-  let totalDist = 0;
-  let totalDur = 0;
-  const legs: TourLeg[] = [];
+  const matrix = await buildFullMatrix(points);
+  const nnOrder = nearestNeighborFromMatrix(matrix, points.length);
+  const refinedOrder = twoOptImprove(matrix, nnOrder);
 
-  for (let step = 1; step < points.length; step++) {
-    let nearest = -1;
-    let nearestEntry: MatrixEntry = { distanceKm: Infinity, durationMin: Infinity };
-
-    for (let i = 0; i < points.length; i++) {
-      if (visited.has(i)) continue;
-      const entry = await getPairDistance(points[current], points[i]);
-      if (entry.distanceKm < nearestEntry.distanceKm) {
-        nearestEntry = entry;
-        nearest = i;
-      }
-    }
-
-    if (nearest >= 0) {
-      legs.push({
-        fromIndex: current,
-        toIndex: nearest,
-        distanceKm: nearestEntry.distanceKm,
-        durationMin: nearestEntry.durationMin,
-        departureTime: '', // filled later by caller
-      });
-      totalDist += nearestEntry.distanceKm;
-      totalDur += nearestEntry.durationMin;
-      visited.add(nearest);
-      order.push(nearest);
-      current = nearest;
-    }
-  }
+  const legs = buildLegsFromOrder(matrix, refinedOrder);
+  const totalDist = legs.reduce((s, l) => s + l.distanceKm, 0);
+  const totalDur = legs.reduce((s, l) => s + l.durationMin, 0);
 
   return {
-    order,
+    order: refinedOrder,
     totalDistanceKm: Math.round(totalDist * 100) / 100,
     totalDurationMin: Math.round(totalDur),
     legs,
@@ -226,6 +346,7 @@ export async function chronologicalTour(
       distanceKm: entry.distanceKm,
       durationMin: entry.durationMin,
       departureTime: '',
+      estimated: entry.estimated,
     });
     totalDist += entry.distanceKm;
     totalDur += entry.durationMin;
@@ -257,16 +378,49 @@ export interface FlexibleTourStop {
   durationMin: number;
   patientFileId: string;
   time?: string | null; // optional fixed time ("HH:MM" or "HH:MM:SS")
+  /** Unique identifier for this stop (e.g. appointment id). Falls back to
+   * `patientFileId` if not provided — should be unique per stop so that a
+   * patient with two visits the same day doesn't collide. */
+  id?: string;
+}
+
+export interface FlexibleTourLeg {
+  fromId: string; // 'nurse' for the starting point, otherwise a stop id
+  toId: string;   // stop id
+  distanceKm: number;
+  durationMin: number;
+  /** true when this leg's distance/duration is a straight-line estimate,
+   * not a real road-routing result. */
+  estimated: boolean;
 }
 
 export interface FlexibleTourResult {
-  order: number[];           // indices into the original stops array, in visit order
-  legs: TourLeg[];
+  /** Stop ids in visit order. */
+  orderIds: string[];
+  legs: FlexibleTourLeg[];
   totalDistanceKm: number;
   totalDurationMin: number;
-  estimatedArrivals: string[]; // "HH:MM" estimated arrival at each stop (in original order)
+  /** Estimated arrival time ("HH:MM") keyed by stop id. */
+  estimatedArrivals: Record<string, string>;
+  /** True for stops with a fixed time that cannot realistically be honored
+   * given travel time from the previous stop (nurse would arrive late). */
+  conflicts: Record<string, boolean>;
 }
 
+function stopId(stop: FlexibleTourStop): string {
+  return stop.id ?? stop.patientFileId;
+}
+
+/**
+ * Distance-optimized tour that also respects fixed appointment times.
+ *
+ * Stops with a fixed `time` act as anchors: they are always visited in
+ * chronological order and the flexible (untimed) stops are distributed into
+ * the time "gaps" around them, then locally optimized (nearest-neighbor +
+ * bounded 2-opt) within each gap. This guarantees the tour never reorders a
+ * fixed appointment before an earlier one, while still optimizing distance
+ * for the stops that have no constraint.
+ */
 export async function flexibleTour(
   nurseGPS: GPSPoint,
   stops: FlexibleTourStop[],
@@ -274,69 +428,125 @@ export async function flexibleTour(
 ): Promise<FlexibleTourResult> {
   if (stops.length === 0) {
     return {
-      order: [],
+      orderIds: [],
       legs: [],
       totalDistanceKm: 0,
       totalDurationMin: 0,
-      estimatedArrivals: [],
+      estimatedArrivals: {},
+      conflicts: {},
     };
   }
 
-  // Build points array: [nurse, ...stops]
-  const allPoints: GPSPoint[] = [nurseGPS, ...stops.map((s) => s.gps)];
+  const anchored = stops
+    .map((s, i) => ({ stop: s, i }))
+    .filter((x) => !!x.stop.time)
+    .sort((a, b) => timeToMinutes(formatTimeHHMM(a.stop.time!)) - timeToMinutes(formatTimeHHMM(b.stop.time!)));
+  const flexibleIdx = new Set(stops.map((_, i) => i));
+  anchored.forEach((a) => flexibleIdx.delete(a.i));
+  const flexible = [...flexibleIdx].map((i) => ({ stop: stops[i], i }));
 
-  // Use nearest-neighbor to optimize order (always distance-based)
-  const tour = await nearestNeighborTour(allPoints);
+  // Boundaries: nurse start, then each anchor in time order.
+  // Segment k = the gap between boundary[k] and boundary[k+1] (or "open end"
+  // after the last anchor). Each flexible stop is assigned to the segment
+  // whose boundaries are closest (haversine — cheap, no network calls) so we
+  // don't need O(n*segments) API calls just to bucket stops.
+  const boundaries: GPSPoint[] = [nurseGPS, ...anchored.map((a) => a.stop.gps)];
+  const segments: { stop: FlexibleTourStop; i: number }[][] = boundaries.map(() => []);
 
-  // tour.order includes index 0 (nurse) as first element
-  // Remove nurse (index 0) to get patient order
-  const patientOrder = tour.order.filter((idx) => idx !== 0);
-  // Convert from allPoints index to stops index (offset by 1)
-  const stopOrder = patientOrder.map((idx) => idx - 1);
-
-  // Calculate estimated arrival times
-  const estimatedArrivals: string[] = new Array(stops.length).fill('');
-  let currentMinutes = timeToMinutes(departureTime);
-
-  // Legs from tour are indexed into allPoints (0 = nurse, 1..n = stops)
-  // We need to walk through the legs in order and calculate times
-  for (let i = 0; i < tour.legs.length; i++) {
-    const leg = tour.legs[i];
-    const toStopIdx = leg.toIndex - 1; // convert to stops index
-
-    // Travel time to this stop
-    currentMinutes += Math.ceil(leg.durationMin);
-    estimatedArrivals[toStopIdx] = minutesToTime(currentMinutes);
-
-    // Add care duration at this stop (if not the last stop)
-    if (i < tour.legs.length - 1) {
-      currentMinutes += stops[toStopIdx].durationMin;
+  for (const f of flexible) {
+    let bestSeg = 0;
+    let bestDist = Infinity;
+    for (let s = 0; s < boundaries.length; s++) {
+      const d = haversineDistance(boundaries[s], f.stop.gps);
+      if (d < bestDist) {
+        bestDist = d;
+        bestSeg = s;
+      }
     }
+    segments[bestSeg].push(f);
   }
 
-  // Remap legs to use stops indices (0-based, not allPoints)
-  const remappedLegs: TourLeg[] = tour.legs.map((leg) => ({
-    fromIndex: leg.fromIndex - 1, // -1 = nurse start
-    toIndex: leg.toIndex - 1,
-    distanceKm: leg.distanceKm,
-    durationMin: leg.durationMin,
-    departureTime: '',
-  }));
-
-  // If any stop has a fixed time, adjust estimated arrivals
-  // For now, fixed times are just noted but don't reorder the tour
-  stops.forEach((stop, idx) => {
-    if (stop.time) {
-      estimatedArrivals[idx] = formatTimeHHMM(stop.time);
+  // Optimize the interior order of each segment (nearest-neighbor + 2-opt),
+  // starting from that segment's boundary point.
+  const segmentOrders: number[][] = []; // original `stops` indices, per segment
+  for (let s = 0; s < segments.length; s++) {
+    const items = segments[s];
+    if (items.length === 0) {
+      segmentOrders.push([]);
+      continue;
     }
-  });
+    if (items.length === 1) {
+      segmentOrders.push([items[0].i]);
+      continue;
+    }
+    const points = [boundaries[s], ...items.map((it) => it.stop.gps)];
+    const localTour = await nearestNeighborTour(points);
+    const localOrder = localTour.order.filter((idx) => idx !== 0).map((idx) => items[idx - 1].i);
+    segmentOrders.push(localOrder);
+  }
+
+  // Concatenate: [flexible before anchor0], anchor0, [flexible before anchor1], anchor1, ...
+  const finalOrder: number[] = [];
+  for (let s = 0; s < segmentOrders.length; s++) {
+    finalOrder.push(...segmentOrders[s]);
+    if (s < anchored.length) finalOrder.push(anchored[s].i);
+  }
+
+  // Walk the final order sequentially to compute legs, arrival times and
+  // fixed-time conflicts.
+  const legs: FlexibleTourLeg[] = [];
+  const estimatedArrivals: Record<string, string> = {};
+  const conflicts: Record<string, boolean> = {};
+  let currentMinutes = timeToMinutes(departureTime);
+  let prevPoint = nurseGPS;
+  let prevId = 'nurse';
+
+  let totalDist = 0;
+  let totalDur = 0;
+
+  for (let k = 0; k < finalOrder.length; k++) {
+    const stop = stops[finalOrder[k]];
+    const id = stopId(stop);
+    const entry = await getPairDistance(prevPoint, stop.gps);
+
+    legs.push({
+      fromId: prevId,
+      toId: id,
+      distanceKm: entry.distanceKm,
+      durationMin: entry.durationMin,
+      estimated: entry.estimated,
+    });
+    totalDist += entry.distanceKm;
+    totalDur += entry.durationMin;
+
+    currentMinutes += Math.ceil(entry.durationMin);
+
+    if (stop.time) {
+      const fixedMinutes = timeToMinutes(formatTimeHHMM(stop.time));
+      // If we'd arrive later than the fixed time, we can't honor it — flag it.
+      conflicts[id] = currentMinutes > fixedMinutes;
+      // From here on, the clock resyncs to the fixed appointment time (the
+      // nurse waits if early; downstream ETAs are computed relative to the
+      // actual constraint, not the possibly-optimistic travel estimate).
+      currentMinutes = Math.max(currentMinutes, fixedMinutes);
+      estimatedArrivals[id] = minutesToTime(fixedMinutes);
+    } else {
+      estimatedArrivals[id] = minutesToTime(currentMinutes);
+    }
+
+    // Add care duration before heading to the next stop.
+    currentMinutes += stop.durationMin;
+    prevPoint = stop.gps;
+    prevId = id;
+  }
 
   return {
-    order: stopOrder,
-    legs: remappedLegs,
-    totalDistanceKm: tour.totalDistanceKm,
-    totalDurationMin: tour.totalDurationMin,
+    orderIds: finalOrder.map((idx) => stopId(stops[idx])),
+    legs,
+    totalDistanceKm: Math.round(totalDist * 100) / 100,
+    totalDurationMin: Math.round(totalDur),
     estimatedArrivals,
+    conflicts,
   };
 }
 
