@@ -11,6 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../utils/supabase';
 import { COLORS, SIZES } from '../../utils/constants';
+import Avatar from '../../components/Avatar';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -27,6 +28,9 @@ interface NurseData {
   rating: number;
   totalPatients: number;
   totalVisits: number;
+  photoUrl: string | null;
+  avatarType: 'photo' | 'generated' | null;
+  avatarSeed: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -52,7 +56,7 @@ const NurseProfileView: React.FC<{ navigation: any; route: any }> = ({
       try {
         const { data: profile, error: profileErr } = await supabase
           .from('profiles')
-          .select('first_name, last_name, email, phone')
+          .select('first_name, last_name, email, phone, photo_url, avatar_type, avatar_seed')
           .eq('id', nurseId)
           .single();
 
@@ -82,6 +86,9 @@ const NurseProfileView: React.FC<{ navigation: any; route: any }> = ({
           rating: np?.rating ?? 0,
           totalPatients: np?.total_patients ?? 0,
           totalVisits: np?.total_visits ?? 0,
+          photoUrl: profile.photo_url ?? null,
+          avatarType: profile.avatar_type ?? null,
+          avatarSeed: profile.avatar_seed ?? null,
         });
       } catch (err) {
         console.error('[NurseProfileView] unexpected:', err);
@@ -144,11 +151,16 @@ const NurseProfileView: React.FC<{ navigation: any; route: any }> = ({
       >
         {/* Avatar + Name */}
         <View style={styles.profileHeader}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>
-              {data.firstName[0]}{data.lastName[0]}
-            </Text>
-          </View>
+          <Avatar
+            photoUrl={data.photoUrl ?? undefined}
+            avatarType={data.avatarType}
+            avatarSeed={data.avatarSeed ?? undefined}
+            firstName={data.firstName}
+            lastName={data.lastName}
+            size={80}
+            backgroundColor={COLORS.FAMILY_LIGHT}
+            textColor={COLORS.FAMILY_PRIMARY}
+          />
           <Text style={styles.profileName}>
             {data.firstName} {data.lastName}
           </Text>

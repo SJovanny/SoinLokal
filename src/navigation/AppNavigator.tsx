@@ -26,6 +26,7 @@ import ProfileScreen from '../screens/nurse/ProfileScreen';
 // Écrans patient
 import PatientDashboard from '../screens/patient/PatientDashboard';
 import PatientCareHistory from '../screens/patient/PatientCareHistory';
+import PatientProfile from '../screens/patient/PatientProfile';
 import MessagingScreen from '../screens/shared/MessagingScreen';
 import ChatScreen from '../screens/shared/ChatScreen';
 
@@ -143,6 +144,9 @@ const PatientTabNavigator = () => {
           case 'Messages':
             iconName = focused ? 'chatbubbles' : 'chatbubbles-outline';
             break;
+          case 'Profil':
+            iconName = focused ? 'person' : 'person-outline';
+            break;
         }
         return <Ionicons name={iconName!} size={size} color={color} />;
       },
@@ -182,6 +186,14 @@ const PatientTabNavigator = () => {
         headerShown: false,
         tabBarBadge: unreadCount > 0 ? unreadCount : undefined,
         tabBarBadgeStyle: { backgroundColor: COLORS.DANGER },
+      }}
+    />
+    <Tab.Screen
+      name="Profil"
+      component={PatientProfile}
+      options={{
+        title: 'Profil',
+        headerShown: false,
       }}
     />
   </Tab.Navigator>

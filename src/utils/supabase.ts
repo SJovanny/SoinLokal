@@ -40,6 +40,9 @@ export interface Profile {
   last_name:   string;
   user_type:   'patient' | 'family' | 'nurse';
   phone?:      string;
+  photo_url?:  string;
+  avatar_type: 'photo' | 'generated' | null;
+  avatar_seed?: string;
   verified:    boolean;
   created_at:  string;
   updated_at:  string;

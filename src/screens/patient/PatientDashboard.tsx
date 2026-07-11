@@ -16,6 +16,7 @@ import { useMessageCount } from '../../contexts/MessageCountContext';
 import { supabase } from '../../utils/supabase';
 import { COLORS, SIZES } from '../../utils/constants';
 import LogoutButton from '../../components/LogoutButton';
+import Avatar from '../../components/Avatar';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -232,8 +233,20 @@ const PatientDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
             </Text>
           </View>
           <View style={styles.headerRight}>
-            <TouchableOpacity style={styles.profileButton}>
-              <Ionicons name="person-circle-outline" size={32} color={COLORS.PATIENT_PRIMARY} />
+            <TouchableOpacity
+              style={styles.profileButton}
+              onPress={() => navigation.navigate('Profil')}
+            >
+              <Avatar
+                photoUrl={userProfile?.photo_url}
+                avatarType={userProfile?.avatar_type ?? null}
+                avatarSeed={userProfile?.avatar_seed}
+                firstName={userProfile?.first_name}
+                lastName={userProfile?.last_name}
+                size={36}
+                backgroundColor={COLORS.PATIENT_LIGHT}
+                textColor={COLORS.PATIENT_PRIMARY}
+              />
             </TouchableOpacity>
             <LogoutButton
               variant="icon"

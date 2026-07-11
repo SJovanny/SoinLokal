@@ -16,6 +16,7 @@ import { useMessageCount } from '../../contexts/MessageCountContext';
 import { supabase } from '../../utils/supabase';
 import { resolveAccessibleFileIds } from '../../utils/messagingAccess';
 import { COLORS, SIZES, getThemeColor } from '../../utils/constants';
+import Avatar from '../../components/Avatar';
 
 interface Conversation {
   patientFileId: string;
@@ -202,9 +203,16 @@ const MessagingScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
       }
     >
       <View style={styles.avatarContainer}>
-        <View style={[styles.avatar, { backgroundColor: themeColor }]}>
-          <Text style={styles.avatarText}>{item.participantName.charAt(0).toUpperCase()}</Text>
-        </View>
+        <Avatar
+          photoUrl={(item as any).participantPhotoUrl}
+          avatarType={(item as any).participantAvatarType}
+          avatarSeed={(item as any).participantAvatarSeed}
+          firstName={item.participantName.split(' ')[0]}
+          lastName={item.participantName.split(' ').slice(1).join(' ')}
+          size={52}
+          backgroundColor={themeColor}
+          textColor={COLORS.WHITE}
+        />
         {item.unreadCount > 0 && (
           <View style={[styles.unreadBadge, { backgroundColor: COLORS.DANGER }]}>
             <Text style={styles.unreadText}>{item.unreadCount > 9 ? '9+' : item.unreadCount}</Text>

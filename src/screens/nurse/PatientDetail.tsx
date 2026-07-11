@@ -15,6 +15,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { supabase, type Profile, type PatientProfile, type Appointment } from '../../utils/supabase';
 import { COLORS, SIZES } from '../../utils/constants';
 import { openNavigation } from '../../utils/navigation';
+import Avatar from '../../components/Avatar';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -287,12 +288,14 @@ const PatientDetail: React.FC<{ navigation: any; route: any }> = ({
       >
         {/* Avatar + Name */}
         <View style={styles.profileHeader}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>
-              {profile.first_name?.[0]}
-              {profile.last_name?.[0]}
-            </Text>
-          </View>
+          <Avatar
+            photoUrl={profile.photo_url}
+            avatarType={profile.avatar_type}
+            avatarSeed={profile.avatar_seed}
+            firstName={profile.first_name}
+            lastName={profile.last_name}
+            size={80}
+          />
           <Text style={styles.profileName}>
             {profile.first_name} {profile.last_name}
           </Text>

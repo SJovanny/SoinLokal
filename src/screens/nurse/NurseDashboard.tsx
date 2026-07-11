@@ -15,6 +15,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../utils/supabase';
 import { COLORS, SIZES } from '../../utils/constants';
 import LogoutButton from '../../components/LogoutButton';
+import Avatar from '../../components/Avatar';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -265,7 +266,16 @@ const NurseDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
               style={styles.profileButton}
               onPress={() => navigation.navigate('Profil')}
             >
-              <Ionicons name="person-circle-outline" size={32} color={COLORS.NURSE_PRIMARY} />
+              <Avatar
+                photoUrl={userProfile?.photo_url}
+                avatarType={userProfile?.avatar_type ?? null}
+                avatarSeed={userProfile?.avatar_seed}
+                firstName={userProfile?.first_name}
+                lastName={userProfile?.last_name}
+                size={36}
+                backgroundColor={COLORS.NURSE_LIGHT}
+                textColor={COLORS.NURSE_PRIMARY}
+              />
             </TouchableOpacity>
             <LogoutButton
               variant="icon"

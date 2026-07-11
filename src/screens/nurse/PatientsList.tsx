@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase, type Profile, type PatientProfile } from '../../utils/supabase';
 import { COLORS, SIZES } from '../../utils/constants';
+import Avatar from '../../components/Avatar';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -285,7 +286,14 @@ const PatientsList: React.FC<{ navigation: any; route: any }> = ({
         }}
       >
         <View style={styles.cardAvatar}>
-          <Ionicons name="person" size={24} color={COLORS.NURSE_PRIMARY} />
+          <Avatar
+            photoUrl={(patient as any).photo_url}
+            avatarType={(patient as any).avatar_type}
+            avatarSeed={(patient as any).avatar_seed}
+            firstName={patient.first_name}
+            lastName={patient.last_name}
+            size={48}
+          />
         </View>
 
           <View style={styles.cardInfo}>

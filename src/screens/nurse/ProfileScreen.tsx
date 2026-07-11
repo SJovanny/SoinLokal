@@ -22,6 +22,7 @@ import { searchAddressMapbox, type MapboxGeocodingResult } from '../../utils/map
 import { searchAddress } from '../../utils/geocoding';
 import { nativeGeocode } from '../../utils/nativeGeocoding';
 import LogoutButton from '../../components/LogoutButton';
+import AvatarPicker from '../../components/AvatarPicker';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -424,12 +425,18 @@ const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
       >
         {/* Profile card */}
         <View style={styles.profileCard}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>
-              {(isEditing ? editFirstName : userProfile?.first_name)?.[0]}
-              {(isEditing ? editLastName : userProfile?.last_name)?.[0]}
-            </Text>
-          </View>
+          <AvatarPicker
+            photoUrl={userProfile?.photo_url}
+            avatarType={userProfile?.avatar_type ?? null}
+            avatarSeed={userProfile?.avatar_seed}
+            firstName={userProfile?.first_name}
+            lastName={userProfile?.last_name}
+            userId={user?.id ?? ''}
+            photoOnly
+            onSaved={(data) => {
+              fetchProfile(user!.id);
+            }}
+          />
           {isEditing ? (
             <View style={styles.editNameRow}>
               <TextInput

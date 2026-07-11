@@ -12,6 +12,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../utils/supabase';
 import { COLORS, SIZES } from '../../utils/constants';
 import LogoutButton from '../../components/LogoutButton';
+import AvatarPicker from '../../components/AvatarPicker';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -32,7 +33,7 @@ interface LinkedPatientInfo {
 // ---------------------------------------------------------------------------
 
 const FamilyProfile: React.FC = () => {
-  const { userProfile, familyLinks, user } = useAuth();
+  const { userProfile, familyLinks, user, fetchProfile } = useAuth();
   const [linkedPatients, setLinkedPatients] = useState<LinkedPatientInfo[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -158,11 +159,17 @@ const FamilyProfile: React.FC = () => {
       >
         {/* Profile card */}
         <View style={styles.profileCard}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>
-              {userProfile?.first_name?.[0]}{userProfile?.last_name?.[0]}
-            </Text>
-          </View>
+          <AvatarPicker
+            photoUrl={userProfile?.photo_url}
+            avatarType={userProfile?.avatar_type ?? null}
+            avatarSeed={userProfile?.avatar_seed}
+            firstName={userProfile?.first_name}
+            lastName={userProfile?.last_name}
+            userId={user?.id ?? ''}
+            onSaved={() => {
+              fetchProfile(user!.id);
+            }}
+          />
           <Text style={styles.userName}>
             {userProfile?.first_name} {userProfile?.last_name}
           </Text>

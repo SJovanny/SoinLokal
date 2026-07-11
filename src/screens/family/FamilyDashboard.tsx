@@ -16,6 +16,7 @@ import { useMessageCount } from '../../contexts/MessageCountContext';
 import { supabase } from '../../utils/supabase';
 import { COLORS, SIZES } from '../../utils/constants';
 import LogoutButton from '../../components/LogoutButton';
+import Avatar from '../../components/Avatar';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -413,6 +414,21 @@ const FamilyDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
           </View>
           <View style={styles.headerRight}>
             <TouchableOpacity
+              style={styles.profileButton}
+              onPress={() => navigation.navigate('Profil')}
+            >
+              <Avatar
+                photoUrl={userProfile?.photo_url}
+                avatarType={userProfile?.avatar_type ?? null}
+                avatarSeed={userProfile?.avatar_seed}
+                firstName={userProfile?.first_name}
+                lastName={userProfile?.last_name}
+                size={36}
+                backgroundColor={COLORS.FAMILY_LIGHT}
+                textColor={COLORS.FAMILY_PRIMARY}
+              />
+            </TouchableOpacity>
+            <TouchableOpacity
               style={styles.addProcheBtn}
               onPress={() => navigation.navigate('AddManagedPatient')}
             >
@@ -456,6 +472,21 @@ const FamilyDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
             <Text style={styles.userName}>{userProfile?.first_name} {userProfile?.last_name}</Text>
           </View>
           <View style={styles.headerRight}>
+            <TouchableOpacity
+              style={styles.profileButton}
+              onPress={() => navigation.navigate('Profil')}
+            >
+              <Avatar
+                photoUrl={userProfile?.photo_url}
+                avatarType={userProfile?.avatar_type ?? null}
+                avatarSeed={userProfile?.avatar_seed}
+                firstName={userProfile?.first_name}
+                lastName={userProfile?.last_name}
+                size={36}
+                backgroundColor={COLORS.FAMILY_LIGHT}
+                textColor={COLORS.FAMILY_PRIMARY}
+              />
+            </TouchableOpacity>
             <TouchableOpacity
               style={styles.addProcheBtn}
               onPress={() => navigation.navigate('AddManagedPatient')}
@@ -613,6 +644,9 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.FAMILY_LIGHT,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  profileButton: {
+    padding: SIZES.XS,
   },
   // Patient card
   patientCard: {
