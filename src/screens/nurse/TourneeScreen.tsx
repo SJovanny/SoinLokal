@@ -489,6 +489,20 @@ const TourneeScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, 
   const [loading, setLoading] = useState(true);
   const [completingId, setCompletingId] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  // Tracks which markers should briefly have tracksViewChanges={true} so that
+  // react-native-maps re-snapshots their custom view with the updated style
+  // (selected ring, border, etc.) without causing an anchor recalculation on
+  // every render. The set is cleared after a short timeout.
+  const [refreshingMarkers, setRefreshingMarkers] = useState<Set<string>>(new Set());
+
+  const selectMarker = useCallback((id: string | null) => {
+    setSelectedId(id);
+    if (id) {
+      setRefreshingMarkers(new Set([id]));
+      setTimeout(() => setRefreshingMarkers(new Set()), 350);
+    }
+  }, []);
   const [tourResult, setTourResult] = useState<FlexibleTourResult | null>(null);
   const [tourLoading, setTourLoading] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -995,7 +1009,7 @@ const TourneeScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, 
           isSelected && styles.cardSelected,
         ]}
         activeOpacity={0.8}
-        onPress={() => setSelectedId(isSelected ? null : item.id)}
+        onPress={() => selectMarker(isSelected ? null : item.id)}
       >
         <View style={styles.cardHeader}>
           <View style={[styles.numberBadge, { backgroundColor: config.color }]}>
@@ -1230,16 +1244,22 @@ const TourneeScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, 
               <Marker
                 key={m.id}
                 coordinate={m.coordinate}
-                onPress={() => setSelectedId(m.id)}
+                tracksViewChanges={refreshingMarkers.has(m.id)}
+                onPress={() => selectMarker(m.id)}
               >
-                <View
-                  style={[
-                    styles.markerBubble,
-                    { backgroundColor: m.color },
-                    selectedId === m.id && styles.markerSelected,
-                  ]}
-                >
-                  <Text style={styles.markerText}>{m.index}</Text>
+                <View style={styles.markerAnchor}>
+                  {selectedId === m.id && (
+                    <View style={[styles.markerRing, { borderColor: m.color }]} />
+                  )}
+                  <View
+                    style={[
+                      styles.markerBubble,
+                      { backgroundColor: m.color },
+                      selectedId === m.id && styles.markerSelected,
+                    ]}
+                  >
+                    <Text style={styles.markerText}>{m.index}</Text>
+                  </View>
                 </View>
                 <Callout tooltip>
                   <View style={styles.calloutContent}>
@@ -1534,9 +1554,23 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     elevation: 4,
   },
+  markerAnchor: {
+    width: 48,
+    height: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  markerRing: {
+    position: 'absolute',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 3,
+    opacity: 0.6,
+  },
   markerSelected: {
-    transform: [{ scale: 1.3 }],
     borderColor: COLORS.BLACK,
+    borderWidth: 3,
   },
   markerText: {
     color: COLORS.WHITE,
