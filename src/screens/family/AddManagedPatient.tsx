@@ -24,7 +24,7 @@ import { nativeGeocode } from '../../utils/nativeGeocoding';
 // ---------------------------------------------------------------------------
 
 const AddManagedPatient: React.FC<{ navigation: any }> = ({ navigation }) => {
-  const { user, fetchProfile } = useAuth();
+  const { user, familyLinks, fetchProfile } = useAuth();
 
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -45,6 +45,35 @@ const AddManagedPatient: React.FC<{ navigation: any }> = ({ navigation }) => {
   const [showSuggestions, setShowSuggestions] = useState(false);
 
   const [saving, setSaving] = useState(false);
+  const [hasExistingPatient, setHasExistingPatient] = useState<boolean | null>(null);
+
+  // -------------------------------------------------------------------------
+  // Check if patient already exists
+  // -------------------------------------------------------------------------
+
+  useEffect(() => {
+    const checkExisting = async () => {
+      if (!user) return;
+
+      // Check family_links
+      if (familyLinks.length > 0) {
+        setHasExistingPatient(true);
+        return;
+      }
+
+      // Check managed patients
+      const { data: managedProfile } = await supabase
+        .from('patient_profiles')
+        .select('profile_id')
+        .eq('managed_by', user.id)
+        .eq('is_managed', true)
+        .single();
+
+      setHasExistingPatient(!!managedProfile);
+    };
+
+    checkExisting();
+  }, [user, familyLinks]);
 
   // -------------------------------------------------------------------------
   // Address search (debounced)
@@ -178,6 +207,61 @@ const AddManagedPatient: React.FC<{ navigation: any }> = ({ navigation }) => {
   // -------------------------------------------------------------------------
   // Render
   // -------------------------------------------------------------------------
+
+  if (hasExistingPatient === null) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="chevron-back" size={24} color={COLORS.TEXT_PRIMARY} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Ajouter un proche</Text>
+          <View style={{ width: 40 }} />
+        </View>
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+          <ActivityIndicator size="large" color={COLORS.FAMILY_PRIMARY} />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (hasExistingPatient) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="chevron-back" size={24} color={COLORS.TEXT_PRIMARY} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Ajouter un proche</Text>
+          <View style={{ width: 40 }} />
+        </View>
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: SIZES.XXL, gap: SIZES.MD }}>
+          <Ionicons name="alert-circle-outline" size={56} color={COLORS.WARNING} />
+          <Text style={{ fontSize: SIZES.FONT_LG, fontWeight: '600', color: COLORS.TEXT_PRIMARY, textAlign: 'center' }}>
+            Vous avez déjà un proche associé
+          </Text>
+          <Text style={{ fontSize: SIZES.FONT_SM, color: COLORS.TEXT_MUTED, textAlign: 'center', lineHeight: 20 }}>
+            Un compte famille ne peut être lié qu'à un seul patient. Pour ajouter un autre proche, contactez l'équipe soignante.
+          </Text>
+          <TouchableOpacity
+            style={[styles.submitBtn, { marginTop: SIZES.LG }]}
+            onPress={() => navigation.goBack()}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.submitBtnText}>Retour</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>

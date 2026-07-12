@@ -90,7 +90,7 @@ const FamilyDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { unreadCount } = useMessageCount();
   const today = getTodayISO();
 
-  const [linkedPatients, setLinkedPatients] = useState<LinkedPatient[]>([]);
+  const [linkedPatient, setLinkedPatient] = useState<LinkedPatient | null>(null);
   const [stats, setStats] = useState<Stats>({ upcomingRDV: 0, recentCares: 0 });
   const [appointments, setAppointments] = useState<UpcomingAppointment[]>([]);
   const [recentCares, setRecentCares] = useState<RecentCare[]>([]);
@@ -103,130 +103,104 @@ const FamilyDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
   // 2. Via patient_profiles.managed_by (managed: shadow account, no patient_file yet)
   // -------------------------------------------------------------------------
 
-  const fetchLinkedPatients = useCallback(async () => {
+  const fetchLinkedPatient = useCallback(async () => {
     if (!user) return;
-
-    const patients: LinkedPatient[] = [];
 
     // --- Source 1: family_links (existing patients with patient_files) ---
     if (familyLinks.length > 0) {
-      const fileIds = familyLinks.map(l => l.patient_file_id);
+      const fileId = familyLinks[0].patient_file_id;
 
-      const { data: files } = await supabase
+      const { data: file } = await supabase
         .from('patient_files')
         .select('id, patient_id, nurse_id')
-        .in('id', fileIds);
+        .eq('id', fileId)
+        .single();
 
-      if (files && files.length > 0) {
-        const patientIds = files.map((f: any) => f.patient_id);
-        const nurseIds = [...new Set(files.map((f: any) => f.nurse_id).filter(Boolean))];
-
-        // Fetch patient names
-        const { data: profiles } = await supabase
+      if (file) {
+        const { data: profile } = await supabase
           .from('profiles')
           .select('id, first_name, last_name')
-          .in('id', patientIds);
+          .eq('id', file.patient_id)
+          .single();
 
-        const profileMap: Record<string, { firstName: string; lastName: string }> = {};
-        (profiles ?? []).forEach((p: any) => {
-          profileMap[p.id] = { firstName: p.first_name, lastName: p.last_name };
-        });
-
-        // Fetch nurse names
-        let nurseMap: Record<string, string> = {};
-        if (nurseIds.length > 0) {
-          const { data: nurses } = await supabase
+        let nurseName: string | null = null;
+        if (file.nurse_id) {
+          const { data: nurse } = await supabase
             .from('profiles')
-            .select('id, first_name, last_name')
-            .in('id', nurseIds);
-          (nurses ?? []).forEach((n: any) => {
-            nurseMap[n.id] = `${n.first_name} ${n.last_name}`;
-          });
+            .select('first_name, last_name')
+            .eq('id', file.nurse_id)
+            .single();
+          if (nurse) {
+            nurseName = `${nurse.first_name} ${nurse.last_name}`;
+          }
         }
 
-        files.forEach((f: any) => {
-          const link = familyLinks.find(l => l.patient_file_id === f.id);
-          const profile = profileMap[f.patient_id];
-          patients.push({
-            patientFileId: f.id,
-            patientId: f.patient_id,
-            firstName: profile?.firstName ?? 'Proche',
-            lastName: profile?.lastName ?? '',
-            permissions: link?.permissions ?? 'read_only',
-            isManaged: false,
-            nurseName: nurseMap[f.nurse_id] ?? null,
-            nurseId: f.nurse_id ?? null,
-          });
+        const link = familyLinks[0];
+        setLinkedPatient({
+          patientFileId: file.id,
+          patientId: file.patient_id,
+          firstName: profile?.first_name ?? 'Proche',
+          lastName: profile?.last_name ?? '',
+          permissions: link?.permissions ?? 'read_only',
+          isManaged: false,
+          nurseName,
+          nurseId: file.nurse_id ?? null,
         });
+        return;
       }
     }
 
-    // --- Source 2: managed patients (via patient_profiles.managed_by) ---
-    const { data: managedProfiles } = await supabase
+    // --- Source 2: managed patient (via patient_profiles.managed_by) ---
+    const { data: managedProfile } = await supabase
       .from('patient_profiles')
       .select('profile_id')
       .eq('managed_by', user.id)
-      .eq('is_managed', true);
+      .eq('is_managed', true)
+      .single();
 
-    if (managedProfiles && managedProfiles.length > 0) {
-      const managedIds = managedProfiles.map((p: any) => p.profile_id);
+    if (managedProfile) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('id, first_name, last_name')
+        .eq('id', managedProfile.profile_id)
+        .single();
 
-      // Avoid duplicates (a managed patient could also be in family_links)
-      const existingIds = new Set(patients.map(p => p.patientId));
-      const newManagedIds = managedIds.filter((id: string) => !existingIds.has(id));
+      let nurseName: string | null = null;
+      let nurseId: string | null = null;
+      let patientFileId: string | null = null;
 
-      if (newManagedIds.length > 0) {
-        // Fetch patient names
-        const { data: profiles } = await supabase
-          .from('profiles')
-          .select('id, first_name, last_name')
-          .in('id', newManagedIds);
+      const { data: existingFile } = await supabase
+        .from('patient_files')
+        .select('id, nurse_id')
+        .eq('patient_id', managedProfile.profile_id)
+        .single();
 
-        // Check if any of these managed patients already have a patient_file
-        const { data: existingFiles } = await supabase
-          .from('patient_files')
-          .select('id, patient_id, nurse_id')
-          .in('patient_id', newManagedIds);
-
-        const fileMap: Record<string, { fileId: string; nurseName: string; nurseId: string }> = {};
-        if (existingFiles) {
-          const nurseIds = [...new Set(existingFiles.map((f: any) => f.nurse_id).filter(Boolean))];
-          let nurseMap: Record<string, string> = {};
-          if (nurseIds.length > 0) {
-            const { data: nurses } = await supabase
-              .from('profiles')
-              .select('id, first_name, last_name')
-              .in('id', nurseIds);
-            (nurses ?? []).forEach((n: any) => {
-              nurseMap[n.id] = `${n.first_name} ${n.last_name}`;
-            });
+      if (existingFile) {
+        patientFileId = existingFile.id;
+        if (existingFile.nurse_id) {
+          nurseId = existingFile.nurse_id;
+          const { data: nurse } = await supabase
+            .from('profiles')
+            .select('first_name, last_name')
+            .eq('id', existingFile.nurse_id)
+            .single();
+          if (nurse) {
+            nurseName = `${nurse.first_name} ${nurse.last_name}`;
           }
-          existingFiles.forEach((f: any) => {
-            fileMap[f.patient_id] = {
-              fileId: f.id,
-              nurseName: nurseMap[f.nurse_id] ?? 'Infirmière',
-              nurseId: f.nurse_id,
-            };
-          });
         }
-
-        (profiles ?? []).forEach((p: any) => {
-          const fileInfo = fileMap[p.id];
-          patients.push({
-            patientFileId: fileInfo?.fileId ?? null,
-            patientId: p.id,
-            firstName: p.first_name ?? 'Proche',
-            lastName: p.last_name ?? '',
-            permissions: 'can_message',
-            isManaged: true,
-            nurseName: fileInfo?.nurseName ?? null,
-            nurseId: fileInfo?.nurseId ?? null,
-          });
-        });
       }
-    }
 
-    setLinkedPatients(patients);
+      setLinkedPatient({
+        patientFileId,
+        patientId: managedProfile.profile_id,
+        firstName: profile?.first_name ?? 'Proche',
+        lastName: profile?.last_name ?? '',
+        permissions: 'can_message',
+        isManaged: true,
+        nurseName,
+        nurseId,
+      });
+    }
   }, [user, familyLinks]);
 
   // -------------------------------------------------------------------------
@@ -234,30 +208,26 @@ const FamilyDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
   // -------------------------------------------------------------------------
 
   const fetchData = useCallback(async () => {
-    if (!user) return;
-
-    const fileIds = linkedPatients
-      .filter(p => p.patientFileId != null)
-      .map(p => p.patientFileId as string);
-
-    if (fileIds.length === 0) {
+    if (!user || !linkedPatient?.patientFileId) {
       setStats({ upcomingRDV: 0, recentCares: 0 });
       return;
     }
+
+    const fileId = linkedPatient.patientFileId;
 
     try {
       // Stats
       const { count: upcomingCount } = await supabase
         .from('appointments')
         .select('id', { count: 'exact', head: true })
-        .in('patient_file_id', fileIds)
+        .eq('patient_file_id', fileId)
         .gte('date', today)
         .in('status', ['pending', 'confirmed']);
 
       const { count: recentCount } = await supabase
         .from('appointments')
         .select('id', { count: 'exact', head: true })
-        .in('patient_file_id', fileIds)
+        .eq('patient_file_id', fileId)
         .eq('status', 'completed');
 
       setStats({
@@ -269,7 +239,7 @@ const FamilyDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
       const { data: appts } = await supabase
         .from('appointments')
         .select('id, nurse_id, date, time, care_type, status')
-        .in('patient_file_id', fileIds)
+        .eq('patient_file_id', fileId)
         .gte('date', today)
         .in('status', ['pending', 'confirmed'])
         .order('date', { ascending: true })
@@ -304,7 +274,7 @@ const FamilyDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
       const { data: recent } = await supabase
         .from('appointments')
         .select('id, nurse_id, date, care_type, care_performed, visible_to_patient')
-        .in('patient_file_id', fileIds)
+        .eq('patient_file_id', fileId)
         .eq('status', 'completed')
         .eq('visible_to_patient', true)
         .order('date', { ascending: false })
@@ -334,27 +304,27 @@ const FamilyDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
     } catch (err) {
       console.error('[FamilyDashboard] unexpected:', err);
     }
-  }, [user, linkedPatients, today]);
+  }, [user, linkedPatient, today]);
 
   useEffect(() => {
     setLoading(true);
-    fetchLinkedPatients()
+    fetchLinkedPatient()
       .then(() => {})
       .finally(() => setLoading(false));
-  }, [fetchLinkedPatients]);
+  }, [fetchLinkedPatient]);
 
   useEffect(() => {
-    if (linkedPatients.length > 0) {
+    if (linkedPatient) {
       fetchData();
     }
-  }, [linkedPatients, fetchData]);
+  }, [linkedPatient, fetchData]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await fetchProfile(user!.id);
-    await fetchLinkedPatients();
+    await fetchLinkedPatient();
     setRefreshing(false);
-  }, [fetchProfile, fetchLinkedPatients, user]);
+  }, [fetchProfile, fetchLinkedPatient, user]);
 
   // -------------------------------------------------------------------------
   // Render
@@ -406,7 +376,7 @@ const FamilyDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
     );
   }
 
-  if (linkedPatients.length === 0) {
+  if (!linkedPatient) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
@@ -499,42 +469,40 @@ const FamilyDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
           </View>
         </View>
 
-        {/* Patient cards */}
-        {linkedPatients.map((patient) => (
-          <View key={patient.patientId} style={styles.patientCard}>
-            <View style={styles.patientCardHeader}>
-              <Ionicons name="heart" size={20} color={COLORS.FAMILY_PRIMARY} />
-              <Text style={styles.patientCardTitle}>
-                {patient.isManaged ? 'Proche géré' : 'Suivi de votre proche'}
-              </Text>
-            </View>
-            <Text style={styles.patientName}>{patient.firstName} {patient.lastName}</Text>
-            {patient.isManaged ? (
-              patient.nurseName ? (
-                <TouchableOpacity
-                  style={styles.nurseStatusRow}
-                  onPress={() => navigation.navigate('NurseProfileView', { nurseId: patient.nurseId })}
-                  activeOpacity={0.7}
-                >
-                  <Ionicons name="checkmark-circle" size={16} color={COLORS.SUCCESS} />
-                  <Text style={styles.nurseStatusText}>Suivi par {patient.nurseName}</Text>
-                  <Ionicons name="chevron-forward" size={14} color={COLORS.SUCCESS} />
-                </TouchableOpacity>
-              ) : (
-                <View style={styles.nurseStatusRow}>
-                  <Ionicons name="time-outline" size={16} color={COLORS.WARNING} />
-                  <Text style={[styles.nurseStatusText, { color: COLORS.WARNING }]}>
-                    En attente d'infirmière
-                  </Text>
-                </View>
-              )
-            ) : (
-              <Text style={styles.patientPermission}>
-                {patient.permissions === 'can_message' ? 'Accès lecture + messagerie' : 'Accès lecture seule'}
-              </Text>
-            )}
+        {/* Patient card */}
+        <View style={styles.patientCard}>
+          <View style={styles.patientCardHeader}>
+            <Ionicons name="heart" size={20} color={COLORS.FAMILY_PRIMARY} />
+            <Text style={styles.patientCardTitle}>
+              {linkedPatient.isManaged ? 'Proche géré' : 'Suivi de votre proche'}
+            </Text>
           </View>
-        ))}
+          <Text style={styles.patientName}>{linkedPatient.firstName} {linkedPatient.lastName}</Text>
+          {linkedPatient.isManaged ? (
+            linkedPatient.nurseName ? (
+              <TouchableOpacity
+                style={styles.nurseStatusRow}
+                onPress={() => navigation.navigate('NurseProfileView', { nurseId: linkedPatient.nurseId })}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="checkmark-circle" size={16} color={COLORS.SUCCESS} />
+                <Text style={styles.nurseStatusText}>Suivi par {linkedPatient.nurseName}</Text>
+                <Ionicons name="chevron-forward" size={14} color={COLORS.SUCCESS} />
+              </TouchableOpacity>
+            ) : (
+              <View style={styles.nurseStatusRow}>
+                <Ionicons name="time-outline" size={16} color={COLORS.WARNING} />
+                <Text style={[styles.nurseStatusText, { color: COLORS.WARNING }]}>
+                  En attente d'infirmière
+                </Text>
+              </View>
+            )
+          ) : (
+            <Text style={styles.patientPermission}>
+              {linkedPatient.permissions === 'can_message' ? 'Accès lecture + messagerie' : 'Accès lecture seule'}
+            </Text>
+          )}
+        </View>
 
         {/* Stats */}
         <View style={styles.statsCard}>

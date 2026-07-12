@@ -38,7 +38,7 @@ interface LinkedPatientInfo {
 
 const FamilyProfile: React.FC = () => {
   const { userProfile, familyLinks, user, fetchProfile } = useAuth();
-  const [linkedPatients, setLinkedPatients] = useState<LinkedPatientInfo[]>([]);
+  const [linkedPatient, setLinkedPatient] = useState<LinkedPatientInfo | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -48,103 +48,81 @@ const FamilyProfile: React.FC = () => {
         return;
       }
 
-      const patients: LinkedPatientInfo[] = [];
-
       // Source 1: family_links
       if (familyLinks.length > 0) {
-        const fileIds = familyLinks.map(l => l.patient_file_id);
-        const { data: files } = await supabase
+        const fileId = familyLinks[0].patient_file_id;
+        const { data: file } = await supabase
           .from('patient_files')
           .select('id, patient_id, nurse_id')
-          .in('id', fileIds);
+          .eq('id', fileId)
+          .single();
 
-        if (files && files.length > 0) {
-          const patientIds = files.map((f: any) => f.patient_id);
-          const nurseIds = [...new Set(files.map((f: any) => f.nurse_id).filter(Boolean))];
-
-          const { data: profiles } = await supabase
+        if (file) {
+          const { data: profile } = await supabase
             .from('profiles')
             .select('id, first_name, last_name, photo_url, avatar_type, avatar_seed')
-            .in('id', patientIds);
+            .eq('id', file.patient_id)
+            .single();
 
-          const profileMap: Record<string, { firstName: string; lastName: string; photoUrl: string | null; avatarType: 'photo' | 'generated' | null; avatarSeed: string | null }> = {};
-          (profiles ?? []).forEach((p: any) => {
-            profileMap[p.id] = {
-              firstName: p.first_name,
-              lastName: p.last_name,
-              photoUrl: p.photo_url ?? null,
-              avatarType: p.avatar_type ?? null,
-              avatarSeed: p.avatar_seed ?? null,
-            };
-          });
-
-          let nurseMap: Record<string, string> = {};
-          if (nurseIds.length > 0) {
-            const { data: nurses } = await supabase
+          let nurseName: string | null = null;
+          if (file.nurse_id) {
+            const { data: nurse } = await supabase
               .from('profiles')
-              .select('id, first_name, last_name')
-              .in('id', nurseIds);
-            (nurses ?? []).forEach((n: any) => {
-              nurseMap[n.id] = `${n.first_name} ${n.last_name}`;
-            });
+              .select('first_name, last_name')
+              .eq('id', file.nurse_id)
+              .single();
+            if (nurse) {
+              nurseName = `${nurse.first_name} ${nurse.last_name}`;
+            }
           }
 
-          files.forEach((f: any) => {
-            const link = familyLinks.find(l => l.patient_file_id === f.id);
-            const profile = profileMap[f.patient_id];
-            patients.push({
-              patientFileId: f.id,
-              patientId: f.patient_id,
-              firstName: profile?.firstName ?? 'Proche',
-              lastName: profile?.lastName ?? '',
-              permissions: link?.permissions ?? 'read_only',
-              isManaged: false,
-              nurseName: nurseMap[f.nurse_id] ?? null,
-              photoUrl: profile?.photoUrl ?? null,
-              avatarType: profile?.avatarType ?? null,
-              avatarSeed: profile?.avatarSeed ?? null,
-            });
+          const link = familyLinks[0];
+          setLinkedPatient({
+            patientFileId: file.id,
+            patientId: file.patient_id,
+            firstName: profile?.first_name ?? 'Proche',
+            lastName: profile?.last_name ?? '',
+            permissions: link?.permissions ?? 'read_only',
+            isManaged: false,
+            nurseName,
+            photoUrl: profile?.photo_url ?? null,
+            avatarType: profile?.avatar_type ?? null,
+            avatarSeed: profile?.avatar_seed ?? null,
           });
+          setLoading(false);
+          return;
         }
       }
 
-      // Source 2: managed patients
-      const { data: managedProfiles } = await supabase
+      // Source 2: managed patient
+      const { data: managedProfile } = await supabase
         .from('patient_profiles')
         .select('profile_id')
         .eq('managed_by', user.id)
-        .eq('is_managed', true);
+        .eq('is_managed', true)
+        .single();
 
-      if (managedProfiles && managedProfiles.length > 0) {
-        const existingIds = new Set(patients.map(p => p.patientId));
-        const managedIds = managedProfiles
-          .map((p: any) => p.profile_id)
-          .filter((id: string) => !existingIds.has(id));
+      if (managedProfile) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('id, first_name, last_name, photo_url, avatar_type, avatar_seed')
+          .eq('id', managedProfile.profile_id)
+          .single();
 
-        if (managedIds.length > 0) {
-          const { data: profiles } = await supabase
-            .from('profiles')
-            .select('id, first_name, last_name, photo_url, avatar_type, avatar_seed')
-            .in('id', managedIds);
-
-          (profiles ?? []).forEach((p: any) => {
-            patients.push({
-              patientFileId: null,
-              patientId: p.id,
-              firstName: p.first_name ?? 'Proche',
-              lastName: p.last_name ?? '',
-              permissions: 'can_message',
-              isManaged: true,
-              nurseName: null,
-              photoUrl: p.photo_url ?? null,
-              avatarType: p.avatar_type ?? null,
-              avatarSeed: p.avatar_seed ?? null,
-            });
-          });
-        }
+        setLinkedPatient({
+          patientFileId: null,
+          patientId: managedProfile.profile_id,
+          firstName: profile?.first_name ?? 'Proche',
+          lastName: profile?.last_name ?? '',
+          permissions: 'can_message',
+          isManaged: true,
+          nurseName: null,
+          photoUrl: profile?.photo_url ?? null,
+          avatarType: profile?.avatar_type ?? null,
+          avatarSeed: profile?.avatar_seed ?? null,
+        });
       }
 
-      setLinkedPatients(patients);
       setLoading(false);
     };
 
@@ -152,13 +130,14 @@ const FamilyProfile: React.FC = () => {
   }, [familyLinks, user]);
 
   const handlePatientAvatarSaved = (patientId: string, data: { photo_url: string | null; avatar_type: 'photo' | 'generated' | null; avatar_seed: string | null }) => {
-    setLinkedPatients(prev =>
-      prev.map(p =>
-        p.patientId === patientId
-          ? { ...p, photoUrl: data.photo_url, avatarType: data.avatar_type, avatarSeed: data.avatar_seed }
-          : p
-      )
-    );
+    if (linkedPatient?.patientId === patientId) {
+      setLinkedPatient(prev => prev ? {
+        ...prev,
+        photoUrl: data.photo_url,
+        avatarType: data.avatar_type,
+        avatarSeed: data.avatar_seed,
+      } : null);
+    }
   };
 
   if (loading) {
@@ -202,39 +181,37 @@ const FamilyProfile: React.FC = () => {
           <Text style={styles.userEmail}>{userProfile?.email}</Text>
         </View>
 
-        {/* Linked patients */}
+        {/* Linked patient */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Proche(s) suivi(s)</Text>
-          {linkedPatients.length > 0 ? (
-            linkedPatients.map((p) => (
-              <View key={p.patientId} style={styles.patientRow}>
-                <AvatarPicker
-                  photoUrl={p.photoUrl ?? undefined}
-                  avatarType={p.avatarType ?? null}
-                  avatarSeed={p.avatarSeed ?? undefined}
-                  firstName={p.firstName}
-                  lastName={p.lastName}
-                  userId={user?.id ?? ''}
-                  targetProfileId={p.patientId}
-                  compact
-                  onSaved={(data) => handlePatientAvatarSaved(p.patientId, data)}
-                />
-                <View style={styles.patientInfo}>
-                  <Text style={styles.patientName}>{p.firstName} {p.lastName}</Text>
-                  <View style={styles.patientBadgeRow}>
-                    {p.isManaged ? (
-                      <View style={[styles.badge, { backgroundColor: COLORS.FAMILY_LIGHT }]}>
-                        <Text style={[styles.badgeText, { color: COLORS.FAMILY_PRIMARY }]}>Géré par vous</Text>
-                      </View>
-                    ) : (
-                      <Text style={styles.patientPerm}>
-                        {p.permissions === 'can_message' ? 'Lecture + messagerie' : 'Lecture seule'}
-                      </Text>
-                    )}
-                  </View>
+          <Text style={styles.sectionTitle}>Proche suivi</Text>
+          {linkedPatient ? (
+            <View style={styles.patientRow}>
+              <AvatarPicker
+                photoUrl={linkedPatient.photoUrl ?? undefined}
+                avatarType={linkedPatient.avatarType ?? null}
+                avatarSeed={linkedPatient.avatarSeed ?? undefined}
+                firstName={linkedPatient.firstName}
+                lastName={linkedPatient.lastName}
+                userId={user?.id ?? ''}
+                targetProfileId={linkedPatient.patientId}
+                compact
+                onSaved={(data) => handlePatientAvatarSaved(linkedPatient.patientId, data)}
+              />
+              <View style={styles.patientInfo}>
+                <Text style={styles.patientName}>{linkedPatient.firstName} {linkedPatient.lastName}</Text>
+                <View style={styles.patientBadgeRow}>
+                  {linkedPatient.isManaged ? (
+                    <View style={[styles.badge, { backgroundColor: COLORS.FAMILY_LIGHT }]}>
+                      <Text style={[styles.badgeText, { color: COLORS.FAMILY_PRIMARY }]}>Géré par vous</Text>
+                    </View>
+                  ) : (
+                    <Text style={styles.patientPerm}>
+                      {linkedPatient.permissions === 'can_message' ? 'Lecture + messagerie' : 'Lecture seule'}
+                    </Text>
+                  )}
                 </View>
               </View>
-            ))
+            </View>
           ) : (
             <View style={styles.emptyState}>
               <Ionicons name="people-outline" size={32} color={COLORS.BORDER} />

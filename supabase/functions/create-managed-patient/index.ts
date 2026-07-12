@@ -125,6 +125,23 @@ serve(async (req: Request) => {
     }
 
     // -----------------------------------------------------------------------
+    // 3b. Check if family member already has a managed patient
+    // -----------------------------------------------------------------------
+    const { data: existingManaged } = await supabaseAdmin
+      .from('patient_profiles')
+      .select('profile_id')
+      .eq('managed_by', user.id)
+      .eq('is_managed', true)
+      .limit(1);
+
+    if (existingManaged && existingManaged.length > 0) {
+      return new Response(
+        JSON.stringify({ error: 'Vous avez déjà un proche associé. Un compte famille ne peut être lié qu\'à un seul patient.' }),
+        { status: 409, headers: { ...corsHeaders(origin), 'Content-Type': 'application/json' } },
+      );
+    }
+
+    // -----------------------------------------------------------------------
     // 4. Generate shadow credentials
     // -----------------------------------------------------------------------
     const managedUuid = crypto.randomUUID();

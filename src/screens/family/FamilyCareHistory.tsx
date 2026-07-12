@@ -5,25 +5,12 @@ import {
   StyleSheet,
   FlatList,
   ActivityIndicator,
-  TouchableOpacity,
-  ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
-import { supabase, type Appointment, type FamilyLink } from '../../utils/supabase';
+import { supabase, type Appointment } from '../../utils/supabase';
 import { COLORS, SIZES } from '../../utils/constants';
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-interface LinkedPatient {
-  patientFileId: string;
-  patientId: string;
-  firstName: string;
-  lastName: string;
-}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -50,123 +37,86 @@ function formatTime(time: string | null): string {
 
 const FamilyCareHistory: React.FC = () => {
   const { user, familyLinks } = useAuth();
-  const [linkedPatients, setLinkedPatients] = useState<LinkedPatient[]>([]);
-  const [selectedPatient, setSelectedPatient] = useState<LinkedPatient | null>(null);
+  const [patientName, setPatientName] = useState<string | null>(null);
+  const [patientFileId, setPatientFileId] = useState<string | null>(null);
   const [history, setHistory] = useState<Appointment[]>([]);
-  const [loadingPatients, setLoadingPatients] = useState(true);
-  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   // -------------------------------------------------------------------------
-  // Fetch linked patients (via family_links + managed_by)
+  // Fetch the single linked patient (via family_links or managed_by)
   // -------------------------------------------------------------------------
 
-  const fetchLinkedPatients = useCallback(async () => {
+  const fetchPatient = useCallback(async () => {
     if (!user) return;
-    setLoadingPatients(true);
 
-    try {
-      const patients: LinkedPatient[] = [];
+    // Source 1: family_links
+    if (familyLinks.length > 0) {
+      const fileId = familyLinks[0].patient_file_id;
+      const { data: file } = await supabase
+        .from('patient_files')
+        .select('id, patient_id')
+        .eq('id', fileId)
+        .single();
 
-      // Source 1: family_links
-      if (familyLinks.length > 0) {
-        const fileIds = familyLinks.map((l) => l.patient_file_id);
+      if (file) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('first_name, last_name')
+          .eq('id', file.patient_id)
+          .single();
 
-        const { data: files } = await supabase
-          .from('patient_files')
-          .select('id, patient_id')
-          .in('id', fileIds);
-
-        if (files && files.length > 0) {
-          const patientIds = files.map((f: any) => f.patient_id);
-
-          const { data: profiles } = await supabase
-            .from('profiles')
-            .select('id, first_name, last_name')
-            .in('id', patientIds);
-
-          const profileMap: Record<string, { firstName: string; lastName: string }> = {};
-          (profiles ?? []).forEach((p: any) => {
-            profileMap[p.id] = { firstName: p.first_name, lastName: p.last_name };
-          });
-
-          files.forEach((f: any) => {
-            const profile = profileMap[f.patient_id];
-            patients.push({
-              patientFileId: f.id,
-              patientId: f.patient_id,
-              firstName: profile?.firstName ?? 'Proche',
-              lastName: profile?.lastName ?? '',
-            });
-          });
+        if (profile) {
+          setPatientName(`${profile.first_name} ${profile.last_name}`);
+          setPatientFileId(file.id);
+          return;
         }
       }
+    }
 
-      // Source 2: managed patients (via patient_profiles.managed_by)
-      const { data: managedProfiles } = await supabase
-        .from('patient_profiles')
-        .select('profile_id')
-        .eq('managed_by', user.id)
-        .eq('is_managed', true);
+    // Source 2: managed patients
+    const { data: managedProfile } = await supabase
+      .from('patient_profiles')
+      .select('profile_id')
+      .eq('managed_by', user.id)
+      .eq('is_managed', true)
+      .single();
 
-      if (managedProfiles && managedProfiles.length > 0) {
-        const managedIds = managedProfiles.map((p: any) => p.profile_id);
-        const existingIds = new Set(patients.map((p) => p.patientId));
-        const newManagedIds = managedIds.filter((id: string) => !existingIds.has(id));
+    if (managedProfile) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('first_name, last_name')
+        .eq('id', managedProfile.profile_id)
+        .single();
 
-        if (newManagedIds.length > 0) {
-          const { data: profiles } = await supabase
-            .from('profiles')
-            .select('id, first_name, last_name')
-            .in('id', newManagedIds);
-
-          const { data: existingFiles } = await supabase
-            .from('patient_files')
-            .select('id, patient_id')
-            .in('patient_id', newManagedIds);
-
-          const fileMap: Record<string, string> = {};
-          (existingFiles ?? []).forEach((f: any) => {
-            fileMap[f.patient_id] = f.id;
-          });
-
-          (profiles ?? []).forEach((p: any) => {
-            const fileId = fileMap[p.id];
-            if (fileId) {
-              patients.push({
-                patientFileId: fileId,
-                patientId: p.id,
-                firstName: p.first_name ?? 'Proche',
-                lastName: p.last_name ?? '',
-              });
-            }
-          });
-        }
+      if (profile) {
+        setPatientName(`${profile.first_name} ${profile.last_name}`);
       }
 
-      setLinkedPatients(patients);
-      if (patients.length > 0 && !selectedPatient) {
-        setSelectedPatient(patients[0]);
+      const { data: file } = await supabase
+        .from('patient_files')
+        .select('id')
+        .eq('patient_id', managedProfile.profile_id)
+        .single();
+
+      if (file) {
+        setPatientFileId(file.id);
       }
-    } catch (err) {
-      console.error('[FamilyCareHistory] fetchLinkedPatients error:', err);
-    } finally {
-      setLoadingPatients(false);
     }
   }, [user, familyLinks]);
 
   // -------------------------------------------------------------------------
-  // Fetch care history for selected patient
+  // Fetch care history
   // -------------------------------------------------------------------------
 
   const fetchHistory = useCallback(async () => {
-    if (!selectedPatient) return;
-    setLoadingHistory(true);
+    if (!patientFileId) return;
+    setLoading(true);
 
     try {
       const { data, error } = await supabase
         .from('appointments')
         .select('*, nurse:profiles!nurse_id(id, first_name, last_name)')
-        .eq('patient_file_id', selectedPatient.patientFileId)
+        .eq('patient_file_id', patientFileId)
         .eq('status', 'completed')
         .eq('visible_to_patient', true)
         .order('date', { ascending: false })
@@ -183,57 +133,21 @@ const FamilyCareHistory: React.FC = () => {
       console.error('[FamilyCareHistory] unexpected:', err);
       setHistory([]);
     } finally {
-      setLoadingHistory(false);
+      setLoading(false);
     }
-  }, [selectedPatient]);
+  }, [patientFileId]);
 
   useEffect(() => {
-    fetchLinkedPatients();
-  }, [fetchLinkedPatients]);
+    fetchPatient();
+  }, [fetchPatient]);
 
   useEffect(() => {
-    if (selectedPatient) {
+    if (patientFileId) {
       fetchHistory();
+    } else {
+      setLoading(false);
     }
-  }, [selectedPatient, fetchHistory]);
-
-  // -------------------------------------------------------------------------
-  // Render patient selector
-  // -------------------------------------------------------------------------
-
-  const renderPatientSelector = () => {
-    if (linkedPatients.length <= 1) return null;
-
-    return (
-      <View style={styles.selectorContainer}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.selectorScroll}>
-          {linkedPatients.map((patient) => {
-            const isSelected = selectedPatient?.patientId === patient.patientId;
-            return (
-              <TouchableOpacity
-                key={patient.patientId}
-                style={[styles.selectorChip, isSelected && styles.selectorChipActive]}
-                onPress={() => {
-                  setSelectedPatient(patient);
-                  setHistory([]);
-                }}
-                activeOpacity={0.7}
-              >
-                <Ionicons
-                  name={isSelected ? 'person' : 'person-outline'}
-                  size={16}
-                  color={isSelected ? COLORS.WHITE : COLORS.FAMILY_PRIMARY}
-                />
-                <Text style={[styles.selectorChipText, isSelected && styles.selectorChipTextActive]}>
-                  {patient.firstName} {patient.lastName}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-      </View>
-    );
-  };
+  }, [patientFileId, fetchHistory]);
 
   // -------------------------------------------------------------------------
   // Render item
@@ -296,57 +210,29 @@ const FamilyCareHistory: React.FC = () => {
   // Main render
   // -------------------------------------------------------------------------
 
-  if (loadingPatients) {
-    return (
-      <SafeAreaView style={styles.container} edges={['top']}>
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Historique des soins</Text>
-        </View>
+  return (
+    <SafeAreaView style={styles.container} edges={['top']}>
+      {/* Header */}
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Historique des soins</Text>
+        {patientName && (
+          <Text style={styles.headerSubtitle}>{patientName}</Text>
+        )}
+      </View>
+
+      {/* Content */}
+      {loading ? (
         <View style={styles.centerWrap}>
           <ActivityIndicator size="large" color={COLORS.FAMILY_PRIMARY} />
           <Text style={styles.loadingText}>Chargement...</Text>
         </View>
-      </SafeAreaView>
-    );
-  }
-
-  if (linkedPatients.length === 0) {
-    return (
-      <SafeAreaView style={styles.container} edges={['top']}>
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Historique des soins</Text>
-        </View>
+      ) : !patientName ? (
         <View style={styles.centerWrap}>
           <Ionicons name="people-outline" size={56} color={COLORS.BORDER} />
           <Text style={styles.emptyTitle}>Aucun proche associé</Text>
           <Text style={styles.emptySubtitle}>
             Ajoutez un proche depuis l'écran d'accueil pour consulter son historique de soins.
           </Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Historique des soins</Text>
-        {selectedPatient && linkedPatients.length <= 1 && (
-          <Text style={styles.headerSubtitle}>
-            {selectedPatient.firstName} {selectedPatient.lastName}
-          </Text>
-        )}
-      </View>
-
-      {/* Patient selector */}
-      {renderPatientSelector()}
-
-      {/* Content */}
-      {loadingHistory ? (
-        <View style={styles.centerWrap}>
-          <ActivityIndicator size="large" color={COLORS.FAMILY_PRIMARY} />
-          <Text style={styles.loadingText}>Chargement de l'historique...</Text>
         </View>
       ) : history.length === 0 ? (
         <View style={styles.centerWrap}>
@@ -417,46 +303,10 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 20,
   },
-  // Patient selector
-  selectorContainer: {
-    backgroundColor: COLORS.WHITE,
-    paddingVertical: SIZES.SM,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.BORDER,
-  },
-  selectorScroll: {
-    paddingHorizontal: SIZES.LG,
-    gap: SIZES.SM,
-  },
-  selectorChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: SIZES.MD,
-    paddingVertical: SIZES.SM,
-    borderRadius: SIZES.BORDER_RADIUS_FULL,
-    borderWidth: 1.5,
-    borderColor: COLORS.FAMILY_PRIMARY,
-    backgroundColor: COLORS.WHITE,
-  },
-  selectorChipActive: {
-    backgroundColor: COLORS.FAMILY_PRIMARY,
-    borderColor: COLORS.FAMILY_PRIMARY,
-  },
-  selectorChipText: {
-    fontSize: SIZES.FONT_SM,
-    fontWeight: '600',
-    color: COLORS.FAMILY_PRIMARY,
-  },
-  selectorChipTextActive: {
-    color: COLORS.WHITE,
-  },
-  // List
   listContent: {
     padding: SIZES.LG,
     paddingBottom: 40,
   },
-  // Card
   card: {
     backgroundColor: COLORS.WHITE,
     borderRadius: SIZES.BORDER_RADIUS_MD,
@@ -511,7 +361,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: COLORS.TEXT_SECONDARY,
   },
-  // Notes
   noteBlock: {
     backgroundColor: COLORS.BACKGROUND,
     borderRadius: SIZES.BORDER_RADIUS_SM,
