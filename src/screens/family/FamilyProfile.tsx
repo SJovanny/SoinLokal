@@ -12,6 +12,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../utils/supabase';
 import { COLORS, SIZES } from '../../utils/constants';
 import LogoutButton from '../../components/LogoutButton';
+import Avatar from '../../components/Avatar';
 import AvatarPicker from '../../components/AvatarPicker';
 
 // ---------------------------------------------------------------------------
@@ -26,6 +27,9 @@ interface LinkedPatientInfo {
   permissions: 'read_only' | 'can_message';
   isManaged: boolean;
   nurseName: string | null;
+  photoUrl: string | null;
+  avatarType: 'photo' | 'generated' | null;
+  avatarSeed: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -60,12 +64,18 @@ const FamilyProfile: React.FC = () => {
 
           const { data: profiles } = await supabase
             .from('profiles')
-            .select('id, first_name, last_name')
+            .select('id, first_name, last_name, photo_url, avatar_type, avatar_seed')
             .in('id', patientIds);
 
-          const profileMap: Record<string, { firstName: string; lastName: string }> = {};
+          const profileMap: Record<string, { firstName: string; lastName: string; photoUrl: string | null; avatarType: 'photo' | 'generated' | null; avatarSeed: string | null }> = {};
           (profiles ?? []).forEach((p: any) => {
-            profileMap[p.id] = { firstName: p.first_name, lastName: p.last_name };
+            profileMap[p.id] = {
+              firstName: p.first_name,
+              lastName: p.last_name,
+              photoUrl: p.photo_url ?? null,
+              avatarType: p.avatar_type ?? null,
+              avatarSeed: p.avatar_seed ?? null,
+            };
           });
 
           let nurseMap: Record<string, string> = {};
@@ -90,6 +100,9 @@ const FamilyProfile: React.FC = () => {
               permissions: link?.permissions ?? 'read_only',
               isManaged: false,
               nurseName: nurseMap[f.nurse_id] ?? null,
+              photoUrl: profile?.photoUrl ?? null,
+              avatarType: profile?.avatarType ?? null,
+              avatarSeed: profile?.avatarSeed ?? null,
             });
           });
         }
@@ -111,7 +124,7 @@ const FamilyProfile: React.FC = () => {
         if (managedIds.length > 0) {
           const { data: profiles } = await supabase
             .from('profiles')
-            .select('id, first_name, last_name')
+            .select('id, first_name, last_name, photo_url, avatar_type, avatar_seed')
             .in('id', managedIds);
 
           (profiles ?? []).forEach((p: any) => {
@@ -123,6 +136,9 @@ const FamilyProfile: React.FC = () => {
               permissions: 'can_message',
               isManaged: true,
               nurseName: null,
+              photoUrl: p.photo_url ?? null,
+              avatarType: p.avatar_type ?? null,
+              avatarSeed: p.avatar_seed ?? null,
             });
           });
         }
@@ -134,6 +150,16 @@ const FamilyProfile: React.FC = () => {
 
     fetchLinked();
   }, [familyLinks, user]);
+
+  const handlePatientAvatarSaved = (patientId: string, data: { photo_url: string | null; avatar_type: 'photo' | 'generated' | null; avatar_seed: string | null }) => {
+    setLinkedPatients(prev =>
+      prev.map(p =>
+        p.patientId === patientId
+          ? { ...p, photoUrl: data.photo_url, avatarType: data.avatar_type, avatarSeed: data.avatar_seed }
+          : p
+      )
+    );
+  };
 
   if (loading) {
     return (
@@ -159,16 +185,15 @@ const FamilyProfile: React.FC = () => {
       >
         {/* Profile card */}
         <View style={styles.profileCard}>
-          <AvatarPicker
+          <Avatar
             photoUrl={userProfile?.photo_url}
             avatarType={userProfile?.avatar_type ?? null}
             avatarSeed={userProfile?.avatar_seed}
             firstName={userProfile?.first_name}
             lastName={userProfile?.last_name}
-            userId={user?.id ?? ''}
-            onSaved={() => {
-              fetchProfile(user!.id);
-            }}
+            size={80}
+            backgroundColor={COLORS.FAMILY_LIGHT}
+            textColor={COLORS.FAMILY_PRIMARY}
           />
           <Text style={styles.userName}>
             {userProfile?.first_name} {userProfile?.last_name}
@@ -183,7 +208,17 @@ const FamilyProfile: React.FC = () => {
           {linkedPatients.length > 0 ? (
             linkedPatients.map((p) => (
               <View key={p.patientId} style={styles.patientRow}>
-                <Ionicons name="person-outline" size={20} color={COLORS.FAMILY_PRIMARY} />
+                <AvatarPicker
+                  photoUrl={p.photoUrl ?? undefined}
+                  avatarType={p.avatarType ?? null}
+                  avatarSeed={p.avatarSeed ?? undefined}
+                  firstName={p.firstName}
+                  lastName={p.lastName}
+                  userId={user?.id ?? ''}
+                  targetProfileId={p.patientId}
+                  compact
+                  onSaved={(data) => handlePatientAvatarSaved(p.patientId, data)}
+                />
                 <View style={styles.patientInfo}>
                   <Text style={styles.patientName}>{p.firstName} {p.lastName}</Text>
                   <View style={styles.patientBadgeRow}>

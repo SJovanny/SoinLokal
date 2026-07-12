@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase, type Profile, type PatientProfile, type Appointment } from '../../utils/supabase';
 import { COLORS, SIZES } from '../../utils/constants';
@@ -69,109 +70,111 @@ const PatientDetail: React.FC<{ navigation: any; route: any }> = ({
   const [loadingHistory, setLoadingHistory] = useState(true);
   const [removing, setRemoving] = useState(false);
 
-  useEffect(() => {
+  const fetchPatient = useCallback(async () => {
     if (!patientId) {
       setLoading(false);
       setLoadingHistory(false);
       return;
     }
 
-    const fetchPatient = async () => {
-      setLoading(true);
-      try {
-        const { data: profile, error: profileErr } = await supabase
+    setLoading(true);
+    try {
+      const { data: profile, error: profileErr } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', patientId)
+        .single();
+
+      if (profileErr) {
+        console.error('[PatientDetail] profile error:', profileErr.message);
+        return;
+      }
+
+      const { data: pp, error: ppErr } = await supabase
+        .from('patient_profiles')
+        .select('*')
+        .eq('profile_id', patientId)
+        .single();
+
+      if (ppErr && ppErr.code !== 'PGRST116') {
+        console.error('[PatientDetail] patient_profiles error:', ppErr.message);
+      }
+
+      // Fetch managed_by info if applicable
+      let managedByName: string | null = null;
+      let managedByEmail: string | null = null;
+      let managedByPhone: string | null = null;
+      if (pp?.managed_by) {
+        const { data: managerProfile } = await supabase
           .from('profiles')
-          .select('*')
-          .eq('id', patientId)
+          .select('first_name, last_name, email, phone')
+          .eq('id', pp.managed_by)
           .single();
-
-        if (profileErr) {
-          console.error('[PatientDetail] profile error:', profileErr.message);
-          return;
+        if (managerProfile) {
+          managedByName = `${managerProfile.first_name} ${managerProfile.last_name}`;
+          managedByEmail = managerProfile.email ?? null;
+          managedByPhone = managerProfile.phone ?? null;
         }
-
-        const { data: pp, error: ppErr } = await supabase
-          .from('patient_profiles')
-          .select('*')
-          .eq('profile_id', patientId)
-          .single();
-
-        if (ppErr && ppErr.code !== 'PGRST116') {
-          console.error('[PatientDetail] patient_profiles error:', ppErr.message);
-        }
-
-        // Fetch managed_by info if applicable
-        let managedByName: string | null = null;
-        let managedByEmail: string | null = null;
-        let managedByPhone: string | null = null;
-        if (pp?.managed_by) {
-          const { data: managerProfile } = await supabase
-            .from('profiles')
-            .select('first_name, last_name, email, phone')
-            .eq('id', pp.managed_by)
-            .single();
-          if (managerProfile) {
-            managedByName = `${managerProfile.first_name} ${managerProfile.last_name}`;
-            managedByEmail = managerProfile.email ?? null;
-            managedByPhone = managerProfile.phone ?? null;
-          }
-        }
-
-        setData({
-          profile: profile as Profile,
-          patientProfile: (pp as PatientProfile) ?? null,
-          managedByName,
-          managedByEmail,
-          managedByPhone,
-        });
-      } catch (err) {
-        console.error('[PatientDetail] unexpected:', err);
-      } finally {
-        setLoading(false);
       }
-    };
 
-    const fetchCareHistory = async () => {
-      if (!user) return;
-      setLoadingHistory(true);
-      try {
-        const { data: file } = await supabase
-          .from('patient_files')
-          .select('id')
-          .eq('patient_id', patientId)
-          .eq('nurse_id', user.id)
-          .single();
+      setData({
+        profile: profile as Profile,
+        patientProfile: (pp as PatientProfile) ?? null,
+        managedByName,
+        managedByEmail,
+        managedByPhone,
+      });
+    } catch (err) {
+      console.error('[PatientDetail] unexpected:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [patientId]);
 
-        if (!file) {
-          setCareHistory([]);
-          return;
-        }
+  const fetchCareHistory = useCallback(async () => {
+    if (!patientId || !user) return;
+    setLoadingHistory(true);
+    try {
+      const { data: file } = await supabase
+        .from('patient_files')
+        .select('id')
+        .eq('patient_id', patientId)
+        .eq('nurse_id', user.id)
+        .single();
 
-        const { data: history, error } = await supabase
-          .from('appointments')
-          .select('*')
-          .eq('patient_file_id', file.id)
-          .eq('status', 'completed')
-          .order('date', { ascending: false })
-          .order('time', { ascending: false })
-          .limit(5);
-
-        if (error) {
-          console.error('[PatientDetail] history error:', error.message);
-          return;
-        }
-
-        setCareHistory((history as Appointment[]) ?? []);
-      } catch (err) {
-        console.error('[PatientDetail] history unexpected:', err);
-      } finally {
-        setLoadingHistory(false);
+      if (!file) {
+        setCareHistory([]);
+        return;
       }
-    };
 
-    fetchPatient();
-    fetchCareHistory();
+      const { data: history, error } = await supabase
+        .from('appointments')
+        .select('*')
+        .eq('patient_file_id', file.id)
+        .eq('status', 'completed')
+        .order('date', { ascending: false })
+        .order('time', { ascending: false })
+        .limit(5);
+
+      if (error) {
+        console.error('[PatientDetail] history error:', error.message);
+        return;
+      }
+
+      setCareHistory((history as Appointment[]) ?? []);
+    } catch (err) {
+      console.error('[PatientDetail] history unexpected:', err);
+    } finally {
+      setLoadingHistory(false);
+    }
   }, [patientId, user]);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchPatient();
+      fetchCareHistory();
+    }, [fetchPatient, fetchCareHistory])
+  );
 
   // -------------------------------------------------------------------------
   // Remove patient from my list

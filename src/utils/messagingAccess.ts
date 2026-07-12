@@ -15,6 +15,9 @@ export interface AccessibleFileInfo {
   participantId: string;
   isManaged: boolean;
   hasGuardian: boolean;
+  participantPhotoUrl: string | null;
+  participantAvatarType: 'photo' | 'generated' | null;
+  participantAvatarSeed: string | null;
 }
 
 export interface AccessibleFiles {
@@ -50,12 +53,17 @@ export async function resolveAccessibleFileIds(
       const patientIds = [...new Set(files.map((f: any) => f.patient_id))];
       const { data: profiles } = await supabase
         .from('profiles')
-        .select('id, first_name, last_name')
+        .select('id, first_name, last_name, photo_url, avatar_type, avatar_seed')
         .in('id', patientIds);
 
-      const profileMap: Record<string, string> = {};
+      const profileMap: Record<string, { name: string; photoUrl: string | null; avatarType: 'photo' | 'generated' | null; avatarSeed: string | null }> = {};
       (profiles ?? []).forEach((p: any) => {
-        profileMap[p.id] = `${p.first_name} ${p.last_name}`;
+        profileMap[p.id] = {
+          name: `${p.first_name} ${p.last_name}`,
+          photoUrl: p.photo_url ?? null,
+          avatarType: p.avatar_type ?? null,
+          avatarSeed: p.avatar_seed ?? null,
+        };
       });
 
       const hasGuardianSet = new Set<string>();
@@ -70,14 +78,18 @@ export async function resolveAccessibleFileIds(
 
       files.forEach((f: any) => {
         const isProxied = hasGuardianSet.has(f.patient_id);
+        const profile = profileMap[f.patient_id];
         fileIds.push(f.id);
         fileInfoMap[f.id] = {
-          participantName: profileMap[f.patient_id] ?? 'Patient',
+          participantName: profile?.name ?? 'Patient',
           participantSubtitle: isProxied ? 'Patient (suivi par un proche)' : 'Patient',
           patientId: f.patient_id,
           participantId: f.patient_id,
           isManaged: false,
           hasGuardian: isProxied,
+          participantPhotoUrl: profile?.photoUrl ?? null,
+          participantAvatarType: profile?.avatarType ?? null,
+          participantAvatarSeed: profile?.avatarSeed ?? null,
         };
       });
     }
@@ -92,23 +104,32 @@ export async function resolveAccessibleFileIds(
       const nurseIds = [...new Set(files.map((f: any) => f.nurse_id))];
       const { data: profiles } = await supabase
         .from('profiles')
-        .select('id, first_name, last_name')
+        .select('id, first_name, last_name, photo_url, avatar_type, avatar_seed')
         .in('id', nurseIds);
 
-      const profileMap: Record<string, string> = {};
+      const profileMap: Record<string, { name: string; photoUrl: string | null; avatarType: 'photo' | 'generated' | null; avatarSeed: string | null }> = {};
       (profiles ?? []).forEach((p: any) => {
-        profileMap[p.id] = `${p.first_name} ${p.last_name}`;
+        profileMap[p.id] = {
+          name: `${p.first_name} ${p.last_name}`,
+          photoUrl: p.photo_url ?? null,
+          avatarType: p.avatar_type ?? null,
+          avatarSeed: p.avatar_seed ?? null,
+        };
       });
 
       files.forEach((f: any) => {
+        const profile = profileMap[f.nurse_id];
         fileIds.push(f.id);
         fileInfoMap[f.id] = {
-          participantName: profileMap[f.nurse_id] ?? 'Infirmière',
+          participantName: profile?.name ?? 'Infirmière',
           participantSubtitle: 'Infirmière',
           patientId: user.id,
           participantId: f.nurse_id,
           isManaged: false,
           hasGuardian: false,
+          participantPhotoUrl: profile?.photoUrl ?? null,
+          participantAvatarType: profile?.avatarType ?? null,
+          participantAvatarSeed: profile?.avatarSeed ?? null,
         };
       });
     }
@@ -126,35 +147,50 @@ export async function resolveAccessibleFileIds(
 
         const { data: patientProfiles } = await supabase
           .from('profiles')
-          .select('id, first_name, last_name')
+          .select('id, first_name, last_name, photo_url, avatar_type, avatar_seed')
           .in('id', patientIds);
-        const patientMap: Record<string, string> = {};
+        const patientMap: Record<string, { name: string; photoUrl: string | null; avatarType: 'photo' | 'generated' | null; avatarSeed: string | null }> = {};
         (patientProfiles ?? []).forEach((p: any) => {
-          patientMap[p.id] = `${p.first_name} ${p.last_name}`;
+          patientMap[p.id] = {
+            name: `${p.first_name} ${p.last_name}`,
+            photoUrl: p.photo_url ?? null,
+            avatarType: p.avatar_type ?? null,
+            avatarSeed: p.avatar_seed ?? null,
+          };
         });
 
-        let nurseMap: Record<string, string> = {};
+        let nurseMap: Record<string, { name: string; photoUrl: string | null; avatarType: 'photo' | 'generated' | null; avatarSeed: string | null }> = {};
         if (nurseIds.length > 0) {
           const { data: nurseProfiles } = await supabase
             .from('profiles')
-            .select('id, first_name, last_name')
+            .select('id, first_name, last_name, photo_url, avatar_type, avatar_seed')
             .in('id', nurseIds);
           (nurseProfiles ?? []).forEach((p: any) => {
-            nurseMap[p.id] = `${p.first_name} ${p.last_name}`;
+            nurseMap[p.id] = {
+              name: `${p.first_name} ${p.last_name}`,
+              photoUrl: p.photo_url ?? null,
+              avatarType: p.avatar_type ?? null,
+              avatarSeed: p.avatar_seed ?? null,
+            };
           });
         }
 
         files.forEach((f: any) => {
+          const nurseProfile = nurseMap[f.nurse_id];
+          const patientProfile = patientMap[f.patient_id];
           fileIds.push(f.id);
           fileInfoMap[f.id] = {
-            participantName: nurseMap[f.nurse_id] ?? 'Infirmière',
-            participantSubtitle: patientMap[f.patient_id]
-              ? `Patient : ${patientMap[f.patient_id]}`
+            participantName: nurseProfile?.name ?? 'Infirmière',
+            participantSubtitle: patientProfile?.name
+              ? `Patient : ${patientProfile.name}`
               : 'Patient',
             patientId: f.patient_id,
             participantId: f.nurse_id,
             isManaged: false,
             hasGuardian: false,
+            participantPhotoUrl: nurseProfile?.photoUrl ?? null,
+            participantAvatarType: nurseProfile?.avatarType ?? null,
+            participantAvatarSeed: nurseProfile?.avatarSeed ?? null,
           };
         });
       }
@@ -181,37 +217,52 @@ export async function resolveAccessibleFileIds(
         if (managedFiles && managedFiles.length > 0) {
           const { data: profiles } = await supabase
             .from('profiles')
-            .select('id, first_name, last_name')
+            .select('id, first_name, last_name, photo_url, avatar_type, avatar_seed')
             .in('id', managedFiles.map((f: any) => f.patient_id));
 
-          const profileMap: Record<string, string> = {};
+          const profileMap: Record<string, { name: string; photoUrl: string | null; avatarType: 'photo' | 'generated' | null; avatarSeed: string | null }> = {};
           (profiles ?? []).forEach((p: any) => {
-            profileMap[p.id] = `${p.first_name} ${p.last_name}`;
+            profileMap[p.id] = {
+              name: `${p.first_name} ${p.last_name}`,
+              photoUrl: p.photo_url ?? null,
+              avatarType: p.avatar_type ?? null,
+              avatarSeed: p.avatar_seed ?? null,
+            };
           });
 
           const nurseIds = [...new Set(managedFiles.map((f: any) => f.nurse_id).filter(Boolean))];
-          let nurseMap: Record<string, string> = {};
+          let nurseMap: Record<string, { name: string; photoUrl: string | null; avatarType: 'photo' | 'generated' | null; avatarSeed: string | null }> = {};
           if (nurseIds.length > 0) {
             const { data: nurseProfiles } = await supabase
               .from('profiles')
-              .select('id, first_name, last_name')
+              .select('id, first_name, last_name, photo_url, avatar_type, avatar_seed')
               .in('id', nurseIds);
             (nurseProfiles ?? []).forEach((p: any) => {
-              nurseMap[p.id] = `${p.first_name} ${p.last_name}`;
+              nurseMap[p.id] = {
+                name: `${p.first_name} ${p.last_name}`,
+                photoUrl: p.photo_url ?? null,
+                avatarType: p.avatar_type ?? null,
+                avatarSeed: p.avatar_seed ?? null,
+              };
             });
           }
 
           managedFiles.forEach((f: any) => {
+            const nurseProfile = nurseMap[f.nurse_id];
+            const patientProfile = profileMap[f.patient_id];
             fileIds.push(f.id);
             fileInfoMap[f.id] = {
-              participantName: nurseMap[f.nurse_id] ?? 'Infirmière',
-              participantSubtitle: profileMap[f.patient_id]
-                ? `Patient : ${profileMap[f.patient_id]}`
+              participantName: nurseProfile?.name ?? 'Infirmière',
+              participantSubtitle: patientProfile?.name
+                ? `Patient : ${patientProfile.name}`
                 : 'Patient',
               patientId: f.patient_id,
               participantId: f.nurse_id,
               isManaged: true,
               hasGuardian: true,
+              participantPhotoUrl: nurseProfile?.photoUrl ?? null,
+              participantAvatarType: nurseProfile?.avatarType ?? null,
+              participantAvatarSeed: nurseProfile?.avatarSeed ?? null,
             };
           });
         }

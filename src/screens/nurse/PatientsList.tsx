@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase, type Profile, type PatientProfile } from '../../utils/supabase';
 import { COLORS, SIZES } from '../../utils/constants';
@@ -90,7 +91,7 @@ const PatientsList: React.FC<{ navigation: any; route: any }> = ({
         .select(`
           id,
           patient_id,
-          patient:profiles!patient_id(id, first_name, last_name, email, phone)
+          patient:profiles!patient_id(id, first_name, last_name, email, phone, photo_url, avatar_type, avatar_seed)
         `)
         .eq('nurse_id', user.id)
         .eq('is_active', true)
@@ -150,9 +151,11 @@ const PatientsList: React.FC<{ navigation: any; route: any }> = ({
     }
   }, [user]);
 
-  useEffect(() => {
-    loadMyPatients();
-  }, [loadMyPatients]);
+  useFocusEffect(
+    useCallback(() => {
+      loadMyPatients();
+    }, [loadMyPatients])
+  );
 
   // -------------------------------------------------------------------------
   // Open search mode if param passed from dashboard

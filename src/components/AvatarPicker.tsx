@@ -29,8 +29,10 @@ export interface AvatarPickerProps {
   avatarSeed?: string;
   firstName?: string;
   lastName?: string;
-  /** User ID (used as Supabase Storage folder) */
+  /** User ID (used as Supabase Storage folder when targetProfileId is not set) */
   userId: string;
+  /** Profile ID to update (e.g. patient ID when family uploads for patient) */
+  targetProfileId?: string;
   /** Called after avatar is successfully saved, with new avatar fields */
   onSaved: (data: {
     photo_url: string | null;
@@ -54,10 +56,12 @@ export const AvatarPicker: React.FC<AvatarPickerProps> = ({
   firstName = '',
   lastName = '',
   userId,
+  targetProfileId,
   onSaved,
   photoOnly = false,
   compact = false,
 }) => {
+  const profileId = targetProfileId ?? userId;
   const [uploading, setUploading] = useState(false);
   const [showAvatarModal, setShowAvatarModal] = useState(false);
   const [avatarChoices, setAvatarChoices] = useState<string[]>([]);
@@ -150,7 +154,7 @@ export const AvatarPicker: React.FC<AvatarPickerProps> = ({
       const response = await fetch(manipulated.uri);
       const blob = await response.blob();
 
-      const filePath = `${userId}/avatar_${Date.now()}.jpg`;
+      const filePath = `${profileId}/avatar_${Date.now()}.jpg`;
 
       const { error: uploadError } = await supabase.storage
         .from('avatars')
@@ -168,16 +172,20 @@ export const AvatarPicker: React.FC<AvatarPickerProps> = ({
       const publicUrl = urlData.publicUrl;
 
       // Update profile
-      const { error: dbError } = await supabase
+      const { data: updated, error: dbError } = await supabase
         .from('profiles')
         .update({
           photo_url: publicUrl,
           avatar_type: 'photo',
           avatar_seed: null,
         })
-        .eq('id', userId);
+        .eq('id', profileId)
+        .select('id');
 
       if (dbError) throw dbError;
+      if (!updated || updated.length === 0) {
+        throw new Error('Mise à jour refusée — permissions insuffisantes.');
+      }
 
       onSaved({
         photo_url: publicUrl,
@@ -202,16 +210,20 @@ export const AvatarPicker: React.FC<AvatarPickerProps> = ({
     if (!selectedSeed) return;
     setUploading(true);
     try {
-      const { error } = await supabase
+      const { data: updated, error } = await supabase
         .from('profiles')
         .update({
           photo_url: null,
           avatar_type: 'generated',
           avatar_seed: selectedSeed,
         })
-        .eq('id', userId);
+        .eq('id', profileId)
+        .select('id');
 
       if (error) throw error;
+      if (!updated || updated.length === 0) {
+        throw new Error('Mise à jour refusée — permissions insuffisantes.');
+      }
 
       onSaved({
         photo_url: null,
@@ -235,7 +247,7 @@ export const AvatarPicker: React.FC<AvatarPickerProps> = ({
   const handleRemovePhoto = async () => {
     Alert.alert(
       'Supprimer la photo',
-      'Voulez-vous supprimer votre photo de profil ? Vous retournerez aux initiales.',
+      'Voulez-vous supprimer cette photo de profil ?',
       [
         { text: 'Annuler', style: 'cancel' },
         {
@@ -244,18 +256,22 @@ export const AvatarPicker: React.FC<AvatarPickerProps> = ({
           onPress: async () => {
             setUploading(true);
             try {
-              const { error } = await supabase
+              const newSeed = generateRandomSeed();
+              const { data: updated, error } = await supabase
                 .from('profiles')
                 .update({
                   photo_url: null,
                   avatar_type: 'generated',
-                  avatar_seed: generateRandomSeed(),
+                  avatar_seed: newSeed,
                 })
-                .eq('id', userId);
+                .eq('id', profileId)
+                .select('id');
 
               if (error) throw error;
+              if (!updated || updated.length === 0) {
+                throw new Error('Mise à jour refusée — permissions insuffisantes.');
+              }
 
-              const newSeed = generateRandomSeed();
               onSaved({
                 photo_url: null,
                 avatar_type: 'generated',

@@ -62,6 +62,7 @@ export const Avatar: React.FC<AvatarProps> = ({
   if (imageSource) {
     return (
       <Image
+        key={photoUrl || 'generated'}
         source={imageSource}
         style={[
           {
