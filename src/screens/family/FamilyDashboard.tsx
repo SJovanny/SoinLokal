@@ -94,6 +94,7 @@ const FamilyDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
   const [stats, setStats] = useState<Stats>({ upcomingRDV: 0, recentCares: 0 });
   const [appointments, setAppointments] = useState<UpcomingAppointment[]>([]);
   const [recentCares, setRecentCares] = useState<RecentCare[]>([]);
+  const [showAllCares, setShowAllCares] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -251,7 +252,8 @@ const FamilyDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
         .from('appointments')
         .select('id', { count: 'exact', head: true })
         .in('patient_file_id', fileIds)
-        .gte('date', today);
+        .gte('date', today)
+        .in('status', ['pending', 'confirmed']);
 
       const { count: recentCount } = await supabase
         .from('appointments')
@@ -270,6 +272,7 @@ const FamilyDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
         .select('id, nurse_id, date, time, care_type, status')
         .in('patient_file_id', fileIds)
         .gte('date', today)
+        .in('status', ['pending', 'confirmed'])
         .order('date', { ascending: true })
         .order('time', { ascending: true })
         .limit(5);
@@ -298,7 +301,7 @@ const FamilyDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
         }))
       );
 
-      // Recent completed cares (last 5)
+      // Recent completed cares (last 5, or all if showAllCares)
       const { data: recent } = await supabase
         .from('appointments')
         .select('id, nurse_id, date, care_type, care_performed, visible_to_patient')
@@ -306,7 +309,7 @@ const FamilyDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
         .eq('status', 'completed')
         .eq('visible_to_patient', true)
         .order('date', { ascending: false })
-        .limit(5);
+        .limit(showAllCares ? 50 : 5);
 
       const recentNurseIds = [...new Set((recent ?? []).map((a: any) => a.nurse_id))];
       let recentNurseMap: Record<string, string> = {};
@@ -332,7 +335,7 @@ const FamilyDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
     } catch (err) {
       console.error('[FamilyDashboard] unexpected:', err);
     }
-  }, [user, linkedPatients, today]);
+  }, [user, linkedPatients, today, showAllCares]);
 
   useEffect(() => {
     setLoading(true);
@@ -574,7 +577,25 @@ const FamilyDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
 
         {/* Recent cares */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Derniers soins</Text>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Derniers soins</Text>
+            {recentCares.length > 0 && (
+              <TouchableOpacity
+                style={styles.viewAllButton}
+                onPress={() => setShowAllCares(!showAllCares)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.viewAllText}>
+                  {showAllCares ? 'Voir moins' : 'Voir tout'}
+                </Text>
+                <Ionicons
+                  name={showAllCares ? 'chevron-up' : 'chevron-forward'}
+                  size={16}
+                  color={COLORS.FAMILY_PRIMARY}
+                />
+              </TouchableOpacity>
+            )}
+          </View>
           {recentCares.length > 0 ? (
             <FlatList
               data={recentCares}
@@ -731,11 +752,26 @@ const styles = StyleSheet.create({
     paddingHorizontal: SIZES.LG,
     marginBottom: SIZES.LG,
   },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: SIZES.MD,
+  },
   sectionTitle: {
     fontSize: SIZES.FONT_LG,
     fontWeight: '700',
     color: COLORS.TEXT_PRIMARY,
-    marginBottom: SIZES.MD,
+  },
+  viewAllButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  viewAllText: {
+    fontSize: SIZES.FONT_SM,
+    fontWeight: '600',
+    color: COLORS.FAMILY_PRIMARY,
   },
   emptySection: {
     alignItems: 'center',

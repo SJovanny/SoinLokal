@@ -36,6 +36,14 @@ interface Stats {
   recentCares: number;
 }
 
+interface RecentCare {
+  id: string;
+  nurseName: string;
+  date: string;
+  careType: string;
+  carePerformed?: string;
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -73,6 +81,7 @@ const PatientDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
 
   const [stats, setStats] = useState<Stats>({ upcomingRDV: 0, recentCares: 0 });
   const [appointments, setAppointments] = useState<UpcomingAppointment[]>([]);
+  const [recentCares, setRecentCares] = useState<RecentCare[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -103,7 +112,8 @@ const PatientDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
         .from('appointments')
         .select('id', { count: 'exact', head: true })
         .in('patient_file_id', fileIds)
-        .gte('date', today);
+        .gte('date', today)
+        .in('status', ['pending', 'confirmed']);
 
       // Recent completed cares
       const { count: recentCount } = await supabase
@@ -123,6 +133,7 @@ const PatientDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
         .select('id, patient_file_id, nurse_id, date, time, care_type, status')
         .in('patient_file_id', fileIds)
         .gte('date', today)
+        .in('status', ['pending', 'confirmed'])
         .order('date', { ascending: true })
         .order('time', { ascending: true })
         .limit(5);
@@ -157,6 +168,38 @@ const PatientDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
       }));
 
       setAppointments(mapped);
+
+      // Recent completed cares (last 5)
+      const { data: recent } = await supabase
+        .from('appointments')
+        .select('id, nurse_id, date, care_type, care_performed, visible_to_patient')
+        .in('patient_file_id', fileIds)
+        .eq('status', 'completed')
+        .eq('visible_to_patient', true)
+        .order('date', { ascending: false })
+        .limit(5);
+
+      const recentNurseIds = [...new Set((recent ?? []).map((a: any) => a.nurse_id))];
+      let recentNurseMap: Record<string, string> = {};
+      if (recentNurseIds.length > 0) {
+        const { data: nurses } = await supabase
+          .from('profiles')
+          .select('id, first_name, last_name')
+          .in('id', recentNurseIds);
+        (nurses ?? []).forEach((n: any) => {
+          recentNurseMap[n.id] = `${n.first_name} ${n.last_name}`;
+        });
+      }
+
+      setRecentCares(
+        (recent ?? []).map((a: any) => ({
+          id: a.id,
+          nurseName: recentNurseMap[a.nurse_id] ?? 'Infirmière',
+          date: a.date,
+          careType: a.care_type,
+          carePerformed: a.care_performed,
+        }))
+      );
     } catch (err) {
       console.error('[PatientDashboard] unexpected:', err);
     }
@@ -200,6 +243,23 @@ const PatientDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
       </TouchableOpacity>
     );
   };
+
+  // -------------------------------------------------------------------------
+  // Render recent care
+  // -------------------------------------------------------------------------
+
+  const renderRecentCare = ({ item }: { item: RecentCare }) => (
+    <View style={styles.careCard}>
+      <View style={styles.careHeader}>
+        <Text style={styles.careType}>{item.careType}</Text>
+        <Text style={styles.careDate}>{formatDate(item.date)}</Text>
+      </View>
+      <Text style={styles.careNurse}>{item.nurseName}</Text>
+      {item.carePerformed ? (
+        <Text style={styles.careNote} numberOfLines={2}>{item.carePerformed}</Text>
+      ) : null}
+    </View>
+  );
 
   // -------------------------------------------------------------------------
   // Main render
@@ -297,6 +357,37 @@ const PatientDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
             <View style={styles.emptyState}>
               <Ionicons name="calendar-outline" size={48} color={COLORS.BORDER} />
               <Text style={styles.emptyStateText}>Aucun rendez-vous à venir</Text>
+            </View>
+          )}
+        </View>
+
+        {/* Recent Cares */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Derniers soins</Text>
+            {recentCares.length > 0 && (
+              <TouchableOpacity
+                style={styles.viewAllButton}
+                onPress={() => navigation.navigate('Historique')}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.viewAllText}>Voir tout</Text>
+                <Ionicons name="chevron-forward" size={16} color={COLORS.PATIENT_PRIMARY} />
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {recentCares.length > 0 ? (
+            <FlatList
+              data={recentCares}
+              renderItem={renderRecentCare}
+              keyExtractor={(item) => item.id}
+              scrollEnabled={false}
+            />
+          ) : (
+            <View style={styles.emptyState}>
+              <Ionicons name="document-text-outline" size={48} color={COLORS.BORDER} />
+              <Text style={styles.emptyStateText}>Aucun soin récent</Text>
             </View>
           )}
         </View>
@@ -408,6 +499,16 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: COLORS.TEXT_PRIMARY,
   },
+  viewAllButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  viewAllText: {
+    fontSize: SIZES.FONT_SM,
+    fontWeight: '600',
+    color: COLORS.PATIENT_PRIMARY,
+  },
   appointmentCard: {
     backgroundColor: COLORS.WHITE,
     padding: SIZES.MD,
@@ -465,6 +566,44 @@ const styles = StyleSheet.create({
     fontSize: SIZES.FONT_XS,
     color: COLORS.WHITE,
     fontWeight: '600',
+  },
+  careCard: {
+    backgroundColor: COLORS.WHITE,
+    padding: SIZES.MD,
+    borderRadius: SIZES.BORDER_RADIUS_MD,
+    marginBottom: SIZES.SM,
+    borderLeftWidth: 3,
+    borderLeftColor: COLORS.PATIENT_LIGHT,
+    shadowColor: COLORS.BLACK,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  careHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: SIZES.XS,
+  },
+  careType: {
+    fontSize: SIZES.FONT_SM,
+    fontWeight: '600',
+    color: COLORS.PATIENT_PRIMARY,
+  },
+  careDate: {
+    fontSize: SIZES.FONT_XS,
+    color: COLORS.TEXT_MUTED,
+  },
+  careNurse: {
+    fontSize: SIZES.FONT_SM,
+    color: COLORS.TEXT_SECONDARY,
+    marginBottom: SIZES.XS,
+  },
+  careNote: {
+    fontSize: SIZES.FONT_SM,
+    color: COLORS.TEXT_PRIMARY,
+    lineHeight: 18,
   },
   emptyState: {
     alignItems: 'center',
