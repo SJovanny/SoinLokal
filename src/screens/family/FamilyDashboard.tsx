@@ -94,7 +94,6 @@ const FamilyDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
   const [stats, setStats] = useState<Stats>({ upcomingRDV: 0, recentCares: 0 });
   const [appointments, setAppointments] = useState<UpcomingAppointment[]>([]);
   const [recentCares, setRecentCares] = useState<RecentCare[]>([]);
-  const [showAllCares, setShowAllCares] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -301,7 +300,7 @@ const FamilyDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
         }))
       );
 
-      // Recent completed cares (last 5, or all if showAllCares)
+      // Recent completed cares (last 5)
       const { data: recent } = await supabase
         .from('appointments')
         .select('id, nurse_id, date, care_type, care_performed, visible_to_patient')
@@ -309,7 +308,7 @@ const FamilyDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
         .eq('status', 'completed')
         .eq('visible_to_patient', true)
         .order('date', { ascending: false })
-        .limit(showAllCares ? 50 : 5);
+        .limit(5);
 
       const recentNurseIds = [...new Set((recent ?? []).map((a: any) => a.nurse_id))];
       let recentNurseMap: Record<string, string> = {};
@@ -335,7 +334,7 @@ const FamilyDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
     } catch (err) {
       console.error('[FamilyDashboard] unexpected:', err);
     }
-  }, [user, linkedPatients, today, showAllCares]);
+  }, [user, linkedPatients, today]);
 
   useEffect(() => {
     setLoading(true);
@@ -582,17 +581,11 @@ const FamilyDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
             {recentCares.length > 0 && (
               <TouchableOpacity
                 style={styles.viewAllButton}
-                onPress={() => setShowAllCares(!showAllCares)}
+                onPress={() => navigation.navigate('Historique')}
                 activeOpacity={0.7}
               >
-                <Text style={styles.viewAllText}>
-                  {showAllCares ? 'Voir moins' : 'Voir tout'}
-                </Text>
-                <Ionicons
-                  name={showAllCares ? 'chevron-up' : 'chevron-forward'}
-                  size={16}
-                  color={COLORS.FAMILY_PRIMARY}
-                />
+                <Text style={styles.viewAllText}>Voir tout</Text>
+                <Ionicons name="chevron-forward" size={16} color={COLORS.FAMILY_PRIMARY} />
               </TouchableOpacity>
             )}
           </View>

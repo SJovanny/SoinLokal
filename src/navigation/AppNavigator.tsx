@@ -32,6 +32,7 @@ import ChatScreen from '../screens/shared/ChatScreen';
 
 // Écrans famille
 import FamilyDashboard from '../screens/family/FamilyDashboard';
+import FamilyCareHistory from '../screens/family/FamilyCareHistory';
 import FamilyProfile from '../screens/family/FamilyProfile';
 import AddManagedPatient from '../screens/family/AddManagedPatient';
 import NurseProfileView from '../screens/family/NurseProfileView';
@@ -213,6 +214,9 @@ const FamilyTabNavigator = () => {
           case 'Suivi':
             iconName = focused ? 'heart' : 'heart-outline';
             break;
+          case 'Historique':
+            iconName = focused ? 'document-text' : 'document-text-outline';
+            break;
           case 'Messages':
             iconName = focused ? 'chatbubbles' : 'chatbubbles-outline';
             break;
@@ -239,6 +243,14 @@ const FamilyTabNavigator = () => {
       component={FamilyDashboard}
       options={{
         title: 'Suivi',
+        headerShown: false,
+      }}
+    />
+    <Tab.Screen
+      name="Historique"
+      component={FamilyCareHistory}
+      options={{
+        title: 'Historique',
         headerShown: false,
       }}
     />
