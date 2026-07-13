@@ -11,6 +11,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase, type Appointment } from '../../utils/supabase';
 import { COLORS, SIZES } from '../../utils/constants';
+import MonthYearFilter from '../../components/MonthYearFilter';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -41,6 +42,11 @@ const FamilyCareHistory: React.FC = () => {
   const [patientFileId, setPatientFileId] = useState<string | null>(null);
   const [history, setHistory] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
+
+  const filteredHistory = selectedMonth
+    ? history.filter((a) => a.date.startsWith(selectedMonth))
+    : history;
 
   // -------------------------------------------------------------------------
   // Fetch the single linked patient (via family_links or managed_by)
@@ -220,6 +226,17 @@ const FamilyCareHistory: React.FC = () => {
         )}
       </View>
 
+      {/* Month/Year Filter */}
+      {!loading && history.length > 0 && (
+        <MonthYearFilter
+          appointments={history}
+          selectedMonth={selectedMonth}
+          onSelectMonth={setSelectedMonth}
+          accentColor={COLORS.FAMILY_PRIMARY}
+          lightColor={COLORS.FAMILY_LIGHT}
+        />
+      )}
+
       {/* Content */}
       {loading ? (
         <View style={styles.centerWrap}>
@@ -234,17 +251,19 @@ const FamilyCareHistory: React.FC = () => {
             Ajoutez un proche depuis l'écran d'accueil pour consulter son historique de soins.
           </Text>
         </View>
-      ) : history.length === 0 ? (
+      ) : filteredHistory.length === 0 ? (
         <View style={styles.centerWrap}>
           <Ionicons name="document-text-outline" size={56} color={COLORS.BORDER} />
           <Text style={styles.emptyTitle}>Aucun soin</Text>
           <Text style={styles.emptySubtitle}>
-            Les soins réalisés apparaîtront ici lorsque l'infirmier(e) les aura documentés et rendus visibles.
+            {selectedMonth
+              ? 'Aucun soin pour cette période.'
+              : 'Les soins réalisés apparaîtront ici lorsque l\'infirmier(e) les aura documentés et rendus visibles.'}
           </Text>
         </View>
       ) : (
         <FlatList
-          data={history}
+          data={filteredHistory}
           keyExtractor={(item) => item.id}
           renderItem={renderItem}
           contentContainerStyle={styles.listContent}
