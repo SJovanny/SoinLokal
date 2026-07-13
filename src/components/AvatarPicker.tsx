@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
+import { File } from 'expo-file-system';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../utils/supabase';
@@ -151,14 +152,14 @@ export const AvatarPicker: React.FC<AvatarPickerProps> = ({
         { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG },
       );
 
-      const response = await fetch(manipulated.uri);
-      const blob = await response.blob();
+      const file = new File(manipulated.uri);
+      const arrayBuffer = await file.arrayBuffer();
 
       const filePath = `${profileId}/avatar_${Date.now()}.jpg`;
 
       const { error: uploadError } = await supabase.storage
         .from('avatars')
-        .upload(filePath, blob, {
+        .upload(filePath, arrayBuffer, {
           contentType: 'image/jpeg',
           upsert: true,
         });
