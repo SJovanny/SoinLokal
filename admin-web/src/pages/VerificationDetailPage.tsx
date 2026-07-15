@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
@@ -10,10 +10,10 @@ interface AnsVerificationResult {
   message: string;
 }
 
-const DOC_LABELS: Record<string, { label: string; icon: string; column: string }> = {
-  cni: { label: "Carte d'identité", icon: '🪪', column: 'cni_path' },
-  domicile: { label: 'Justificatif de domicile', icon: '🏠', column: 'justificatif_domicile_path' },
-  carte_pro: { label: 'Carte professionnelle (CPS)', icon: '👩‍⚕️', column: 'carte_pro_path' },
+const DOC_LABELS: Record<string, { label: string; icon: string; column: string; storageKey: string }> = {
+  cni: { label: "Carte d'identité", icon: '🪪', column: 'cni_path', storageKey: 'cni' },
+  domicile: { label: 'Justificatif de domicile', icon: '🏠', column: 'justificatif_domicile_path', storageKey: 'domicile' },
+  carte_pro: { label: 'Carte professionnelle (CPS)', icon: '👩‍⚕️', column: 'carte_pro_path', storageKey: 'carte_pro' },
 };
 
 export default function VerificationDetailPage() {
@@ -28,46 +28,54 @@ export default function VerificationDetailPage() {
   const [notes, setNotes] = useState('');
   const [decision, setDecision] = useState<'idle' | 'approved' | 'rejected'>('idle');
 
+  // Upload state
+  const [uploadingDoc, setUploadingDoc] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+
   // ANS verification state
   const [ansLoading, setAnsLoading] = useState(false);
   const [ansResult, setAnsResult] = useState<AnsVerificationResult | null>(null);
 
-  useEffect(() => {
+  // -------------------------------------------------------------------------
+  // Data loader
+  // -------------------------------------------------------------------------
+
+  const loadNurseProfile = useCallback(async () => {
     if (!profileId) return;
 
-    const load = async () => {
-      const { data: nurse, error } = await supabase
-        .from('nurse_profiles')
-        .select('profile_id, rpps_number, verification_status, verified_at, specialties, zone, cni_path, justificatif_domicile_path, carte_pro_path, profiles(id, first_name, last_name, email, created_at)')
-        .eq('profile_id', profileId)
-        .single<NurseProfile>();
+    const { data: nurse, error } = await supabase
+      .from('nurse_profiles')
+      .select('profile_id, rpps_number, verification_status, verified_at, specialties, zone, cni_path, justificatif_domicile_path, carte_pro_path, profiles(id, first_name, last_name, email, created_at)')
+      .eq('profile_id', profileId)
+      .single<NurseProfile>();
 
-      if (error || !nurse) {
-        navigate('/', { replace: true });
-        return;
+    if (error || !nurse) {
+      navigate('/', { replace: true });
+      return;
+    }
+
+    setNurseProfile(nurse);
+
+    const urls: Record<string, string | null> = {};
+    for (const [key, doc] of Object.entries(DOC_LABELS)) {
+      const path = (nurse as any)[doc.column];
+      if (path) {
+        const { data: signed } = await supabase.storage
+          .from('nurse-documents')
+          .createSignedUrl(path, 3600);
+        urls[key] = signed?.signedUrl ?? null;
+      } else {
+        urls[key] = null;
       }
-
-      setNurseProfile(nurse);
-
-      // Load signed URLs for documents
-      const urls: Record<string, string | null> = {};
-      for (const [key, doc] of Object.entries(DOC_LABELS)) {
-        const path = (nurse as any)[doc.column];
-        if (path) {
-          const { data: signed } = await supabase.storage
-            .from('nurse-documents')
-            .createSignedUrl(path, 3600);
-          urls[key] = signed?.signedUrl ?? null;
-        } else {
-          urls[key] = null;
-        }
-      }
-      setDocumentUrls(urls);
-      setLoading(false);
-    };
-
-    load();
+    }
+    setDocumentUrls(urls);
+    setLoading(false);
   }, [profileId, navigate]);
+
+  useEffect(() => {
+    loadNurseProfile();
+  }, [loadNurseProfile]);
 
   // -------------------------------------------------------------------------
   // ANS API verification
@@ -96,6 +104,68 @@ export default function VerificationDetailPage() {
       setAnsResult({ status: 'error', message: 'Erreur réseau' });
     } finally {
       setAnsLoading(false);
+    }
+  };
+
+  // -------------------------------------------------------------------------
+  // Document upload
+  // -------------------------------------------------------------------------
+
+  const handleFileSelect = async (docKey: string, file: File) => {
+    if (!profileId || !nurseProfile) return;
+
+    setUploadingDoc(docKey);
+    setUploadError(null);
+
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const ext = file.name.split('.').pop() || 'jpg';
+      const filePath = `${profileId}/${docKey}_${Date.now()}.${ext}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('nurse-documents')
+        .upload(filePath, arrayBuffer, {
+          contentType: file.type || 'image/jpeg',
+          upsert: true,
+        });
+
+      if (uploadError) throw uploadError;
+
+      const doc = DOC_LABELS[docKey];
+      if (!doc) throw new Error(`Document inconnu : ${docKey}`);
+
+      const { error: updateError } = await supabase
+        .from('nurse_profiles')
+        .update({ [doc.column]: filePath })
+        .eq('profile_id', profileId);
+
+      if (updateError) throw updateError;
+
+      // Reload profile to get updated paths + URLs
+      await loadNurseProfile();
+
+      // If all 3 documents are now present, auto-switch to pending_review
+      const updated = await supabase
+        .from('nurse_profiles')
+        .select('cni_path, justificatif_domicile_path, carte_pro_path, verification_status')
+        .eq('profile_id', profileId)
+        .single();
+
+      if (updated.data) {
+        const { cni_path, justificatif_domicile_path, carte_pro_path, verification_status } = updated.data;
+        if (cni_path && justificatif_domicile_path && carte_pro_path && verification_status === 'pending_docs') {
+          await supabase
+            .from('nurse_profiles')
+            .update({ verification_status: 'pending_review' })
+            .eq('profile_id', profileId);
+          await loadNurseProfile();
+        }
+      }
+    } catch (err: any) {
+      console.error('[AdminUpload] error:', err);
+      setUploadError(err?.message ?? "Erreur lors de l'envoi du document.");
+    } finally {
+      setUploadingDoc(null);
     }
   };
 
@@ -141,6 +211,18 @@ export default function VerificationDetailPage() {
     setDecision(approve ? 'approved' : 'rejected');
     setProcessing(false);
   };
+
+  // -------------------------------------------------------------------------
+  // Helpers
+  // -------------------------------------------------------------------------
+
+  const allDocsUploaded = Object.values(DOC_LABELS).every(
+    (doc) => (nurseProfile as any)?.[doc.column],
+  );
+
+  const canReview =
+    nurseProfile?.verification_status === 'pending_review' ||
+    (nurseProfile?.verification_status === 'pending_docs' && allDocsUploaded);
 
   // -------------------------------------------------------------------------
   // Render
@@ -241,7 +323,7 @@ export default function VerificationDetailPage() {
               disabled={ansLoading || !nurseProfile?.rpps_number}
               className="mb-3 w-full rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700 transition-colors hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {ansLoading ? 'Vérification...' : 'Vérifier sur l\'annuaire ANS'}
+              {ansLoading ? 'Vérification...' : "Vérifier sur l'annuaire ANS"}
             </button>
 
             {ansResult && (
@@ -288,7 +370,7 @@ export default function VerificationDetailPage() {
           </div>
 
           {/* Notes + Actions */}
-          {nurseProfile?.verification_status === 'pending_review' && (
+          {canReview && (
             <div className="rounded-xl border border-gray-200 bg-white p-5">
               <label className="mb-2 block text-sm font-medium text-gray-700">Notes (optionnel)</label>
               <textarea
@@ -321,26 +403,102 @@ export default function VerificationDetailPage() {
 
         {/* Right: documents */}
         <div className="space-y-4 lg:col-span-2">
-          <h3 className="text-lg font-semibold text-gray-800">Documents</h3>
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-gray-800">Documents</h3>
+            {nurseProfile?.verification_status === 'pending_docs' && (
+              <span className="text-sm text-amber-600 font-medium">
+                {allDocsUploaded ? '✓ Tous les documents sont déposés' : 'Déposez les 3 documents pour pouvoir valider'}
+              </span>
+            )}
+          </div>
+
+          {uploadError && (
+            <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              {uploadError}
+            </div>
+          )}
 
           {Object.entries(DOC_LABELS).map(([key, doc]) => {
             const url = documentUrls[key];
+            const existingPath = (nurseProfile as any)?.[doc.column];
+            const isUploading = uploadingDoc === key;
+            const inputRef = (el: HTMLInputElement | null) => { fileInputRefs.current[key] = el; };
+
             return (
               <div key={key} className="rounded-xl border border-gray-200 bg-white p-5">
                 <div className="mb-3 flex items-center gap-2">
                   <span className="text-lg">{doc.icon}</span>
                   <h4 className="text-sm font-semibold text-gray-700">{doc.label}</h4>
+                  {existingPath && (
+                    <span className="ml-auto rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                      Déposé
+                    </span>
+                  )}
                 </div>
+
                 {url ? (
-                  <img
-                    src={url}
-                    alt={doc.label}
-                    className="max-h-[400px] w-full rounded-lg object-contain"
-                  />
+                  <div className="space-y-3">
+                    <img
+                      src={url}
+                      alt={doc.label}
+                      className="max-h-[400px] w-full rounded-lg object-contain"
+                    />
+                    <div className="flex items-center gap-2">
+                      <input
+                        ref={inputRef}
+                        type="file"
+                        accept="image/*,.pdf"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleFileSelect(key, file);
+                          e.target.value = '';
+                        }}
+                      />
+                      <button
+                        onClick={() => fileInputRefs.current[key]?.click()}
+                        disabled={isUploading}
+                        className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {isUploading ? 'Envoi...' : 'Remplacer'}
+                      </button>
+                    </div>
+                  </div>
                 ) : (
-                  <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-gray-300 py-12">
-                    <span className="text-2xl">📄</span>
-                    <p className="mt-2 text-sm text-gray-400">Non soumis</p>
+                  <div>
+                    <input
+                      ref={inputRef}
+                      type="file"
+                      accept="image/*,.pdf"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleFileSelect(key, file);
+                        e.target.value = '';
+                      }}
+                    />
+                    <button
+                      onClick={() => fileInputRefs.current[key]?.click()}
+                      disabled={isUploading}
+                      className="flex w-full flex-col items-center justify-center rounded-lg border-2 border-dashed border-gray-300 py-12 transition-colors hover:border-emerald-400 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {isUploading ? (
+                        <div className="flex items-center gap-3">
+                          <div className="h-5 w-5 animate-spin rounded-full border-2 border-emerald-600 border-t-transparent" />
+                          <span className="text-sm text-gray-500">Envoi en cours...</span>
+                        </div>
+                      ) : (
+                        <>
+                          <span className="text-2xl">📄</span>
+                          <p className="mt-2 text-sm font-medium text-gray-500">
+                            Cliquez pour déposer le document
+                          </p>
+                          <p className="mt-1 text-xs text-gray-400">
+                            Images ou PDF
+                          </p>
+                        </>
+                      )}
+                    </button>
                   </div>
                 )}
               </div>
