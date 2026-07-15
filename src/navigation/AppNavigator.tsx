@@ -22,6 +22,7 @@ import PatientDetail from '../screens/nurse/PatientDetail';
 import CareHistoryScreen from '../screens/nurse/CareHistoryScreen';
 import TourneeScreen from '../screens/nurse/TourneeScreen';
 import ProfileScreen from '../screens/nurse/ProfileScreen';
+import NursePendingVerificationScreen from '../screens/nurse/NursePendingVerificationScreen';
 
 // Écrans patient
 import PatientDashboard from '../screens/patient/PatientDashboard';
@@ -36,6 +37,9 @@ import FamilyCareHistory from '../screens/family/FamilyCareHistory';
 import FamilyProfile from '../screens/family/FamilyProfile';
 import AddManagedPatient from '../screens/family/AddManagedPatient';
 import NurseProfileView from '../screens/family/NurseProfileView';
+
+// Écrans admin
+import AdminWebOnlyScreen from '../screens/admin/AdminWebOnlyScreen';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -278,11 +282,16 @@ const FamilyTabNavigator = () => {
 
 // Navigation principale
 const AppNavigator = () => {
-  const { user, userProfile, loading } = useAuth();
+  const { user, userProfile, nurseProfile, loading } = useAuth();
 
   if (loading) {
     return <SplashScreen onAnimationComplete={() => {}} />;
   }
+
+  const isNursePendingVerification =
+    userProfile?.user_type === 'nurse' &&
+    !userProfile?.verified &&
+    nurseProfile?.verification_status !== 'verified';
 
   return (
     <NavigationContainer>
@@ -295,6 +304,12 @@ const AppNavigator = () => {
             <Stack.Screen name="Register" component={RegisterScreen} />
             <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
           </>
+        ) : userProfile?.is_admin ? (
+          // Utilisateur admin — redirect vers le portail web
+          <Stack.Screen name="AdminWebOnly" component={AdminWebOnlyScreen} />
+        ) : isNursePendingVerification ? (
+          // Infirmière en attente de vérification RPPS
+          <Stack.Screen name="NursePendingVerification" component={NursePendingVerificationScreen} />
         ) : (
           // Utilisateur connecté
           <>

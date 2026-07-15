@@ -13,7 +13,8 @@ export interface RegisterProfileInput {
   lastName:         string;
   userType:         'patient' | 'family' | 'nurse';
   phone?:           string;
-  adeli?:           string;
+  rppsNumber?:      string;
+  verificationStatus?: 'pending_docs' | 'pending_review' | 'pending' | 'verified' | 'manual_review' | 'rejected';
   specialties?:     string[];
   zone?:            string;
   address?:         string;
@@ -197,16 +198,17 @@ export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element
         password,
         options: {
           data: {
-            first_name:        profile.firstName,
-            last_name:         profile.lastName,
-            user_type:         profile.userType,
-            phone:             profile.phone ?? null,
-            adeli:             profile.adeli ?? null,
-            specialties:       profile.specialties ?? null,
-            zone:              profile.zone ?? null,
-            address:           profile.address ?? null,
-            emergency_contact: profile.emergencyContact ?? null,
-            verified:          profile.verified ?? false,
+            first_name:          profile.firstName,
+            last_name:           profile.lastName,
+            user_type:           profile.userType,
+            phone:               profile.phone ?? null,
+            rpps_number:         profile.rppsNumber ?? null,
+            verification_status: profile.verificationStatus ?? 'pending',
+            specialties:         profile.specialties ?? null,
+            zone:                profile.zone ?? null,
+            address:             profile.address ?? null,
+            emergency_contact:   profile.emergencyContact ?? null,
+            verified:            profile.verified ?? false,
           },
         },
       });

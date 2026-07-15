@@ -44,6 +44,7 @@ export interface Profile {
   avatar_type: 'photo' | 'generated' | null;
   avatar_seed?: string;
   verified:    boolean;
+  is_admin?:   boolean;
   created_at:  string;
   updated_at:  string;
 }
@@ -58,22 +59,39 @@ export interface NurseAddress {
 }
 
 export interface NurseProfile {
-  id:              string;
-  profile_id:      string;
-  adeli?:          string;
-  rpps_number?:    string;
-  specialties?:    string[];
-  zone?:           string;
-  address?:        string;
-  gps_lat?:        number;
-  gps_lng?:        number;
-  addresses?:      NurseAddress[];
-  bio?:            string;
-  rating:          number;
-  total_patients:  number;
-  total_visits:    number;
-  created_at:      string;
-  updated_at:      string;
+  id:                  string;
+  profile_id:          string;
+  adeli?:              string;
+  rpps_number?:        string;
+  verification_status?: 'pending_docs' | 'pending_review' | 'pending' | 'verified' | 'manual_review' | 'rejected';
+  verified_at?:        string;
+  specialties?:        string[];
+  zone?:               string;
+  cni_path?:           string;
+  justificatif_domicile_path?: string;
+  carte_pro_path?:     string;
+  address?:            string;
+  gps_lat?:            number;
+  gps_lng?:            number;
+  addresses?:          NurseAddress[];
+  bio?:                string;
+  rating:              number;
+  total_patients:      number;
+  total_visits:        number;
+  created_at:          string;
+  updated_at:          string;
+}
+
+export interface NurseVerificationRequest {
+  id:            string;
+  profile_id:    string;
+  document_path?: string;
+  status:        'pending' | 'approved' | 'rejected';
+  notes?:        string;
+  reviewed_by?:  string;
+  reviewed_at?:  string;
+  created_at:    string;
+  updated_at:    string;
 }
 
 export interface PatientProfile {

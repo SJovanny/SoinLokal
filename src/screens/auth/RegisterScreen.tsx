@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -8,11 +8,30 @@ import {
   Alert,
   ActivityIndicator,
   ScrollView,
+  NativeSyntheticEvent,
+  NativeScrollEvent,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
+import { supabase } from '../../utils/supabase';
 import { getThemeColor, COLORS } from '../../utils/constants';
+import { validateEmail, handleAuthError } from '../../utils/helpers';
+import { debugLog } from '../../utils/devConfig';
+
+const LEGAL_TEXT = `En cochant cette case et en soumettant ce formulaire, vous certifiez que :
+
+1. Vous êtes le titulaire légitime du numéro RPPS renseigné ci-dessus, et que celui-ci correspond bien à votre identité et à votre diplôme d'État d'infirmier(ère).
+
+2. Les informations fournies (nom, prénom, coordonnées) sont exactes et vous engagent en cas de contrôle.
+
+3. Vous comprenez que la vérification automatique de ce numéro RPPS s'appuie sur l'Annuaire Santé (API publique de l'Agence du Numérique en Santé) et porte uniquement sur l'existence, le statut actif et la profession associée au numéro — et non sur la correspondance avec votre identité déclarée.
+
+4. Toute fausse déclaration est passible de sanctions et pourra entraîner la suspension immédiate de votre compte, sans préavis, ainsi que d'éventuelles poursuites conformément à la législation en vigueur (usurpation d'identité professionnelle, faux et usage de faux).
+
+5. SoinLokal se réserve le droit de demander à tout moment un justificatif complémentaire (carte CPS, attestation de l'Ordre infirmier, diplôme) afin de confirmer votre identité et votre qualification professionnelle.
+
+En cochant la case ci-dessous, vous reconnaissez avoir lu, compris et accepté l'ensemble de ces conditions.`;
 
 const RegisterScreen = ({ navigation, route }: { navigation: any; route: any }) => {
   const { userType: initialUserType } = route.params || { userType: 'nurse' };
@@ -28,7 +47,7 @@ const RegisterScreen = ({ navigation, route }: { navigation: any; route: any }) 
     lastName: '',
     phone: '',
     // Nurse-specific fields
-    adeli: '',
+    rppsNumber: '',
     specialties: '',
     zone: '',
     // Patient-specific fields
@@ -39,6 +58,8 @@ const RegisterScreen = ({ navigation, route }: { navigation: any; route: any }) 
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [legalScrolledToBottom, setLegalScrolledToBottom] = useState(false);
+  const [acceptedDeclaration, setAcceptedDeclaration] = useState(false);
 
   const themeColor = getThemeColor(userType);
 
@@ -46,11 +67,22 @@ const RegisterScreen = ({ navigation, route }: { navigation: any; route: any }) 
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
+  const handleLegalScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
+    const isCloseToBottom = layoutMeasurement.height + contentOffset.y >= contentSize.height - 20;
+    if (isCloseToBottom) setLegalScrolledToBottom(true);
+  };
+
   const validateForm = (): boolean => {
     const { email, password, confirmPassword, firstName, lastName, phone } = formData;
 
     if (!email || !password || !firstName || !lastName || !phone) {
       Alert.alert('Erreur', 'Veuillez remplir tous les champs obligatoires');
+      return false;
+    }
+
+    if (!validateEmail(email.trim())) {
+      Alert.alert('Erreur', "L'adresse email est invalide");
       return false;
     }
 
@@ -64,8 +96,18 @@ const RegisterScreen = ({ navigation, route }: { navigation: any; route: any }) 
       return false;
     }
 
-    if (userType === 'nurse' && !formData.adeli) {
-      Alert.alert('Erreur', 'Le numéro ADELI est obligatoire pour les infirmières');
+    if (userType === 'nurse' && !formData.rppsNumber) {
+      Alert.alert('Erreur', 'Le numéro RPPS est obligatoire pour les infirmières');
+      return false;
+    }
+
+    if (userType === 'nurse' && !/^\d{11}$/.test(formData.rppsNumber.trim())) {
+      Alert.alert('Erreur', 'Le numéro RPPS doit contenir 11 chiffres (depuis 2021, il remplace l\'ADELI pour les infirmières)');
+      return false;
+    }
+
+    if (userType === 'nurse' && !acceptedDeclaration) {
+      Alert.alert('Erreur', 'Vous devez accepter la déclaration sur l\'honneur pour continuer');
       return false;
     }
 
@@ -77,6 +119,58 @@ const RegisterScreen = ({ navigation, route }: { navigation: any; route: any }) 
 
     setLoading(true);
     try {
+      let verificationStatus: 'pending_docs' | 'pending' = 'pending';
+
+      if (userType === 'nurse') {
+        // Verify the RPPS number against the ANS "Annuaire Santé" registry
+        // before creating the account. Registration is blocked if verification
+        // fails or is unavailable.
+        try {
+          const { data, error } = await supabase.functions.invoke('verify-rpps', {
+            body: {
+              rppsNumber: formData.rppsNumber.trim(),
+            },
+          });
+
+          if (error) {
+            debugLog('RPPS verification - Supabase function error', error);
+            Alert.alert(
+              'Vérification impossible',
+              'Le service de vérification RPPS est indisponible. Veuillez réessayer ultérieurement.',
+            );
+            setLoading(false);
+            return;
+          } else if (data?.status === 'verified') {
+            verificationStatus = 'pending_docs';
+          } else if (data?.status === 'not_found' || data?.status === 'not_a_nurse' || data?.status === 'inactive') {
+            debugLog('RPPS verification failed', { status: data.status, message: data.message, rppsNumber: formData.rppsNumber.trim() });
+            Alert.alert(
+              'Vérification impossible',
+              data.message ??
+                "Nous n'avons pas pu confirmer ce numéro RPPS. Vérifiez votre saisie ou contactez le support.",
+            );
+            setLoading(false);
+            return;
+          } else {
+            debugLog('RPPS verification - function returned error status', { status: data?.status, message: data?.message });
+            Alert.alert(
+              'Vérification impossible',
+              data?.message ?? "Le service de vérification RPPS est indisponible. Veuillez réessayer ultérieurement.",
+            );
+            setLoading(false);
+            return;
+          }
+        } catch (err) {
+          debugLog('RPPS verification - network exception', err);
+          Alert.alert(
+            'Erreur réseau',
+            'Impossible de contacter le service de vérification. Vérifiez votre connexion internet et réessayez.',
+          );
+          setLoading(false);
+          return;
+        }
+      }
+
       const profile = {
         userType,
         firstName: formData.firstName,
@@ -84,10 +178,11 @@ const RegisterScreen = ({ navigation, route }: { navigation: any; route: any }) 
         phone: formData.phone,
         ...(userType === 'nurse'
           ? {
-              adeli: formData.adeli,
+              rppsNumber: formData.rppsNumber.trim(),
+              verificationStatus,
               specialties: formData.specialties.split(',').map(s => s.trim()),
               zone: formData.zone,
-              verified: false, // Infirmières doivent être vérifiées
+              verified: false,
             }
           : userType === 'patient'
           ? {
@@ -99,18 +194,18 @@ const RegisterScreen = ({ navigation, route }: { navigation: any; route: any }) 
             }),
       };
 
-      await register(formData.email, formData.password, profile);
+      await register(formData.email.trim(), formData.password, profile);
 
       Alert.alert(
         'Inscription réussie',
         userType === 'nurse'
-          ? 'Votre compte a été créé. Il sera activé après vérification de vos informations professionnelles.'
+          ? 'Votre compte a été créé. Veuillez maintenant soumettre vos documents de vérification (carte d\'identité, justificatif de domicile, carte professionnelle) pour activer votre compte.'
           : userType === 'family'
           ? 'Votre compte proche a été créé avec succès. L\'équipe soignante pourra vous lier au dossier de votre proche.'
           : 'Votre compte a été créé avec succès.',
       );
     } catch (error: any) {
-      Alert.alert("Erreur d'inscription", error.message);
+      Alert.alert("Erreur d'inscription", handleAuthError(error));
     } finally {
       setLoading(false);
     }
@@ -210,10 +305,12 @@ const RegisterScreen = ({ navigation, route }: { navigation: any; route: any }) 
               <Ionicons name="card-outline" size={20} color="#94A3B8" style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
-                placeholder="Numéro ADELI *"
+                placeholder="Numéro RPPS (11 chiffres) *"
                 placeholderTextColor="#94A3B8"
-                value={formData.adeli}
-                onChangeText={v => handleInputChange('adeli', v)}
+                value={formData.rppsNumber}
+                onChangeText={v => handleInputChange('rppsNumber', v.replace(/[^0-9]/g, ''))}
+                keyboardType="number-pad"
+                maxLength={11}
               />
             </View>
 
@@ -239,6 +336,35 @@ const RegisterScreen = ({ navigation, route }: { navigation: any; route: any }) 
                 multiline
               />
             </View>
+
+            <View style={styles.legalBox}>
+              <ScrollView
+                style={styles.legalScrollView}
+                onScroll={handleLegalScroll}
+                scrollEventThrottle={16}
+                nestedScrollEnabled
+              >
+                <Text style={styles.legalText}>{LEGAL_TEXT}</Text>
+              </ScrollView>
+              {!legalScrolledToBottom && (
+                <Text style={styles.legalHint}>Faites défiler le texte ci-dessus jusqu'en bas pour continuer</Text>
+              )}
+            </View>
+
+            <TouchableOpacity
+              style={styles.checkboxRow}
+              onPress={() => legalScrolledToBottom && setAcceptedDeclaration(!acceptedDeclaration)}
+              disabled={!legalScrolledToBottom}
+            >
+              <Ionicons
+                name={acceptedDeclaration ? 'checkbox' : 'square-outline'}
+                size={22}
+                color={legalScrolledToBottom ? themeColor : '#CBD5E1'}
+              />
+              <Text style={[styles.checkboxLabel, !legalScrolledToBottom && styles.checkboxLabelDisabled]}>
+                Je certifie être le titulaire de ce numéro RPPS et accepte les conditions ci-dessus
+              </Text>
+            </TouchableOpacity>
           </View>
         ) : (
           <View style={styles.section}>
@@ -566,6 +692,43 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: COLORS.FAMILY_DARK,
     lineHeight: 20,
+  },
+  legalBox: {
+    backgroundColor: '#FFF9E6',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#F0D060',
+    padding: 12,
+    marginBottom: 12,
+  },
+  legalScrollView: {
+    maxHeight: 150,
+  },
+  legalText: {
+    fontSize: 13,
+    color: '#4A4A4A',
+    lineHeight: 19,
+  },
+  legalHint: {
+    fontSize: 12,
+    color: '#94A3B8',
+    marginTop: 8,
+    fontStyle: 'italic',
+  },
+  checkboxRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    marginBottom: 16,
+  },
+  checkboxLabel: {
+    flex: 1,
+    fontSize: 13,
+    color: '#1A1A2E',
+    lineHeight: 19,
+  },
+  checkboxLabelDisabled: {
+    color: '#CBD5E1',
   },
 });
 

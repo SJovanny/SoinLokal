@@ -59,7 +59,7 @@ const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const [editFirstName, setEditFirstName] = useState('');
   const [editLastName, setEditLastName] = useState('');
   const [editPhone, setEditPhone] = useState('');
-  const [editAdeli, setEditAdeli] = useState('');
+
   const [editSpecialties, setEditSpecialties] = useState('');
   const [editZone, setEditZone] = useState('');
 
@@ -95,7 +95,6 @@ const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     setEditFirstName(userProfile?.first_name ?? '');
     setEditLastName(userProfile?.last_name ?? '');
     setEditPhone(userProfile?.phone ?? '');
-    setEditAdeli(nurseProfile?.adeli ?? '');
     setEditSpecialties(nurseProfile?.specialties?.join(', ') ?? '');
     setEditZone(nurseProfile?.zone ?? '');
     setIsEditing(true);
@@ -132,7 +131,6 @@ const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         const { error: nurseError } = await supabase
           .from('nurse_profiles')
           .update({
-            adeli: editAdeli.trim(),
             specialties,
             zone: editZone.trim(),
           })
@@ -471,17 +469,13 @@ const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
             <View style={styles.infoRow}>
               <Ionicons name="id-card-outline" size={20} color={COLORS.TEXT_MUTED} />
               <View style={styles.infoContent}>
-                <Text style={styles.infoLabel}>N° ADELI</Text>
-                {isEditing ? (
-                  <TextInput
-                    style={styles.editInput}
-                    value={editAdeli}
-                    onChangeText={setEditAdeli}
-                    placeholder="N° ADELI"
-                    placeholderTextColor={COLORS.TEXT_MUTED}
-                  />
-                ) : (
-                  <Text style={styles.infoValue}>{nurseProfile.adeli || 'Non renseigné'}</Text>
+                <Text style={styles.infoLabel}>N° RPPS</Text>
+                <Text style={styles.infoValue}>{nurseProfile.rpps_number || 'Non renseigné'}</Text>
+                {nurseProfile.verification_status === 'verified' && (
+                  <View style={styles.verifiedBadge}>
+                    <Ionicons name="checkmark-circle" size={14} color="#2E8B57" />
+                    <Text style={styles.verifiedBadgeText}>Vérifié</Text>
+                  </View>
                 )}
               </View>
             </View>
@@ -915,6 +909,17 @@ const styles = StyleSheet.create({
     fontSize: SIZES.FONT_MD,
     color: COLORS.TEXT_PRIMARY,
     fontWeight: '500',
+  },
+  verifiedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 4,
+  },
+  verifiedBadgeText: {
+    fontSize: SIZES.FONT_SM ?? 12,
+    color: '#2E8B57',
+    fontWeight: '600',
   },
   // Addresses
   addBtn: {

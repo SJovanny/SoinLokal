@@ -109,6 +109,15 @@ export interface AuthError {
  * Maps Supabase auth error codes to human-readable French messages.
  */
 export function handleAuthError(error: AuthError): string {
+  const msg = (error.message ?? '').toLowerCase();
+
+  if (msg.includes('rate limit')) {
+    return 'Trop de tentatives. Veuillez patienter quelques minutes avant de réessayer';
+  }
+  if (msg.includes('invalid') && msg.includes('email')) {
+    return "L'adresse email est invalide";
+  }
+
   switch (error.code) {
     case 'invalid_credentials':
       return 'Email ou mot de passe incorrect';
@@ -121,9 +130,13 @@ export function handleAuthError(error: AuthError): string {
     case 'email_not_confirmed':
       return 'Veuillez confirmer votre adresse email avant de vous connecter';
     case 'over_email_send_rate_limit':
-      return 'Trop de tentatives. Veuillez réessayer plus tard';
+    case 'email_rate_limit_exceeded':
+      return 'Trop de tentatives. Veuillez patienter quelques minutes avant de réessayer';
     case 'network_failure':
       return 'Erreur de connexion. Vérifiez votre connexion internet';
+    case 'email_address_invalid':
+    case 'invalid_email':
+      return "L'adresse email est invalide";
     default:
       return error.message ?? 'Une erreur est survenue';
   }

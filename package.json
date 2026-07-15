@@ -11,7 +11,8 @@
     "build:ios": "eas build --platform ios",
     "typecheck": "tsc --noEmit",
     "seed": "npx tsx scripts/seed.ts",
-    "regeocode": "npx tsx scripts/regeocode-patients.ts"
+    "regeocode": "npx tsx scripts/regeocode-patients.ts",
+    "create-admin": "npx tsx scripts/create-admin.ts"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.1.1",

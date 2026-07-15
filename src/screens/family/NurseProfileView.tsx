@@ -22,7 +22,7 @@ interface NurseData {
   lastName: string;
   email: string | null;
   phone: string | null;
-  adeli: string | null;
+  rppsNumber: string | null;
   specialties: string[];
   zone: string | null;
   rating: number;
@@ -67,7 +67,7 @@ const NurseProfileView: React.FC<{ navigation: any; route: any }> = ({
 
         const { data: np, error: npErr } = await supabase
           .from('nurse_profiles')
-          .select('adeli, specialties, zone, rating, total_patients, total_visits')
+          .select('rpps_number, specialties, zone, rating, total_patients, total_visits')
           .eq('profile_id', nurseId)
           .single();
 
@@ -80,7 +80,7 @@ const NurseProfileView: React.FC<{ navigation: any; route: any }> = ({
           lastName: profile.last_name ?? '',
           email: profile.email ?? null,
           phone: profile.phone ?? null,
-          adeli: np?.adeli ?? null,
+          rppsNumber: np?.rpps_number ?? null,
           specialties: np?.specialties ?? [],
           zone: np?.zone ?? null,
           rating: np?.rating ?? 0,
@@ -177,7 +177,7 @@ const NurseProfileView: React.FC<{ navigation: any; route: any }> = ({
         {/* Professional info */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Informations professionnelles</Text>
-          <InfoRow icon="id-card-outline" label="N° ADELI" value={data.adeli ?? '—'} />
+          <InfoRow icon="id-card-outline" label="N° RPPS" value={data.rppsNumber ?? '—'} />
           <InfoRow icon="map-outline" label="Zone d'intervention" value={data.zone ?? '—'} />
           {data.specialties.length > 0 && (
             <InfoRow icon="medical-outline" label="Spécialités" value={data.specialties.join(', ')} />
