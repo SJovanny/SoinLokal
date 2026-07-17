@@ -190,7 +190,7 @@ export interface OnboardingSlide {
   icon: IoniconName;
   title: string;
   description: string;
-  previewType: 'dashboard' | 'patients' | 'tournee' | 'messages' | 'profile' | 'suivi';
+  previewType: 'welcome' | 'dashboard' | 'patients' | 'tournee' | 'messages' | 'profile' | 'suivi';
 }
 
 export const NURSE_SLIDES: OnboardingSlide[] = [
@@ -198,7 +198,7 @@ export const NURSE_SLIDES: OnboardingSlide[] = [
     icon: 'medkit',
     title: 'Bienvenue sur SoinLokal',
     description: 'Votre compagnon pour organiser vos soins à domicile en Martinique. Découvrez les fonctionnalités clés en quelques étapes.',
-    previewType: 'dashboard',
+    previewType: 'welcome',
   },
   {
     icon: 'home',
@@ -231,7 +231,7 @@ export const PATIENT_SLIDES: OnboardingSlide[] = [
     icon: 'heart',
     title: 'Bienvenue sur SoinLokal',
     description: 'Gérez vos soins à domicile simplement. Suivez vos rendez-vous et communiquez avec votre infirmière.',
-    previewType: 'dashboard',
+    previewType: 'welcome',
   },
   {
     icon: 'home',
@@ -258,7 +258,7 @@ export const FAMILY_SLIDES: OnboardingSlide[] = [
     icon: 'people',
     title: 'Bienvenue sur SoinLokal',
     description: 'Suivez les soins de votre proche et restez en contact avec son infirmière.',
-    previewType: 'suivi',
+    previewType: 'welcome',
   },
   {
     icon: 'heart-outline',

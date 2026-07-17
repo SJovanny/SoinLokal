@@ -8,7 +8,6 @@ import {
   TouchableOpacity,
   ScrollView,
   Animated as RNAnimated,
-  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SIZES, getThemeColor } from '../utils/constants';
@@ -37,11 +36,28 @@ interface OnboardingModalProps {
 // ---------------------------------------------------------------------------
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
-const PREVIEW_WIDTH = SCREEN_WIDTH - 80;
+const CARD_MARGIN = 12;
+const CARD_WIDTH = SCREEN_WIDTH - CARD_MARGIN * 2;
+const SLIDE_PADDING = SIZES.XL;
+const PREVIEW_WIDTH = CARD_WIDTH - SLIDE_PADDING * 2;
 
 // ---------------------------------------------------------------------------
 // Mock Preview Components
 // ---------------------------------------------------------------------------
+
+function WelcomePreview({ themeColor }: { themeColor: string }) {
+  return (
+    <View style={[pv.container, { alignItems: 'center', justifyContent: 'center' }]}>
+      <View style={[pv.welcomeCircle, { backgroundColor: themeColor + '12' }]}>
+        <View style={[pv.welcomeCircleInner, { backgroundColor: themeColor + '20' }]}>
+          <Ionicons name="medical" size={48} color={themeColor} />
+        </View>
+      </View>
+      <Text style={[pv.welcomeTitle, { color: themeColor }]}>SoinLokal</Text>
+      <Text style={pv.welcomeSub}>Soins à domicile en Martinique</Text>
+    </View>
+  );
+}
 
 function NurseDashboardPreview() {
   const m = NURSE_MOCK;
@@ -86,20 +102,88 @@ function NursePatientsPreview() {
 }
 
 function TourneePreview() {
-  const stops = ['Beaumont', 'Fanfan', 'Saint-Cyr', 'Moreau'];
+  const stops = [
+    { name: 'Beaumont',      time: '08:30', x: 25, y: 20 },
+    { name: 'Fanfan',        time: '09:15', x: 60, y: 35 },
+    { name: 'Saint-Cyr',     time: '10:00', x: 40, y: 55 },
+    { name: 'Moreau',        time: '11:00', x: 75, y: 70 },
+  ];
+
   return (
     <View style={pv.container}>
-      <View style={pv.mapBox}>
-        <Ionicons name="map" size={40} color={COLORS.NURSE_LIGHT} />
-        <Text style={pv.mapTxt}>Carte interactive</Text>
-      </View>
-      {stops.map((name, i) => (
-        <View key={i} style={pv.stop}>
-          <View style={[pv.dot, i === 0 && pv.dotActive]} />
-          <Text style={pv.stopName}>{name}</Text>
-          <Text style={pv.stopTime}>{`${8 + i}:${30 + i * 45}`}</Text>
+      {/* Map area */}
+      <View style={pv.mapArea}>
+        {/* Grid lines to simulate map */}
+        <View style={pv.mapGrid}>
+          {[0.2, 0.4, 0.6, 0.8].map((p) => (
+            <React.Fragment key={p}>
+              <View style={[pv.gridH, { top: `${p * 100}%` }]} />
+              <View style={[pv.gridV, { left: `${p * 100}%` }]} />
+            </React.Fragment>
+          ))}
         </View>
-      ))}
+
+        {/* Route line connecting stops */}
+        <View style={pv.routeLineContainer}>
+          {stops.map((s, i) => {
+            if (i === stops.length - 1) return null;
+            const next = stops[i + 1];
+            return (
+              <View
+                key={i}
+                style={[
+                  pv.routeSegment,
+                  {
+                    left: `${s.x}%`,
+                    top: `${s.y}%`,
+                    width: Math.sqrt(
+                      Math.pow((next.x - s.x) * (PREVIEW_WIDTH - 32) / 100, 2) +
+                      Math.pow((next.y - s.y) * 140 / 100, 2)
+                    ),
+                    transform: [
+                      { rotate: `${Math.atan2(next.y - s.y, next.x - s.x) * 180 / Math.PI}deg` },
+                    ],
+                  },
+                ]}
+              />
+            );
+          })}
+        </View>
+
+        {/* Patient pins */}
+        {stops.map((s, i) => (
+          <View
+            key={i}
+            style={[
+              pv.pin,
+              { left: `${s.x}%`, top: `${s.y}%` },
+            ]}
+          >
+            <View style={[pv.pinDot, i === 0 && pv.pinDotActive]}>
+              <Text style={pv.pinNum}>{i + 1}</Text>
+            </View>
+            <View style={pv.pinTail} />
+          </View>
+        ))}
+
+        {/* Street names */}
+        <Text style={[pv.streetName, { top: '15%', left: '10%' }]}>Rue des Lilas</Text>
+        <Text style={[pv.streetName, { top: '48%', left: '55%', transform: [{ rotate: '-15deg' }] }]}>Blvd Liberté</Text>
+        <Text style={[pv.streetName, { top: '80%', left: '15%' }]}>Rue Victor Hugo</Text>
+      </View>
+
+      {/* Stop list */}
+      <View style={pv.stopList}>
+        {stops.map((s, i) => (
+          <View key={i} style={pv.stopRow}>
+            <View style={[pv.stopNum, i === 0 && pv.stopNumActive]}>
+              <Text style={[pv.stopNumTxt, i === 0 && { color: COLORS.WHITE }]}>{i + 1}</Text>
+            </View>
+            <Text style={pv.stopName}>{s.name}</Text>
+            <Text style={pv.stopTime}>{s.time}</Text>
+          </View>
+        ))}
+      </View>
     </View>
   );
 }
@@ -203,8 +287,9 @@ function SuiviPreview() {
   );
 }
 
-function getPreview(type: string, userType: string) {
+function getPreview(type: string, userType: string, themeColor: string) {
   switch (type) {
+    case 'welcome':   return <WelcomePreview themeColor={themeColor} />;
     case 'dashboard': return userType === 'nurse' ? <NurseDashboardPreview /> : <PatientDashboardPreview />;
     case 'patients':  return <NursePatientsPreview />;
     case 'tournee':   return <TourneePreview />;
@@ -308,7 +393,7 @@ function AnimatedSlide({
       </RNAnimated.Text>
 
       <RNAnimated.View style={[st.preview, { opacity: previewOp, transform: [{ scale: previewScale }] }]}>
-        {getPreview(slide.previewType, userType)}
+        {getPreview(slide.previewType, userType, themeColor)}
       </RNAnimated.View>
     </View>
   );
@@ -368,18 +453,18 @@ export default function OnboardingModal({ visible, userType, onClose }: Onboardi
     }
     const next = activeIndex + 1;
     setActiveIndex(next);
-    scrollRef.current?.scrollTo({ x: next * SCREEN_WIDTH, animated: true });
+    scrollRef.current?.scrollTo({ x: next * CARD_WIDTH, animated: true });
   }, [activeIndex, isLast, onClose]);
 
   const handlePrev = useCallback(() => {
     if (activeIndex === 0) return;
     const prev = activeIndex - 1;
     setActiveIndex(prev);
-    scrollRef.current?.scrollTo({ x: prev * SCREEN_WIDTH, animated: true });
+    scrollRef.current?.scrollTo({ x: prev * CARD_WIDTH, animated: true });
   }, [activeIndex]);
 
   const handleScroll = useCallback((e: any) => {
-    const idx = Math.round(e.nativeEvent.contentOffset.x / SCREEN_WIDTH);
+    const idx = Math.round(e.nativeEvent.contentOffset.x / CARD_WIDTH);
     if (idx !== activeIndex) setActiveIndex(idx);
   }, [activeIndex]);
 
@@ -409,7 +494,7 @@ export default function OnboardingModal({ visible, userType, onClose }: Onboardi
             style={{ flexGrow: 0 }}
           >
             {slides.map((slide, i) => (
-              <View key={i} style={{ width: SCREEN_WIDTH - 24 }}>
+              <View key={i} style={{ width: CARD_WIDTH }}>
                 <AnimatedSlide
                   slide={slide}
                   index={i}
@@ -468,7 +553,7 @@ const mo = StyleSheet.create({
     alignItems: 'center',
   },
   card: {
-    width: SCREEN_WIDTH - 24,
+    width: CARD_WIDTH,
     maxHeight: SCREEN_HEIGHT - 100,
     backgroundColor: COLORS.WHITE,
     borderRadius: SIZES.BORDER_RADIUS_LG,
@@ -531,7 +616,7 @@ const mo = StyleSheet.create({
 const st = StyleSheet.create({
   slide: {
     alignItems: 'center',
-    paddingHorizontal: SIZES.XL,
+    paddingHorizontal: SLIDE_PADDING,
     minHeight: 420,
   },
   iconWrap: {
@@ -558,12 +643,13 @@ const st = StyleSheet.create({
     paddingHorizontal: SIZES.MD,
   },
   preview: {
-    width: PREVIEW_WIDTH - 24,
+    width: PREVIEW_WIDTH,
     backgroundColor: COLORS.BACKGROUND,
     borderRadius: SIZES.BORDER_RADIUS_MD,
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: COLORS.BORDER,
+    alignSelf: 'center',
   },
 });
 
@@ -583,6 +669,34 @@ const pv = StyleSheet.create({
     padding: SIZES.MD,
     minHeight: 220,
   },
+  // Welcome
+  welcomeCircle: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: SIZES.LG,
+  },
+  welcomeCircleInner: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  welcomeTitle: {
+    fontSize: SIZES.FONT_2XL,
+    fontWeight: '800',
+    letterSpacing: 1,
+    marginBottom: 4,
+  },
+  welcomeSub: {
+    fontSize: SIZES.FONT_SM,
+    color: COLORS.TEXT_MUTED,
+    fontStyle: 'italic',
+  },
+  // Stats
   statsRow: {
     flexDirection: 'row',
     justifyContent: 'space-around',
@@ -594,6 +708,7 @@ const pv = StyleSheet.create({
   stat: { alignItems: 'center', gap: 2 },
   statVal: { fontSize: SIZES.FONT_LG, fontWeight: '700' },
   statLbl: { fontSize: 10, color: COLORS.TEXT_MUTED },
+  // Appointments
   apptRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -607,6 +722,7 @@ const pv = StyleSheet.create({
   name: { fontSize: SIZES.FONT_SM, fontWeight: '600', color: COLORS.TEXT_PRIMARY },
   sub: { fontSize: SIZES.FONT_XS, color: COLORS.TEXT_MUTED },
   time: { fontSize: SIZES.FONT_SM, fontWeight: '600', color: COLORS.TEXT_PRIMARY },
+  // Patients
   patientRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -622,22 +738,124 @@ const pv = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   avatarTxt: { fontSize: SIZES.FONT_SM, fontWeight: '700', color: COLORS.NURSE_PRIMARY },
-  mapBox: {
-    height: 100,
-    backgroundColor: COLORS.NURSE_LIGHT,
+  // Map / Tournée
+  mapArea: {
+    height: 140,
+    backgroundColor: '#E8F0E8',
     borderRadius: SIZES.BORDER_RADIUS_SM,
-    alignItems: 'center', justifyContent: 'center',
-    marginBottom: SIZES.SM, gap: 4,
+    overflow: 'hidden',
+    marginBottom: SIZES.SM,
+    position: 'relative',
   },
-  mapTxt: { fontSize: SIZES.FONT_XS, color: COLORS.NURSE_PRIMARY, fontWeight: '600' },
-  stop: {
-    flexDirection: 'row', alignItems: 'center',
-    gap: SIZES.SM, paddingVertical: 4, paddingHorizontal: SIZES.SM,
+  mapGrid: {
+    ...StyleSheet.absoluteFillObject,
   },
-  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: COLORS.BORDER },
-  dotActive: { backgroundColor: COLORS.NURSE_PRIMARY },
-  stopName: { flex: 1, fontSize: SIZES.FONT_XS, color: COLORS.TEXT_PRIMARY, fontWeight: '500' },
-  stopTime: { fontSize: SIZES.FONT_XS, color: COLORS.TEXT_MUTED },
+  gridH: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    height: 1,
+    backgroundColor: 'rgba(0,100,0,0.08)',
+  },
+  gridV: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    width: 1,
+    backgroundColor: 'rgba(0,100,0,0.08)',
+  },
+  routeLineContainer: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  routeSegment: {
+    position: 'absolute',
+    height: 3,
+    backgroundColor: COLORS.NURSE_PRIMARY,
+    borderRadius: 2,
+    opacity: 0.6,
+  },
+  pin: {
+    position: 'absolute',
+    alignItems: 'center',
+    marginLeft: -10,
+    marginTop: -20,
+  },
+  pinDot: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: COLORS.NURSE_PRIMARY,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: COLORS.WHITE,
+    shadowColor: COLORS.BLACK,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 2,
+    elevation: 3,
+  },
+  pinDotActive: {
+    backgroundColor: COLORS.DANGER,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+  },
+  pinNum: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: COLORS.WHITE,
+  },
+  pinTail: {
+    width: 2,
+    height: 6,
+    backgroundColor: COLORS.NURSE_PRIMARY,
+    opacity: 0.4,
+  },
+  streetName: {
+    position: 'absolute',
+    fontSize: 8,
+    color: 'rgba(0,80,0,0.35)',
+    fontWeight: '500',
+    fontStyle: 'italic',
+  },
+  stopList: {
+    gap: 4,
+  },
+  stopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SIZES.SM,
+    paddingVertical: 4,
+    paddingHorizontal: SIZES.XS,
+  },
+  stopNum: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: COLORS.BORDER,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stopNumActive: {
+    backgroundColor: COLORS.DANGER,
+  },
+  stopNumTxt: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: COLORS.TEXT_MUTED,
+  },
+  stopName: {
+    flex: 1,
+    fontSize: SIZES.FONT_XS,
+    color: COLORS.TEXT_PRIMARY,
+    fontWeight: '500',
+  },
+  stopTime: {
+    fontSize: SIZES.FONT_XS,
+    color: COLORS.TEXT_MUTED,
+  },
+  // Conversations
   convo: {
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: COLORS.WHITE, borderRadius: SIZES.BORDER_RADIUS_SM,
@@ -653,6 +871,7 @@ const pv = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   badgeTxt: { fontSize: 10, fontWeight: '700', color: COLORS.WHITE },
+  // Profile
   profCard: {
     backgroundColor: COLORS.WHITE, borderRadius: SIZES.BORDER_RADIUS_SM,
     padding: SIZES.MD, alignItems: 'center', marginBottom: SIZES.SM,
@@ -671,6 +890,7 @@ const pv = StyleSheet.create({
   info: { flexDirection: 'row', alignItems: 'center' },
   infoLbl: { fontSize: 10, color: COLORS.TEXT_MUTED },
   infoVal: { fontSize: SIZES.FONT_XS, color: COLORS.TEXT_PRIMARY, fontWeight: '500' },
+  // Suivi
   suiviTop: {
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: COLORS.WHITE, borderRadius: SIZES.BORDER_RADIUS_SM,
