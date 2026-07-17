@@ -12,6 +12,7 @@ export interface NurseProfile {
   profile_id: string;
   rpps_number: string | null;
   verification_status: 'pending_docs' | 'pending_review' | 'pending' | 'verified' | 'manual_review' | 'rejected' | null;
+  rejection_note: string | null;
   verified_at: string | null;
   specialties: string[] | null;
   zone: string | null;

@@ -56,7 +56,6 @@ const NursePendingVerificationScreen = () => {
   const [showEditRpps, setShowEditRpps] = useState(false);
   const [newRppsNumber, setNewRppsNumber] = useState('');
   const [verifying, setVerifying] = useState(false);
-  const [pickerTarget, setPickerTarget] = useState<string | null>(null);
 
   const status = nurseProfile?.verification_status;
   const isPendingDocs = status === 'pending_docs';
@@ -69,54 +68,96 @@ const NursePendingVerificationScreen = () => {
   // -------------------------------------------------------------------------
 
   const handlePickImage = async (docKey: string) => {
-    const { status: permStatus } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (permStatus !== 'granted') {
-      Alert.alert('Permission requise', "Autorisez l'accès à vos photos pour importer vos documents.");
-      return;
+    console.log('[NursePendingVerificationScreen] handlePickImage called for', docKey);
+    try {
+      const { status: permStatus } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      console.log('[NursePendingVerificationScreen] media library permission status:', permStatus);
+      if (permStatus !== 'granted') {
+        Alert.alert('Permission requise', "Autorisez l'accès à vos photos pour importer vos documents.");
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        quality: 0.8,
+      });
+      console.log('[NursePendingVerificationScreen] launchImageLibraryAsync result:', JSON.stringify({ canceled: result.canceled, assetsCount: result.assets?.length }));
+
+      if (result.canceled || !result.assets?.[0]) return;
+
+      console.log('[NursePendingVerificationScreen] manipulating image, uri:', result.assets[0].uri);
+      const manipulated = await ImageManipulator.manipulateAsync(
+        result.assets[0].uri,
+        [{ resize: { width: 1200 } }],
+        { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG },
+      );
+      console.log('[NursePendingVerificationScreen] manipulated image uri:', manipulated.uri);
+
+      setDocuments(prev => ({
+        ...prev,
+        [docKey]: { ...prev[docKey]!, uri: manipulated.uri, fileName: null, mimeType: 'image/jpeg' },
+      }));
+      console.log('[NursePendingVerificationScreen] document state updated for', docKey);
+    } catch (err: any) {
+      console.error('[NursePendingVerificationScreen] Image picker error:', err);
+      Alert.alert('Erreur', err?.message ?? "Impossible d'ouvrir le sélecteur d'images.");
     }
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      quality: 0.8,
-    });
-
-    if (result.canceled || !result.assets?.[0]) return;
-
-    const manipulated = await ImageManipulator.manipulateAsync(
-      result.assets[0].uri,
-      [{ resize: { width: 1200 } }],
-      { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG },
-    );
-
-    setDocuments(prev => ({
-      ...prev,
-      [docKey]: { ...prev[docKey]!, uri: manipulated.uri, fileName: null, mimeType: 'image/jpeg' },
-    }));
   };
 
   const handlePickPdf = async (docKey: string) => {
-    const result = await DocumentPicker.getDocumentAsync({
-      type: 'application/pdf',
-      copyToCacheDirectory: true,
-    });
+    console.log('[NursePendingVerificationScreen] handlePickPdf called for', docKey);
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['application/pdf'],
+        copyToCacheDirectory: true,
+      });
+      console.log('[NursePendingVerificationScreen] getDocumentAsync result:', JSON.stringify({ canceled: result.canceled, assetsCount: result.assets?.length }));
 
-    if (result.canceled || !result.assets?.[0]) return;
+      if (result.canceled || !result.assets?.[0]) return;
 
-    const asset = result.assets[0];
+      const asset = result.assets[0];
+      console.log('[NursePendingVerificationScreen] PDF asset:', JSON.stringify({ name: asset.name, size: asset.size, uri: asset.uri }));
 
-    if (asset.size && asset.size > MAX_FILE_SIZE) {
-      Alert.alert('Fichier trop volumineux', 'Le fichier ne doit pas dépasser 5 Mo.');
-      return;
+      if (asset.size && asset.size > MAX_FILE_SIZE) {
+        Alert.alert('Fichier trop volumineux', 'Le fichier ne doit pas dépasser 5 Mo.');
+        return;
+      }
+
+      setDocuments(prev => ({
+        ...prev,
+        [docKey]: { ...prev[docKey]!, uri: asset.uri, fileName: asset.name, mimeType: 'application/pdf' },
+      }));
+      console.log('[NursePendingVerificationScreen] document state updated for', docKey);
+    } catch (err: any) {
+      console.error('[NursePendingVerificationScreen] PDF picker error:', err);
+      Alert.alert('Erreur', err?.message ?? 'Impossible d\'ouvrir le sélecteur de PDF.');
     }
-
-    setDocuments(prev => ({
-      ...prev,
-      [docKey]: { ...prev[docKey]!, uri: asset.uri, fileName: asset.name, mimeType: 'application/pdf' },
-    }));
   };
 
   const handlePickDocument = (docKey: string) => {
-    setPickerTarget(docKey);
+    console.log('[NursePendingVerificationScreen] handlePickDocument called for', docKey);
+    Alert.alert(
+      'Choisir un document',
+      'Sélectionnez le type de fichier à importer.',
+      [
+        {
+          text: 'Image (galerie)',
+          onPress: () => {
+            console.log('[NursePendingVerificationScreen] Image option pressed, target:', docKey);
+            handlePickImage(docKey);
+          },
+        },
+        {
+          text: 'Document PDF',
+          onPress: () => {
+            console.log('[NursePendingVerificationScreen] PDF option pressed, target:', docKey);
+            handlePickPdf(docKey);
+          },
+        },
+        { text: 'Annuler', style: 'cancel' },
+      ],
+      { cancelable: true },
+    );
   };
 
   // -------------------------------------------------------------------------
@@ -128,18 +169,22 @@ const NursePendingVerificationScreen = () => {
   const handleSubmitDocuments = async () => {
     if (!user || !allDocumentsSelected) return;
 
+    console.log('[NursePendingVerificationScreen] handleSubmitDocuments started');
     setUploading(true);
     try {
       const updates: Record<string, string> = {};
 
-      for (const [, doc] of Object.entries(documents)) {
+      for (const [key, doc] of Object.entries(documents)) {
         if (!doc.uri) continue;
+
+        console.log('[NursePendingVerificationScreen] uploading', key, 'mimeType:', doc.mimeType, 'uri:', doc.uri);
 
         const isPdf = doc.mimeType === 'application/pdf';
         const ext = isPdf ? 'pdf' : 'jpg';
         const contentType = isPdf ? 'application/pdf' : 'image/jpeg';
         const file = new File(doc.uri);
         const arrayBuffer = await file.arrayBuffer();
+        console.log('[NursePendingVerificationScreen] arrayBuffer byteLength for', key, ':', arrayBuffer.byteLength);
         const filePath = `${user.id}/${doc.storageKey}_${Date.now()}.${ext}`;
 
         const { error: uploadError } = await supabase.storage
@@ -150,10 +195,12 @@ const NursePendingVerificationScreen = () => {
           });
 
         if (uploadError) throw uploadError;
+        console.log('[NursePendingVerificationScreen] uploaded', key, 'to', filePath);
 
         updates[doc.column] = filePath;
       }
 
+      console.log('[NursePendingVerificationScreen] updating nurse_profiles with', JSON.stringify(updates));
       const { error: updateError } = await supabase
         .from('nurse_profiles')
         .update({
@@ -166,6 +213,7 @@ const NursePendingVerificationScreen = () => {
 
       setSubmitted(true);
       await fetchProfile(user.id);
+      console.log('[NursePendingVerificationScreen] handleSubmitDocuments completed successfully');
       Alert.alert(
         'Documents envoyés',
         'Vos documents ont été transmis avec succès. Un administrateur va les examiner sous peu.',
@@ -269,6 +317,17 @@ const NursePendingVerificationScreen = () => {
             ? 'Votre demande a été rejetée. Veuillez soumettre de nouveaux documents pour que votre compte soit activé.'
             : 'Pour accéder à SoinLokal, veuillez soumettre les documents suivants (image ou PDF, 5 Mo max) :'}
         </Text>
+
+        {/* Rejection note */}
+        {isRejected && nurseProfile?.rejection_note && (
+          <View style={styles.rejectionNoteBox}>
+            <Ionicons name="alert-circle" size={20} color="#E74C3C" />
+            <View style={styles.rejectionNoteContent}>
+              <Text style={styles.rejectionNoteLabel}>Motif du rejet</Text>
+              <Text style={styles.rejectionNoteText}>{nurseProfile.rejection_note}</Text>
+            </View>
+          </View>
+        )}
 
         {/* RPPS info */}
         {nurseProfile?.rpps_number && (
@@ -382,57 +441,6 @@ const NursePendingVerificationScreen = () => {
         </TouchableOpacity>
       </ScrollView>
 
-      {/* Picker choice modal */}
-      <Modal visible={pickerTarget !== null} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
-            <Text style={styles.modalTitle}>Choisir un document</Text>
-            <Text style={styles.modalSubtitle}>
-              Sélectionnez le type de fichier à importer.
-            </Text>
-
-            <TouchableOpacity
-              style={styles.pickerOption}
-              onPress={() => {
-                const target = pickerTarget;
-                setPickerTarget(null);
-                if (target) handlePickImage(target);
-              }}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="image-outline" size={28} color={COLORS.NURSE_PRIMARY ?? '#2E8B57'} />
-              <View style={styles.pickerOptionText}>
-                <Text style={styles.pickerOptionLabel}>Image (galerie)</Text>
-                <Text style={styles.pickerOptionDesc}>JPG, PNG — sera compressée</Text>
-              </View>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.pickerOption}
-              onPress={() => {
-                const target = pickerTarget;
-                setPickerTarget(null);
-                if (target) handlePickPdf(target);
-              }}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="document-text-outline" size={28} color="#E74C3C" />
-              <View style={styles.pickerOptionText}>
-                <Text style={styles.pickerOptionLabel}>Document PDF</Text>
-                <Text style={styles.pickerOptionDesc}>PDF — 5 Mo maximum</Text>
-              </View>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.modalCancelButton}
-              onPress={() => setPickerTarget(null)}
-            >
-              <Text style={styles.modalCancelButtonText}>Annuler</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
       {/* Edit RPPS Modal */}
       <Modal visible={showEditRpps} transparent animationType="fade">
         <View style={styles.modalOverlay}>
@@ -531,6 +539,21 @@ const styles = StyleSheet.create({
   },
   infoLabel: { fontSize: 12, color: '#94A3B8', marginBottom: 4 },
   infoValue: { fontSize: 16, fontWeight: '600', color: '#1A1A2E' },
+  rejectionNoteBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    backgroundColor: '#FEF2F2',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    padding: 14,
+    width: '100%',
+    marginBottom: 12,
+  },
+  rejectionNoteContent: { flex: 1 },
+  rejectionNoteLabel: { fontSize: 12, fontWeight: '600', color: '#E74C3C', marginBottom: 4 },
+  rejectionNoteText: { fontSize: 14, color: '#991B1B', lineHeight: 20 },
   editRppsButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -652,20 +675,6 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     marginBottom: 20,
   },
-  pickerOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    backgroundColor: '#F8F9FA',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-    padding: 16,
-    marginBottom: 10,
-  },
-  pickerOptionText: { flex: 1 },
-  pickerOptionLabel: { fontSize: 15, fontWeight: '600', color: '#1A1A2E' },
-  pickerOptionDesc: { fontSize: 13, color: '#94A3B8', marginTop: 2 },
   modalInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',

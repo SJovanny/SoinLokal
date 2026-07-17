@@ -64,6 +64,7 @@ export interface NurseProfile {
   adeli?:              string;
   rpps_number?:        string;
   verification_status?: 'pending_docs' | 'pending_review' | 'pending' | 'verified' | 'manual_review' | 'rejected';
+  rejection_note?:     string;
   verified_at?:        string;
   specialties?:        string[];
   zone?:               string;

@@ -38,7 +38,7 @@ export default function VerificationDetailPage() {
     const load = async () => {
       const { data: nurse, error } = await supabase
         .from('nurse_profiles')
-        .select('profile_id, rpps_number, verification_status, verified_at, specialties, zone, cni_path, justificatif_domicile_path, carte_pro_path, profiles(id, first_name, last_name, email, created_at)')
+        .select('profile_id, rpps_number, verification_status, rejection_note, verified_at, specialties, zone, cni_path, justificatif_domicile_path, carte_pro_path, profiles(id, first_name, last_name, email, created_at)')
         .eq('profile_id', profileId)
         .single<NurseProfile>();
 
@@ -113,6 +113,7 @@ export default function VerificationDetailPage() {
         .update({
           verification_status: 'verified',
           verified_at: new Date().toISOString(),
+          rejection_note: null,
         })
         .eq('profile_id', nurseProfile.profile_id);
       if (nurseError) {
@@ -130,6 +131,7 @@ export default function VerificationDetailPage() {
         .update({
           verification_status: 'rejected',
           verified_at: null,
+          rejection_note: notes.trim() || null,
         })
         .eq('profile_id', nurseProfile.profile_id);
       if (nurseError) {
