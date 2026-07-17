@@ -15,11 +15,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
+import * as DocumentPicker from 'expo-document-picker';
 import { File } from 'expo-file-system';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../utils/supabase';
 import { COLORS } from '../../utils/constants';
 import { debugLog } from '../../utils/devConfig';
+
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
 
 // ---------------------------------------------------------------------------
 // Types
@@ -27,6 +30,8 @@ import { debugLog } from '../../utils/devConfig';
 
 interface DocumentState {
   uri: string | null;
+  fileName: string | null;
+  mimeType: string | null;
   label: string;
   icon: React.ComponentProps<typeof Ionicons>['name'];
   storageKey: string;
@@ -41,9 +46,9 @@ const NursePendingVerificationScreen = () => {
   const { user, nurseProfile, logout, fetchProfile } = useAuth();
 
   const [documents, setDocuments] = useState<Record<string, DocumentState>>({
-    cni: { uri: null, label: "Carte d'identité", icon: 'card-outline', storageKey: 'cni', column: 'cni_path' },
-    domicile: { uri: null, label: 'Justificatif de domicile', icon: 'home-outline', storageKey: 'domicile', column: 'justificatif_domicile_path' },
-    carte_pro: { uri: null, label: 'Carte professionnelle (CPS)', icon: 'medal-outline', storageKey: 'carte_pro', column: 'carte_pro_path' },
+    cni: { uri: null, fileName: null, mimeType: null, label: "Carte d'identité", icon: 'card-outline', storageKey: 'cni', column: 'cni_path' },
+    domicile: { uri: null, fileName: null, mimeType: null, label: 'Justificatif de domicile', icon: 'home-outline', storageKey: 'domicile', column: 'justificatif_domicile_path' },
+    carte_pro: { uri: null, fileName: null, mimeType: null, label: 'Carte professionnelle (CPS)', icon: 'medal-outline', storageKey: 'carte_pro', column: 'carte_pro_path' },
   });
 
   const [uploading, setUploading] = useState(false);
@@ -51,6 +56,7 @@ const NursePendingVerificationScreen = () => {
   const [showEditRpps, setShowEditRpps] = useState(false);
   const [newRppsNumber, setNewRppsNumber] = useState('');
   const [verifying, setVerifying] = useState(false);
+  const [pickerTarget, setPickerTarget] = useState<string | null>(null);
 
   const status = nurseProfile?.verification_status;
   const isPendingDocs = status === 'pending_docs';
@@ -59,10 +65,10 @@ const NursePendingVerificationScreen = () => {
   const canUpload = isPendingDocs || isRejected;
 
   // -------------------------------------------------------------------------
-  // Pick image for a specific document type
+  // Pick document — image or PDF
   // -------------------------------------------------------------------------
 
-  const handlePickDocument = async (docKey: string) => {
+  const handlePickImage = async (docKey: string) => {
     const { status: permStatus } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (permStatus !== 'granted') {
       Alert.alert('Permission requise', "Autorisez l'accès à vos photos pour importer vos documents.");
@@ -84,8 +90,33 @@ const NursePendingVerificationScreen = () => {
 
     setDocuments(prev => ({
       ...prev,
-      [docKey]: { ...prev[docKey]!, uri: manipulated.uri },
+      [docKey]: { ...prev[docKey]!, uri: manipulated.uri, fileName: null, mimeType: 'image/jpeg' },
     }));
+  };
+
+  const handlePickPdf = async (docKey: string) => {
+    const result = await DocumentPicker.getDocumentAsync({
+      type: 'application/pdf',
+      copyToCacheDirectory: true,
+    });
+
+    if (result.canceled || !result.assets?.[0]) return;
+
+    const asset = result.assets[0];
+
+    if (asset.size && asset.size > MAX_FILE_SIZE) {
+      Alert.alert('Fichier trop volumineux', 'Le fichier ne doit pas dépasser 5 Mo.');
+      return;
+    }
+
+    setDocuments(prev => ({
+      ...prev,
+      [docKey]: { ...prev[docKey]!, uri: asset.uri, fileName: asset.name, mimeType: 'application/pdf' },
+    }));
+  };
+
+  const handlePickDocument = (docKey: string) => {
+    setPickerTarget(docKey);
   };
 
   // -------------------------------------------------------------------------
@@ -104,14 +135,17 @@ const NursePendingVerificationScreen = () => {
       for (const [, doc] of Object.entries(documents)) {
         if (!doc.uri) continue;
 
+        const isPdf = doc.mimeType === 'application/pdf';
+        const ext = isPdf ? 'pdf' : 'jpg';
+        const contentType = isPdf ? 'application/pdf' : 'image/jpeg';
         const file = new File(doc.uri);
         const arrayBuffer = await file.arrayBuffer();
-        const filePath = `${user.id}/${doc.storageKey}_${Date.now()}.jpg`;
+        const filePath = `${user.id}/${doc.storageKey}_${Date.now()}.${ext}`;
 
         const { error: uploadError } = await supabase.storage
           .from('nurse-documents')
           .upload(filePath, arrayBuffer, {
-            contentType: 'image/jpeg',
+            contentType,
             upsert: true,
           });
 
@@ -233,7 +267,7 @@ const NursePendingVerificationScreen = () => {
             ? 'Vos documents ont été soumis et sont en cours de vérification par un administrateur. Vous serez notifiée dès que votre compte sera activé.'
             : isRejected
             ? 'Votre demande a été rejetée. Veuillez soumettre de nouveaux documents pour que votre compte soit activé.'
-            : 'Pour accéder à SoinLokal, veuillez soumettre les documents suivants :'}
+            : 'Pour accéder à SoinLokal, veuillez soumettre les documents suivants (image ou PDF, 5 Mo max) :'}
         </Text>
 
         {/* RPPS info */}
@@ -271,12 +305,18 @@ const NursePendingVerificationScreen = () => {
                   <View style={styles.docCardText}>
                     <Text style={styles.docCardLabel}>{doc.label}</Text>
                     <Text style={styles.docCardStatus}>
-                      {doc.uri ? 'Document sélectionné' : 'Appuyez pour sélectionner'}
+                      {doc.uri
+                        ? doc.fileName ?? 'Document sélectionné'
+                        : 'Appuyez pour sélectionner'}
                     </Text>
                   </View>
                 </View>
                 {doc.uri ? (
-                  <Ionicons name="checkmark-circle" size={24} color="#2E8B57" />
+                  doc.mimeType === 'application/pdf' ? (
+                    <Ionicons name="document-text" size={24} color="#2E8B57" />
+                  ) : (
+                    <Ionicons name="checkmark-circle" size={24} color="#2E8B57" />
+                  )
                 ) : (
                   <Ionicons name="chevron-forward" size={20} color="#94A3B8" />
                 )}
@@ -288,7 +328,16 @@ const NursePendingVerificationScreen = () => {
               <View style={styles.previewRow}>
                 {Object.entries(documents).map(([key, doc]) =>
                   doc.uri ? (
-                    <Image key={key} source={{ uri: doc.uri }} style={styles.previewImage} />
+                    doc.mimeType === 'application/pdf' ? (
+                      <View key={key} style={styles.previewPdf}>
+                        <Ionicons name="document-text" size={32} color="#E74C3C" />
+                        <Text style={styles.previewPdfText} numberOfLines={1}>
+                          {doc.fileName ?? 'PDF'}
+                        </Text>
+                      </View>
+                    ) : (
+                      <Image key={key} source={{ uri: doc.uri }} style={styles.previewImage} />
+                    )
                   ) : null,
                 )}
               </View>
@@ -332,6 +381,57 @@ const NursePendingVerificationScreen = () => {
           <Text style={styles.logoutButtonText}>Se déconnecter</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      {/* Picker choice modal */}
+      <Modal visible={pickerTarget !== null} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <Text style={styles.modalTitle}>Choisir un document</Text>
+            <Text style={styles.modalSubtitle}>
+              Sélectionnez le type de fichier à importer.
+            </Text>
+
+            <TouchableOpacity
+              style={styles.pickerOption}
+              onPress={() => {
+                const target = pickerTarget;
+                setPickerTarget(null);
+                if (target) handlePickImage(target);
+              }}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="image-outline" size={28} color={COLORS.NURSE_PRIMARY ?? '#2E8B57'} />
+              <View style={styles.pickerOptionText}>
+                <Text style={styles.pickerOptionLabel}>Image (galerie)</Text>
+                <Text style={styles.pickerOptionDesc}>JPG, PNG — sera compressée</Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.pickerOption}
+              onPress={() => {
+                const target = pickerTarget;
+                setPickerTarget(null);
+                if (target) handlePickPdf(target);
+              }}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="document-text-outline" size={28} color="#E74C3C" />
+              <View style={styles.pickerOptionText}>
+                <Text style={styles.pickerOptionLabel}>Document PDF</Text>
+                <Text style={styles.pickerOptionDesc}>PDF — 5 Mo maximum</Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.modalCancelButton}
+              onPress={() => setPickerTarget(null)}
+            >
+              <Text style={styles.modalCancelButtonText}>Annuler</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       {/* Edit RPPS Modal */}
       <Modal visible={showEditRpps} transparent animationType="fade">
@@ -479,6 +579,23 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: '#E0E0E0',
   },
+  previewPdf: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+    backgroundColor: '#FEF2F2',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+  },
+  previewPdfText: {
+    fontSize: 9,
+    color: '#E74C3C',
+    marginTop: 4,
+    maxWidth: 70,
+    textAlign: 'center',
+  },
   primaryButton: {
     flexDirection: 'row',
     gap: 8,
@@ -535,6 +652,20 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     marginBottom: 20,
   },
+  pickerOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    backgroundColor: '#F8F9FA',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    padding: 16,
+    marginBottom: 10,
+  },
+  pickerOptionText: { flex: 1 },
+  pickerOptionLabel: { fontSize: 15, fontWeight: '600', color: '#1A1A2E' },
+  pickerOptionDesc: { fontSize: 13, color: '#94A3B8', marginTop: 2 },
   modalInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',

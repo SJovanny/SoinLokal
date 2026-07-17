@@ -3,11 +3,21 @@
 -- after RPPS API verification, before admin review.
 
 -- ---------------------------------------------------------------------------
--- 1. Add new verification statuses to the CHECK constraint
+-- 0. Drop old CHECK constraint first so we can migrate values
 -- ---------------------------------------------------------------------------
 
 ALTER TABLE public.nurse_profiles
   DROP CONSTRAINT IF EXISTS nurse_profiles_verification_status_check;
+
+-- ---------------------------------------------------------------------------
+-- 1. Migrate old 'pending' status to 'pending_docs'
+-- ---------------------------------------------------------------------------
+
+UPDATE public.nurse_profiles SET verification_status = 'pending_docs' WHERE verification_status = 'pending';
+
+-- ---------------------------------------------------------------------------
+-- 2. Add new verification statuses CHECK constraint
+-- ---------------------------------------------------------------------------
 
 ALTER TABLE public.nurse_profiles
   ADD CONSTRAINT nurse_profiles_verification_status_check
@@ -18,7 +28,7 @@ ALTER TABLE public.nurse_profiles
   ALTER COLUMN verification_status SET DEFAULT 'pending_docs';
 
 -- ---------------------------------------------------------------------------
--- 2. Add document path columns
+-- 3. Add document path columns
 -- ---------------------------------------------------------------------------
 
 ALTER TABLE public.nurse_profiles

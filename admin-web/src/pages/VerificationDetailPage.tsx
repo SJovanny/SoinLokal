@@ -172,6 +172,7 @@ export default function VerificationDetailPage() {
   }
 
   const profile = nurseProfile?.profiles;
+  const annuaireUrl = 'https://annuaire.esante.gouv.fr/search/pp';
 
   return (
     <div>
@@ -234,18 +235,34 @@ export default function VerificationDetailPage() {
 
           {/* ANS Verification */}
           <div className="rounded-xl border border-gray-200 bg-white p-5">
-            <h4 className="mb-3 text-sm font-semibold text-gray-800">Vérification RPPS (API ANS)</h4>
+            <h4 className="mb-3 text-sm font-semibold text-gray-800">Vérification RPPS</h4>
 
-            <button
-              onClick={handleVerifyRpps}
-              disabled={ansLoading || !nurseProfile?.rpps_number}
-              className="mb-3 w-full rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700 transition-colors hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {ansLoading ? 'Vérification...' : 'Vérifier sur l\'annuaire ANS'}
-            </button>
+            <div className="space-y-2">
+              <button
+                onClick={handleVerifyRpps}
+                disabled={ansLoading || !nurseProfile?.rpps_number}
+                className="w-full rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700 transition-colors hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {ansLoading ? 'Vérification...' : 'Vérifier automatiquement (API ANS)'}
+              </button>
+
+              {annuaireUrl && (
+                <a
+                  href={annuaireUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-100"
+                >
+                  Vérifier le nom sur l'annuaire
+                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+                  </svg>
+                </a>
+              )}
+            </div>
 
             {ansResult && (
-              <div className="space-y-2 rounded-lg bg-gray-50 p-3 text-sm">
+              <div className="mt-3 space-y-2 rounded-lg bg-gray-50 p-3 text-sm">
                 <p>
                   <span className="font-medium text-gray-600">Statut :</span>{' '}
                   {ansResult.status === 'verified' ? (
@@ -274,16 +291,8 @@ export default function VerificationDetailPage() {
             )}
 
             <p className="mt-3 text-xs text-gray-400">
-              Pour vérifier le nom du praticien, consultez{' '}
-              <a
-                href="https://annuaire.esante.gouv.fr/search"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-emerald-600 underline hover:text-emerald-700"
-              >
-                l'annuaire ANS
-              </a>{' '}
-              avec le numéro RPPS ci-dessus.
+              La vérification automatique confirme que le RPPS est actif et correspond à un(e) infirmier(ère).
+              Utilisez le lien ci-dessus pour vérifier le nom du praticien sur l'annuaire officiel.
             </p>
           </div>
 
@@ -325,6 +334,9 @@ export default function VerificationDetailPage() {
 
           {Object.entries(DOC_LABELS).map(([key, doc]) => {
             const url = documentUrls[key];
+            const filePath = (nurseProfile as any)?.[doc.column] as string | null;
+            const isPdf = filePath?.endsWith('.pdf') ?? false;
+
             return (
               <div key={key} className="rounded-xl border border-gray-200 bg-white p-5">
                 <div className="mb-3 flex items-center gap-2">
@@ -332,11 +344,36 @@ export default function VerificationDetailPage() {
                   <h4 className="text-sm font-semibold text-gray-700">{doc.label}</h4>
                 </div>
                 {url ? (
-                  <img
-                    src={url}
-                    alt={doc.label}
-                    className="max-h-[400px] w-full rounded-lg object-contain"
-                  />
+                  isPdf ? (
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-3 rounded-lg border border-red-200 bg-red-50 p-4">
+                        <span className="text-2xl">📄</span>
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-gray-900">Document PDF</p>
+                          <p className="text-xs text-gray-500">{filePath?.split('/').pop()}</p>
+                        </div>
+                        <a
+                          href={url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+                        >
+                          Ouvrir le PDF
+                        </a>
+                      </div>
+                      <iframe
+                        src={url}
+                        className="h-[600px] w-full rounded-lg border border-gray-200"
+                        title={doc.label}
+                      />
+                    </div>
+                  ) : (
+                    <img
+                      src={url}
+                      alt={doc.label}
+                      className="max-h-[400px] w-full rounded-lg object-contain"
+                    />
+                  )
                 ) : (
                   <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-gray-300 py-12">
                     <span className="text-2xl">📄</span>

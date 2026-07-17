@@ -5,6 +5,11 @@
 -- verification documents (justificatifs).
 
 -- ---------------------------------------------------------------------------
+-- 0. Extensions
+-- ---------------------------------------------------------------------------
+CREATE EXTENSION IF NOT EXISTS moddatetime SCHEMA extensions;
+
+-- ---------------------------------------------------------------------------
 -- 1. nurse_profiles: verification tracking columns
 -- ---------------------------------------------------------------------------
 
@@ -68,7 +73,7 @@ CREATE POLICY "Admin updates all verification requests" ON public.nurse_verifica
 
 DROP TRIGGER IF EXISTS handle_updated_at ON public.nurse_verification_requests;
 CREATE TRIGGER handle_updated_at BEFORE UPDATE ON public.nurse_verification_requests
-  FOR EACH ROW EXECUTE PROCEDURE moddatetime (updated_at);
+  FOR EACH ROW EXECUTE PROCEDURE extensions.moddatetime (updated_at);
 
 -- ---------------------------------------------------------------------------
 -- 4. Admin can view/update all profiles + nurse_profiles (for the review flow)

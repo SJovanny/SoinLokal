@@ -25,7 +25,6 @@ interface VerifyRppsResponse {
   status: VerificationStatus;
   profession?: string;
   message: string;
-  rawPayload?: unknown;
 }
 
 // ---------------------------------------------------------------------------
@@ -175,6 +174,7 @@ serve(async (req: Request) => {
     // Check active status
     // -------------------------------------------------------------------------
     const isActive = practitioner?.active !== false;
+
     if (!isActive) {
       console.log('[verify-rpps] Practitioner is inactive, RPPS:', rppsNumber);
       return jsonResponse(
