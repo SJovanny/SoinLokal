@@ -14,6 +14,8 @@ import { COLORS, SIZES } from '../../utils/constants';
 import LogoutButton from '../../components/LogoutButton';
 import Avatar from '../../components/Avatar';
 import AvatarPicker from '../../components/AvatarPicker';
+import HelpSection from '../../components/HelpSection';
+import OnboardingModal from '../../components/OnboardingModal';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -40,6 +42,7 @@ const FamilyProfile: React.FC = () => {
   const { userProfile, familyLinks, user, fetchProfile } = useAuth();
   const [linkedPatient, setLinkedPatient] = useState<LinkedPatientInfo | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
   useEffect(() => {
     const fetchLinked = async () => {
@@ -241,11 +244,23 @@ const FamilyProfile: React.FC = () => {
           ) : null}
         </View>
 
+        {/* Help & Support */}
+        <HelpSection
+          userType="family"
+          onRestartTutorial={() => setShowOnboarding(true)}
+        />
+
         {/* Logout */}
         <View style={styles.logoutSection}>
           <LogoutButton variant="danger" style={styles.logoutButton} />
         </View>
       </ScrollView>
+
+      <OnboardingModal
+        visible={showOnboarding}
+        userType="family"
+        onClose={() => setShowOnboarding(false)}
+      />
     </SafeAreaView>
   );
 };

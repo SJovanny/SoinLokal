@@ -23,6 +23,8 @@ import { searchAddress } from '../../utils/geocoding';
 import { nativeGeocode } from '../../utils/nativeGeocoding';
 import LogoutButton from '../../components/LogoutButton';
 import AvatarPicker from '../../components/AvatarPicker';
+import HelpSection from '../../components/HelpSection';
+import OnboardingModal from '../../components/OnboardingModal';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -65,6 +67,9 @@ const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
 
   // Re-geocoding of existing patient addresses (native geocoder: CLGeocoder / Geocoder)
   const [regeocoding, setRegeocoding] = useState(false);
+
+  // Onboarding
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
   // -------------------------------------------------------------------------
   // Load addresses
@@ -648,11 +653,23 @@ const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           </View>
         )}
 
+        {/* Help & Support */}
+        <HelpSection
+          userType="nurse"
+          onRestartTutorial={() => setShowOnboarding(true)}
+        />
+
         {/* Logout */}
         <View style={styles.logoutSection}>
           <LogoutButton variant="danger" style={styles.logoutButton} />
         </View>
       </ScrollView>
+
+      <OnboardingModal
+        visible={showOnboarding}
+        userType="nurse"
+        onClose={() => setShowOnboarding(false)}
+      />
 
       {/* Add Address Modal */}
       <Modal visible={showAddModal} animationType="slide" transparent>

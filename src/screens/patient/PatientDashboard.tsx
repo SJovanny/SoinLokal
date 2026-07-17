@@ -11,12 +11,14 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../../contexts/AuthContext';
 import { useMessageCount } from '../../contexts/MessageCountContext';
 import { supabase } from '../../utils/supabase';
 import { COLORS, SIZES } from '../../utils/constants';
 import LogoutButton from '../../components/LogoutButton';
 import Avatar from '../../components/Avatar';
+import OnboardingModal from '../../components/OnboardingModal';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -84,6 +86,17 @@ const PatientDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
   const [recentCares, setRecentCares] = useState<RecentCare[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+
+  useEffect(() => {
+    const checkOnboarding = async () => {
+      try {
+        const val = await AsyncStorage.getItem('soinlokal.onboarding.patient');
+        if (val !== 'completed') setShowOnboarding(true);
+      } catch {}
+    };
+    checkOnboarding();
+  }, []);
 
   // -------------------------------------------------------------------------
   // Fetch data
@@ -392,6 +405,15 @@ const PatientDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
           )}
         </View>
       </ScrollView>
+
+      <OnboardingModal
+        visible={showOnboarding}
+        userType="patient"
+        onClose={() => {
+          AsyncStorage.setItem('soinlokal.onboarding.patient', 'completed').catch(() => {});
+          setShowOnboarding(false);
+        }}
+      />
     </SafeAreaView>
   );
 };

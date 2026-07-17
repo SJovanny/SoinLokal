@@ -16,6 +16,8 @@ import { supabase, type PatientProfile as PatientProfileData } from '../../utils
 import { COLORS, SIZES } from '../../utils/constants';
 import LogoutButton from '../../components/LogoutButton';
 import AvatarPicker from '../../components/AvatarPicker';
+import HelpSection from '../../components/HelpSection';
+import OnboardingModal from '../../components/OnboardingModal';
 
 // ---------------------------------------------------------------------------
 // Component
@@ -25,6 +27,7 @@ const PatientProfileScreen: React.FC = () => {
   const { userProfile, patientProfile, fetchProfile, user } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
   // Editable fields
   const [editFirstName, setEditFirstName] = useState('');
@@ -244,11 +247,23 @@ const PatientProfileScreen: React.FC = () => {
           </View>
         )}
 
+        {/* Help & Support */}
+        <HelpSection
+          userType="patient"
+          onRestartTutorial={() => setShowOnboarding(true)}
+        />
+
         {/* Logout */}
         <View style={styles.logoutSection}>
           <LogoutButton variant="danger" style={styles.logoutButton} />
         </View>
       </ScrollView>
+
+      <OnboardingModal
+        visible={showOnboarding}
+        userType="patient"
+        onClose={() => setShowOnboarding(false)}
+      />
     </SafeAreaView>
   );
 };
