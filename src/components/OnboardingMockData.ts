@@ -73,6 +73,18 @@ export const NURSE_MOCK = {
 };
 
 // ---------------------------------------------------------------------------
+// Tournée (mock with real Martinique-style addresses)
+// ---------------------------------------------------------------------------
+
+export const TOURNEE_MOCK = [
+  { name: 'Marie Beaumont', time: '08:30', address: '12 Rue des Lilas', lat: 14.6161, lng: -61.0742 },
+  { name: 'Joseph Fanfan', time: '09:15', address: '5 Ave. des Arawaks', lat: 14.6100, lng: -61.0033 },
+  { name: 'Lucie Saint-Cyr', time: '10:00', address: '8 Bd. de la Liberté', lat: 14.6094, lng: -61.0667 },
+  { name: 'André Moreau', time: '11:00', address: '3 Rue Victor Hugo', lat: 14.6089, lng: -61.0998 },
+  { name: 'Carole Dumas', time: '14:00', address: '22 Chemin des Cocotiers', lat: 14.5464, lng: -60.9673 },
+];
+
+// ---------------------------------------------------------------------------
 // Patient
 // ---------------------------------------------------------------------------
 

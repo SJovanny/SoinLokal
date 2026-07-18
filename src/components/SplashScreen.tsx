@@ -103,7 +103,7 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ onAnimationComplete }) => {
             Soins à domicile en Martinique
           </Text>
         </View>
-      </View>
+      </View>la
 
       {/* Barre de chargement moderne */}
       <Animated.View 

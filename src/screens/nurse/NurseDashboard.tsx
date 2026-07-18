@@ -11,13 +11,11 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../utils/supabase';
 import { COLORS, SIZES } from '../../utils/constants';
 import LogoutButton from '../../components/LogoutButton';
 import Avatar from '../../components/Avatar';
-import OnboardingModal from '../../components/OnboardingModal';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -88,18 +86,6 @@ const NurseDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
   const [appointments, setAppointments] = useState<TodayAppointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [showOnboarding, setShowOnboarding] = useState(false);
-
-  // Check onboarding on mount
-  useEffect(() => {
-    const checkOnboarding = async () => {
-      try {
-        const val = await AsyncStorage.getItem('soinlokal.onboarding.nurse');
-        if (val !== 'completed') setShowOnboarding(true);
-      } catch {}
-    };
-    checkOnboarding();
-  }, []);
 
   // -------------------------------------------------------------------------
   // Fetch data
@@ -386,15 +372,6 @@ const NurseDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
           )}
         </View>
       </ScrollView>
-
-      <OnboardingModal
-        visible={showOnboarding}
-        userType="nurse"
-        onClose={() => {
-          AsyncStorage.setItem('soinlokal.onboarding.nurse', 'completed').catch(() => {});
-          setShowOnboarding(false);
-        }}
-      />
     </SafeAreaView>
   );
 };

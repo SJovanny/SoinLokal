@@ -10,6 +10,7 @@ import {
   Animated as RNAnimated,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import MapView, { Marker } from 'react-native-maps';
 import { COLORS, SIZES, getThemeColor } from '../utils/constants';
 import {
   NURSE_SLIDES,
@@ -18,6 +19,7 @@ import {
   NURSE_MOCK,
   PATIENT_MOCK,
   FAMILY_MOCK,
+  TOURNEE_MOCK,
   type OnboardingSlide,
 } from './OnboardingMockData';
 
@@ -102,85 +104,52 @@ function NursePatientsPreview() {
 }
 
 function TourneePreview() {
-  const stops = [
-    { name: 'Beaumont',      time: '08:30', x: 25, y: 20 },
-    { name: 'Fanfan',        time: '09:15', x: 60, y: 35 },
-    { name: 'Saint-Cyr',     time: '10:00', x: 40, y: 55 },
-    { name: 'Moreau',        time: '11:00', x: 75, y: 70 },
-  ];
+  const centerLat = TOURNEE_MOCK.reduce((sum, s) => sum + s.lat, 0) / TOURNEE_MOCK.length;
+  const centerLng = TOURNEE_MOCK.reduce((sum, s) => sum + s.lng, 0) / TOURNEE_MOCK.length;
 
   return (
     <View style={pv.container}>
-      {/* Map area */}
+      {/* Real map */}
       <View style={pv.mapArea}>
-        {/* Grid lines to simulate map */}
-        <View style={pv.mapGrid}>
-          {[0.2, 0.4, 0.6, 0.8].map((p) => (
-            <React.Fragment key={p}>
-              <View style={[pv.gridH, { top: `${p * 100}%` }]} />
-              <View style={[pv.gridV, { left: `${p * 100}%` }]} />
-            </React.Fragment>
+        <MapView
+          style={{ flex: 1 }}
+          initialRegion={{
+            latitude: centerLat,
+            longitude: centerLng,
+            latitudeDelta: 0.06,
+            longitudeDelta: 0.06,
+          }}
+          scrollEnabled={false}
+          zoomEnabled={false}
+          pitchEnabled={false}
+          rotateEnabled={false}
+          toolbarEnabled={false}
+        >
+          {TOURNEE_MOCK.map((stop, i) => (
+            <Marker
+              key={i}
+              coordinate={{ latitude: stop.lat, longitude: stop.lng }}
+              anchor={{ x: 0.5, y: 1 }}
+            >
+              <View style={pv.markerAnchor}>
+                <View style={pv.markerBubble}>
+                  <Text style={pv.markerText}>{i + 1}</Text>
+                </View>
+              </View>
+            </Marker>
           ))}
-        </View>
-
-        {/* Route line connecting stops */}
-        <View style={pv.routeLineContainer}>
-          {stops.map((s, i) => {
-            if (i === stops.length - 1) return null;
-            const next = stops[i + 1];
-            return (
-              <View
-                key={i}
-                style={[
-                  pv.routeSegment,
-                  {
-                    left: `${s.x}%`,
-                    top: `${s.y}%`,
-                    width: Math.sqrt(
-                      Math.pow((next.x - s.x) * (PREVIEW_WIDTH - 32) / 100, 2) +
-                      Math.pow((next.y - s.y) * 140 / 100, 2)
-                    ),
-                    transform: [
-                      { rotate: `${Math.atan2(next.y - s.y, next.x - s.x) * 180 / Math.PI}deg` },
-                    ],
-                  },
-                ]}
-              />
-            );
-          })}
-        </View>
-
-        {/* Patient pins */}
-        {stops.map((s, i) => (
-          <View
-            key={i}
-            style={[
-              pv.pin,
-              { left: `${s.x}%`, top: `${s.y}%` },
-            ]}
-          >
-            <View style={[pv.pinDot, i === 0 && pv.pinDotActive]}>
-              <Text style={pv.pinNum}>{i + 1}</Text>
-            </View>
-            <View style={pv.pinTail} />
-          </View>
-        ))}
-
-        {/* Street names */}
-        <Text style={[pv.streetName, { top: '15%', left: '10%' }]}>Rue des Lilas</Text>
-        <Text style={[pv.streetName, { top: '48%', left: '55%', transform: [{ rotate: '-15deg' }] }]}>Blvd Liberté</Text>
-        <Text style={[pv.streetName, { top: '80%', left: '15%' }]}>Rue Victor Hugo</Text>
+        </MapView>
       </View>
 
       {/* Stop list */}
       <View style={pv.stopList}>
-        {stops.map((s, i) => (
+        {TOURNEE_MOCK.map((stop, i) => (
           <View key={i} style={pv.stopRow}>
             <View style={[pv.stopNum, i === 0 && pv.stopNumActive]}>
               <Text style={[pv.stopNumTxt, i === 0 && { color: COLORS.WHITE }]}>{i + 1}</Text>
             </View>
-            <Text style={pv.stopName}>{s.name}</Text>
-            <Text style={pv.stopTime}>{s.time}</Text>
+            <Text style={pv.stopName}>{stop.name}</Text>
+            <Text style={pv.stopTime}>{stop.time}</Text>
           </View>
         ))}
       </View>
@@ -741,83 +710,32 @@ const pv = StyleSheet.create({
   // Map / Tournée
   mapArea: {
     height: 140,
-    backgroundColor: '#E8F0E8',
     borderRadius: SIZES.BORDER_RADIUS_SM,
     overflow: 'hidden',
     marginBottom: SIZES.SM,
-    position: 'relative',
   },
-  mapGrid: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  gridH: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    height: 1,
-    backgroundColor: 'rgba(0,100,0,0.08)',
-  },
-  gridV: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    width: 1,
-    backgroundColor: 'rgba(0,100,0,0.08)',
-  },
-  routeLineContainer: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  routeSegment: {
-    position: 'absolute',
-    height: 3,
-    backgroundColor: COLORS.NURSE_PRIMARY,
-    borderRadius: 2,
-    opacity: 0.6,
-  },
-  pin: {
-    position: 'absolute',
+  markerAnchor: {
     alignItems: 'center',
-    marginLeft: -10,
-    marginTop: -20,
   },
-  pinDot: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+  markerBubble: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     backgroundColor: COLORS.NURSE_PRIMARY,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
     borderColor: COLORS.WHITE,
     shadowColor: COLORS.BLACK,
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
-    shadowRadius: 2,
-    elevation: 3,
+    shadowRadius: 3,
+    elevation: 4,
   },
-  pinDotActive: {
-    backgroundColor: COLORS.DANGER,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-  },
-  pinNum: {
-    fontSize: 9,
+  markerText: {
+    fontSize: 11,
     fontWeight: '800',
     color: COLORS.WHITE,
-  },
-  pinTail: {
-    width: 2,
-    height: 6,
-    backgroundColor: COLORS.NURSE_PRIMARY,
-    opacity: 0.4,
-  },
-  streetName: {
-    position: 'absolute',
-    fontSize: 8,
-    color: 'rgba(0,80,0,0.35)',
-    fontWeight: '500',
-    fontStyle: 'italic',
   },
   stopList: {
     gap: 4,
