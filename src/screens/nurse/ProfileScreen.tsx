@@ -632,27 +632,6 @@ const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           </View>
         )}
 
-        {/* Stats */}
-        {userProfile?.user_type === 'nurse' && nurseProfile && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Statistiques</Text>
-            <View style={styles.statsContainer}>
-              <View style={styles.statItem}>
-                <Text style={styles.statNumber}>{nurseProfile.total_patients}</Text>
-                <Text style={styles.statLabel}>Patients</Text>
-              </View>
-              <View style={styles.statItem}>
-                <Text style={styles.statNumber}>{nurseProfile.total_visits}</Text>
-                <Text style={styles.statLabel}>Visites</Text>
-              </View>
-              <View style={styles.statItem}>
-                <Text style={styles.statNumber}>{nurseProfile.rating.toFixed(1)}</Text>
-                <Text style={styles.statLabel}>Note</Text>
-              </View>
-            </View>
-          </View>
-        )}
-
         {/* Help & Support */}
         <HelpSection
           userType="nurse"
@@ -1036,24 +1015,6 @@ const styles = StyleSheet.create({
   addressGPS: {
     fontSize: SIZES.FONT_XS,
     color: COLORS.TEXT_MUTED,
-  },
-  // Stats
-  statsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-  },
-  statItem: {
-    alignItems: 'center',
-  },
-  statNumber: {
-    fontSize: SIZES.FONT_2XL,
-    fontWeight: '700',
-    color: COLORS.NURSE_PRIMARY,
-  },
-  statLabel: {
-    fontSize: SIZES.FONT_XS,
-    color: COLORS.TEXT_MUTED,
-    marginTop: 2,
   },
   // Logout
   logoutSection: {

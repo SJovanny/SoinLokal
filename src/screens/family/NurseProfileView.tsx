@@ -25,9 +25,6 @@ interface NurseData {
   rppsNumber: string | null;
   specialties: string[];
   zone: string | null;
-  rating: number;
-  totalPatients: number;
-  totalVisits: number;
   photoUrl: string | null;
   avatarType: 'photo' | 'generated' | null;
   avatarSeed: string | null;
@@ -67,7 +64,7 @@ const NurseProfileView: React.FC<{ navigation: any; route: any }> = ({
 
         const { data: np, error: npErr } = await supabase
           .from('nurse_profiles')
-          .select('rpps_number, specialties, zone, rating, total_patients, total_visits')
+          .select('rpps_number, specialties, zone')
           .eq('profile_id', nurseId)
           .single();
 
@@ -83,9 +80,6 @@ const NurseProfileView: React.FC<{ navigation: any; route: any }> = ({
           rppsNumber: np?.rpps_number ?? null,
           specialties: np?.specialties ?? [],
           zone: np?.zone ?? null,
-          rating: np?.rating ?? 0,
-          totalPatients: np?.total_patients ?? 0,
-          totalVisits: np?.total_visits ?? 0,
           photoUrl: profile.photo_url ?? null,
           avatarType: profile.avatar_type ?? null,
           avatarSeed: profile.avatar_seed ?? null,
@@ -184,24 +178,6 @@ const NurseProfileView: React.FC<{ navigation: any; route: any }> = ({
           )}
         </View>
 
-        {/* Stats */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Statistiques</Text>
-          <View style={styles.statsContainer}>
-            <View style={styles.statItem}>
-              <Text style={styles.statNumber}>{data.totalPatients}</Text>
-              <Text style={styles.statLabel}>Patients</Text>
-            </View>
-            <View style={styles.statItem}>
-              <Text style={styles.statNumber}>{data.totalVisits}</Text>
-              <Text style={styles.statLabel}>Visites</Text>
-            </View>
-            <View style={styles.statItem}>
-              <Text style={styles.statNumber}>{data.rating.toFixed(1)}</Text>
-              <Text style={styles.statLabel}>Note</Text>
-            </View>
-          </View>
-        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -358,25 +334,6 @@ const styles = StyleSheet.create({
     fontSize: SIZES.FONT_MD,
     color: COLORS.TEXT_PRIMARY,
     fontWeight: '500',
-  },
-  // Stats
-  statsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    paddingTop: SIZES.SM,
-  },
-  statItem: {
-    alignItems: 'center',
-  },
-  statNumber: {
-    fontSize: SIZES.FONT_2XL,
-    fontWeight: '700',
-    color: COLORS.FAMILY_PRIMARY,
-  },
-  statLabel: {
-    fontSize: SIZES.FONT_XS,
-    color: COLORS.TEXT_MUTED,
-    marginTop: 2,
   },
 });
 
