@@ -212,7 +212,7 @@ const NurseDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
             <Text style={styles.appointmentType}>{item.careType}</Text>
           </View>
           <View style={styles.timeContainer}>
-            <Text style={styles.time}>{formatTime(item.time)}</Text>
+            {item.time && <Text style={styles.time}>{formatTime(item.time)}</Text>}
             <Ionicons
               name={isCompleted ? 'checkmark-circle' : 'time-outline'}
               size={20}
