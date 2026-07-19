@@ -65,9 +65,6 @@ const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const [editSpecialties, setEditSpecialties] = useState('');
   const [editZone, setEditZone] = useState('');
 
-  // Re-geocoding of existing patient addresses (native geocoder: CLGeocoder / Geocoder)
-  const [regeocoding, setRegeocoding] = useState(false);
-
   // Onboarding
   const [showOnboarding, setShowOnboarding] = useState(false);
 
@@ -278,80 +275,6 @@ const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   };
 
   // -------------------------------------------------------------------------
-  // Re-geocode this nurse's patient addresses with Mapbox (aligns stored GPS
-  // with the map tiles so pins match Waze/Google). Runs client-side.
-  // -------------------------------------------------------------------------
-
-  const handleRegeocodePatients = () => {
-    if (!user) return;
-    Alert.alert(
-      'Recalculer les GPS patients',
-      'Cela va re-géocoder les adresses de vos patients avec le géocodeur natif (Apple Maps/Google Maps) pour aligner les pins sur la carte. Continuer ?',
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Recalculer',
-          onPress: async () => {
-            setRegeocoding(true);
-            try {
-              // 1. patient_files for this nurse → patient ids
-              const { data: files, error: fErr } = await supabase
-                .from('patient_files')
-                .select('patient_id')
-                .eq('nurse_id', user.id);
-              if (fErr) throw fErr;
-              const patientIds = (files ?? []).map((f: any) => f.patient_id).filter(Boolean);
-              if (patientIds.length === 0) {
-                Alert.alert('Info', 'Aucun patient associé à votre compte.');
-                return;
-              }
-
-              // 2. patient_profiles for those patient ids
-              const { data: profiles, error: pErr } = await supabase
-                .from('patient_profiles')
-                .select('profile_id, address, gps_lat, gps_lng')
-                .in('profile_id', patientIds);
-              if (pErr) throw pErr;
-
-              const withAddr = (profiles ?? []).filter(
-                (p: any) => (p.address ?? '').trim().length > 0,
-              );
-
-              let updated = 0;
-              let failed = 0;
-              for (const p of withAddr) {
-                const coord = await nativeGeocode(p.address);
-                if (!coord) { failed++; continue; }
-                const moved =
-                  p.gps_lat == null ||
-                  p.gps_lng == null ||
-                  Math.abs(p.gps_lat - coord.lat) > 1e-6 ||
-                  Math.abs(p.gps_lng - coord.lng) > 1e-6;
-                if (!moved) continue;
-                const { error: upErr } = await supabase
-                  .from('patient_profiles')
-                  .update({ gps_lat: coord.lat, gps_lng: coord.lng })
-                  .eq('profile_id', p.profile_id);
-                if (upErr) { failed++; continue; }
-                updated++;
-              }
-
-              Alert.alert(
-                'Terminé',
-                `${updated} adresse(s) recalculée(s) avec le géocodeur natif.${failed > 0 ? `\n${failed} échec(s).` : ''}`,
-              );
-            } catch (err: any) {
-              Alert.alert('Erreur', err?.message ?? 'Échec du re-géocodage.');
-            } finally {
-              setRegeocoding(false);
-            }
-          },
-        },
-      ],
-    );
-  };
-
-  // -------------------------------------------------------------------------
   // Delete address
   // -------------------------------------------------------------------------
 
@@ -557,21 +480,6 @@ const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                 <Text style={styles.addBtnText}>Ajouter</Text>
               </TouchableOpacity>
             </View>
-
-            <TouchableOpacity
-              style={styles.regeocodeBtn}
-              onPress={handleRegeocodePatients}
-              disabled={regeocoding}
-            >
-              {regeocoding ? (
-                <ActivityIndicator size="small" color={COLORS.NURSE_PRIMARY} />
-              ) : (
-                <Ionicons name="locate-outline" size={16} color={COLORS.NURSE_PRIMARY} />
-              )}
-              <Text style={styles.regeocodeBtnText}>
-                {regeocoding ? 'Recalcul en cours…' : 'Recalculer les GPS patients (natif)'}
-              </Text>
-            </TouchableOpacity>
 
             {addresses.length === 0 ? (
               <View style={styles.emptyAddresses}>
@@ -929,24 +837,6 @@ const styles = StyleSheet.create({
   },
   addBtnText: {
     color: COLORS.WHITE,
-    fontSize: SIZES.FONT_SM,
-    fontWeight: '600',
-  },
-  regeocodeBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: SIZES.SM,
-    marginTop: SIZES.SM,
-    marginBottom: SIZES.XS,
-    borderRadius: SIZES.BORDER_RADIUS_SM,
-    borderWidth: 1,
-    borderColor: COLORS.NURSE_PRIMARY,
-    backgroundColor: COLORS.WHITE,
-    gap: SIZES.XS,
-  },
-  regeocodeBtnText: {
-    color: COLORS.NURSE_PRIMARY,
     fontSize: SIZES.FONT_SM,
     fontWeight: '600',
   },
