@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -13,7 +13,6 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as DocumentPicker from 'expo-document-picker';
@@ -22,7 +21,6 @@ import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../utils/supabase';
 import { COLORS } from '../../utils/constants';
 import { debugLog } from '../../utils/devConfig';
-import OnboardingModal from '../../components/OnboardingModal';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
 
@@ -58,17 +56,11 @@ const NursePendingVerificationScreen = () => {
   const [showEditRpps, setShowEditRpps] = useState(false);
   const [newRppsNumber, setNewRppsNumber] = useState('');
   const [verifying, setVerifying] = useState(false);
-  const [showOnboarding, setShowOnboarding] = useState(false);
 
-  useEffect(() => {
-    const checkOnboarding = async () => {
-      try {
-        const val = await AsyncStorage.getItem('soinlokal.onboarding.nurse');
-        if (val !== 'completed') setShowOnboarding(true);
-      } catch {}
-    };
-    checkOnboarding();
-  }, []);
+  console.log('[Onboarding][NursePendingVerificationScreen] render', {
+    userId: user?.id,
+    verificationStatus: nurseProfile?.verification_status,
+  });
 
   const status = nurseProfile?.verification_status;
   const isPendingDocs = status === 'pending_docs';
@@ -453,7 +445,6 @@ const NursePendingVerificationScreen = () => {
           <Text style={styles.logoutButtonText}>Se déconnecter</Text>
         </TouchableOpacity>
       </ScrollView>
-
       {/* Edit RPPS Modal */}
       <Modal visible={showEditRpps} transparent animationType="fade">
         <View style={styles.modalOverlay}>
@@ -500,15 +491,6 @@ const NursePendingVerificationScreen = () => {
           </View>
         </View>
       </Modal>
-
-      <OnboardingModal
-        visible={showOnboarding}
-        userType="nurse"
-        onClose={() => {
-          AsyncStorage.setItem('soinlokal.onboarding.nurse', 'completed').catch(() => {});
-          setShowOnboarding(false);
-        }}
-      />
     </SafeAreaView>
   );
 };

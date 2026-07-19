@@ -391,6 +391,10 @@ export default function OnboardingModal({ visible, userType, onClose }: Onboardi
   const scrollRef = useRef<ScrollView>(null);
   const themeColor = getThemeColor(userType);
 
+  useEffect(() => {
+    console.log('[Onboarding][OnboardingModal] visible prop changed:', visible, 'userType:', userType);
+  }, [visible, userType]);
+
   const slides = userType === 'nurse' ? NURSE_SLIDES
     : userType === 'family' ? FAMILY_SLIDES
     : PATIENT_SLIDES;
@@ -417,6 +421,7 @@ export default function OnboardingModal({ visible, userType, onClose }: Onboardi
 
   const handleNext = useCallback(() => {
     if (isLast) {
+      console.log('[Onboarding][OnboardingModal] last slide -> calling onClose()');
       onClose();
       return;
     }
@@ -437,9 +442,15 @@ export default function OnboardingModal({ visible, userType, onClose }: Onboardi
     if (idx !== activeIndex) setActiveIndex(idx);
   }, [activeIndex]);
 
-  const handleSkip = useCallback(() => { onClose(); }, [onClose]);
+  const handleSkip = useCallback(() => {
+    console.log('[Onboarding][OnboardingModal] handleSkip -> calling onClose()');
+    onClose();
+  }, [onClose]);
 
-  if (!visible) return null;
+  if (!visible) {
+    console.log('[Onboarding][OnboardingModal] visible=false, rendering null');
+    return null;
+  }
 
   return (
     <Modal visible={visible} animationType="fade" transparent statusBarTranslucent>

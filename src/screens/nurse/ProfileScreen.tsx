@@ -667,7 +667,7 @@ const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
 
       <OnboardingModal
         visible={showOnboarding}
-        userType="nurse"
+        userType={userProfile?.user_type ?? 'nurse'}
         onClose={() => setShowOnboarding(false)}
       />
 

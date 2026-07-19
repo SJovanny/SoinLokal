@@ -29,7 +29,7 @@ export interface AuthContextType {
   patientProfile:   PatientProfile | null;
   familyLinks:      FamilyLink[];
   loading:          boolean;
-  login:            (email: string, password: string) => Promise<{ data: unknown; error: AuthError | null }>;
+  login:            (email: string, password: string) => Promise<{ data: unknown; error: AuthError | null; userType: string | null }>;
   register:         (email: string, password: string, profile: RegisterProfileInput) => Promise<{ data: unknown; error: AuthError | null }>;
   logout:           () => Promise<void>;
   resetPassword:    (email: string) => Promise<{ data: unknown; error: AuthError | null }>;
@@ -90,6 +90,11 @@ export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element
     } = supabase.auth.onAuthStateChange(async (_event, session: Session | null) => {
       if (!mounted) return;
       if (session) {
+        // Mirror the cold-start behaviour: keep `loading` true until the
+        // profile is fully resolved, so AppNavigator shows the SplashScreen
+        // instead of briefly rendering the default (patient) screen while
+        // `userProfile` is still null right after a hot login.
+        setLoading(true);
         setUser(session.user);
         await fetchProfile(session.user.id);
       } else {
@@ -171,7 +176,7 @@ export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element
   const login = async (
     email: string,
     password: string,
-  ): Promise<{ data: unknown; error: AuthError | null }> => {
+  ): Promise<{ data: unknown; error: AuthError | null; userType: string | null }> => {
     try {
       debugLog('Connexion Supabase', { email });
       const { data, error } = await supabase.auth.signInWithPassword({
@@ -179,7 +184,21 @@ export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element
         password,
       });
       if (error) throw error;
-      return { data, error: null };
+
+      // Fetch the real user_type right away so callers (LoginScreen) can
+      // verify it against the portal the user chose, before AppNavigator
+      // has a chance to redirect based on onAuthStateChange.
+      let userType: string | null = null;
+      if (data.user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('user_type')
+          .eq('id', data.user.id)
+          .single<{ user_type: string }>();
+        userType = profile?.user_type ?? null;
+      }
+
+      return { data, error: null, userType };
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       debugLog('Erreur de connexion', message);

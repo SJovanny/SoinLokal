@@ -258,7 +258,7 @@ const FamilyProfile: React.FC = () => {
 
       <OnboardingModal
         visible={showOnboarding}
-        userType="family"
+        userType={userProfile?.user_type ?? 'family'}
         onClose={() => setShowOnboarding(false)}
       />
     </SafeAreaView>

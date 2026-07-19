@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -8,6 +9,7 @@ import { COLORS } from '../utils/constants';
 import { useAuth } from '../contexts/AuthContext';
 import { useMessageCount } from '../contexts/MessageCountContext';
 import SplashScreen from '../components/SplashScreen';
+import OnboardingModal from '../components/OnboardingModal';
 
 // Écrans d'authentification
 import LoginScreen from '../screens/auth/LoginScreen';
@@ -284,6 +286,66 @@ const FamilyTabNavigator = () => {
 const AppNavigator = () => {
   const { user, userProfile, nurseProfile, loading } = useAuth();
 
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [onboardingChecked, setOnboardingChecked] = useState(false);
+  const [onboardingCheckedForUserId, setOnboardingCheckedForUserId] = useState<string | null>(null);
+
+  const currentUserType = userProfile?.user_type;
+
+  console.log('[Onboarding][AppNavigator] render', {
+    userId: user?.id,
+    userType: currentUserType,
+    verificationStatus: nurseProfile?.verification_status,
+    verified: userProfile?.verified,
+    showOnboarding,
+    onboardingChecked,
+    onboardingCheckedForUserId,
+  });
+
+  useEffect(() => {
+    if (!user?.id || !currentUserType) {
+      return;
+    }
+    // Avoid re-checking for the same user once already checked.
+    if (onboardingCheckedForUserId === user.id) {
+      return;
+    }
+
+    const storageKey = `soinlokal.onboarding.${currentUserType}.${user.id}`;
+
+    const checkOnboarding = async () => {
+      console.log('[Onboarding][AppNavigator] checking AsyncStorage key:', storageKey);
+      try {
+        const val = await AsyncStorage.getItem(storageKey);
+        console.log('[Onboarding][AppNavigator] AsyncStorage value for', storageKey, '=', val);
+        if (val !== 'completed') {
+          console.log('[Onboarding][AppNavigator] -> showing onboarding tutorial');
+          setShowOnboarding(true);
+        } else {
+          console.log('[Onboarding][AppNavigator] -> tutorial already completed for this user, not showing');
+        }
+      } catch (err) {
+        console.log('[Onboarding][AppNavigator] AsyncStorage read error:', err);
+      } finally {
+        setOnboardingChecked(true);
+        setOnboardingCheckedForUserId(user.id);
+      }
+    };
+
+    checkOnboarding();
+  }, [user?.id, currentUserType, onboardingCheckedForUserId]);
+
+  const handleOnboardingClose = () => {
+    console.log('[Onboarding][AppNavigator] onClose called, marking as completed for user', user?.id);
+    if (user?.id && currentUserType) {
+      const storageKey = `soinlokal.onboarding.${currentUserType}.${user.id}`;
+      AsyncStorage.setItem(storageKey, 'completed')
+        .then(() => console.log('[Onboarding][AppNavigator] AsyncStorage set completed for', storageKey))
+        .catch(err => console.log('[Onboarding][AppNavigator] AsyncStorage set error:', err));
+    }
+    setShowOnboarding(false);
+  };
+
   if (loading) {
     return <SplashScreen onAnimationComplete={() => {}} />;
   }
@@ -294,41 +356,51 @@ const AppNavigator = () => {
     nurseProfile?.verification_status !== 'verified';
 
   return (
-    <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
-        {!user ? (
-          // Utilisateur non connecté
-          <>
-            <Stack.Screen name="UserType" component={UserTypeScreen} />
-            <Stack.Screen name="Login" component={LoginScreen} />
-            <Stack.Screen name="Register" component={RegisterScreen} />
-            <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
-          </>
-        ) : userProfile?.is_admin ? (
-          // Utilisateur admin — redirect vers le portail web
-          <Stack.Screen name="AdminWebOnly" component={AdminWebOnlyScreen} />
-        ) : isNursePendingVerification ? (
-          // Infirmière en attente de vérification RPPS
-          <Stack.Screen name="NursePendingVerification" component={NursePendingVerificationScreen} />
-        ) : (
-          // Utilisateur connecté
-          <>
-            {userProfile?.user_type === 'nurse' ? (
-              <Stack.Screen name="NurseApp" component={NurseTabNavigator} />
-            ) : userProfile?.user_type === 'family' ? (
-              <Stack.Screen name="FamilyApp" component={FamilyTabNavigator} />
-            ) : (
-              <Stack.Screen name="PatientApp" component={PatientTabNavigator} />
-            )}
-            <Stack.Screen name="PatientDetail" component={PatientDetail} />
-            <Stack.Screen name="CareHistory" component={CareHistoryScreen} />
-            <Stack.Screen name="AddManagedPatient" component={AddManagedPatient} />
-            <Stack.Screen name="NurseProfileView" component={NurseProfileView} />
-            <Stack.Screen name="ChatScreen" component={ChatScreen} />
-          </>
-        )}
-      </Stack.Navigator>
-    </NavigationContainer>
+    <>
+      <NavigationContainer>
+        <Stack.Navigator screenOptions={{ headerShown: false }}>
+          {!user ? (
+            // Utilisateur non connecté
+            <>
+              <Stack.Screen name="UserType" component={UserTypeScreen} />
+              <Stack.Screen name="Login" component={LoginScreen} />
+              <Stack.Screen name="Register" component={RegisterScreen} />
+              <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+            </>
+          ) : userProfile?.is_admin ? (
+            // Utilisateur admin — redirect vers le portail web
+            <Stack.Screen name="AdminWebOnly" component={AdminWebOnlyScreen} />
+          ) : isNursePendingVerification ? (
+            // Infirmière en attente de vérification RPPS
+            <Stack.Screen name="NursePendingVerification" component={NursePendingVerificationScreen} />
+          ) : (
+            // Utilisateur connecté
+            <>
+              {userProfile?.user_type === 'nurse' ? (
+                <Stack.Screen name="NurseApp" component={NurseTabNavigator} />
+              ) : userProfile?.user_type === 'family' ? (
+                <Stack.Screen name="FamilyApp" component={FamilyTabNavigator} />
+              ) : (
+                <Stack.Screen name="PatientApp" component={PatientTabNavigator} />
+              )}
+              <Stack.Screen name="PatientDetail" component={PatientDetail} />
+              <Stack.Screen name="CareHistory" component={CareHistoryScreen} />
+              <Stack.Screen name="AddManagedPatient" component={AddManagedPatient} />
+              <Stack.Screen name="NurseProfileView" component={NurseProfileView} />
+              <Stack.Screen name="ChatScreen" component={ChatScreen} />
+            </>
+          )}
+        </Stack.Navigator>
+      </NavigationContainer>
+
+      {currentUserType && (
+        <OnboardingModal
+          visible={showOnboarding}
+          userType={currentUserType}
+          onClose={handleOnboardingClose}
+        />
+      )}
+    </>
   );
 };
 

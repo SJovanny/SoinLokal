@@ -15,7 +15,7 @@ import { getThemeColor } from '../../utils/constants';
 
 const LoginScreen = ({ navigation, route }: { navigation: any; route: any }) => {
   const { userType } = route.params || { userType: 'nurse' };
-  const { login } = useAuth();
+  const { login, logout } = useAuth();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -34,7 +34,32 @@ const LoginScreen = ({ navigation, route }: { navigation: any; route: any }) => 
 
     setLoading(true);
     try {
-      await login(email, password);
+      const { userType: actualUserType } = await login(email, password);
+
+      // Portail "infirmier" -> doit être un compte nurse.
+      // Portail "patient" -> doit être un compte patient OU family
+      // (le bouton "Patient/Famille" de UserTypeScreen regroupe les deux).
+      const isMismatch =
+        userType === 'nurse'
+          ? actualUserType !== 'nurse'
+          : actualUserType !== 'patient' && actualUserType !== 'family';
+
+      if (isMismatch) {
+        try {
+          await logout();
+        } catch {
+          // Best-effort: even if signOut fails server-side, local auth
+          // state is cleared by AuthContext, so we still show the
+          // role-mismatch alert below.
+        }
+        Alert.alert(
+          'Erreur de connexion',
+          actualUserType === 'nurse'
+            ? "Ce compte est un compte Infirmier. Veuillez utiliser l'accès Infirmier pour vous connecter."
+            : "Ce compte est un compte Patient/Famille. Veuillez utiliser l'accès Patient/Famille pour vous connecter."
+        );
+        return;
+      }
       // La navigation se fera automatiquement via AuthContext
     } catch (error: any) {
       Alert.alert('Erreur de connexion', error.message);

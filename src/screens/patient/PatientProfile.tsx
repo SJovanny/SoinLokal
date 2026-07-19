@@ -261,7 +261,7 @@ const PatientProfileScreen: React.FC = () => {
 
       <OnboardingModal
         visible={showOnboarding}
-        userType="patient"
+        userType={userProfile?.user_type ?? 'patient'}
         onClose={() => setShowOnboarding(false)}
       />
     </SafeAreaView>

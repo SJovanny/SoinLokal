@@ -69,6 +69,7 @@ const PatientsList: React.FC<{ navigation: any; route: any }> = ({
   const [activeTab, setActiveTab] = useState<TabKey>('mes-patients');
   const [myPatients, setMyPatients] = useState<MyPatient[]>([]);
   const [searchResults, setSearchResults] = useState<PatientWithProfile[]>([]);
+  const [assignedElsewhereIds, setAssignedElsewhereIds] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [searching, setSearching] = useState(false);
@@ -218,6 +219,32 @@ const PatientsList: React.FC<{ navigation: any; route: any }> = ({
         }));
 
         setSearchResults(mapped);
+
+        // Step 4: Find which of these patients are already followed by
+        // another nurse (privacy-safe: never reveals which nurse).
+        if (ids.length > 0) {
+          const { data: assignedIds, error: assignedError } = await supabase.rpc(
+            'get_assigned_patient_ids',
+            { patient_ids: ids }
+          );
+          if (assignedError) {
+            console.error('[PatientsList] get_assigned_patient_ids error:', assignedError.message);
+            setAssignedElsewhereIds(new Set());
+          } else {
+            // PostgREST can return a SETOF uuid RPC either as a plain array
+            // of strings or as an array of { <function_name>: uuid } objects
+            // depending on client/server version — handle both defensively.
+            setAssignedElsewhereIds(
+              new Set(
+                (assignedIds ?? []).map((r: any) =>
+                  typeof r === 'string' ? r : r.get_assigned_patient_ids
+                )
+              )
+            );
+          }
+        } else {
+          setAssignedElsewhereIds(new Set());
+        }
       } catch (err) {
         console.error('[PatientsList] search unexpected:', err);
       } finally {
@@ -273,6 +300,7 @@ const PatientsList: React.FC<{ navigation: any; route: any }> = ({
     const age = calcAge(pp?.dob);
     const isAdded = myPatientIds.has(patient.id);
     const isAdding = addingId === patient.id;
+    const isAssignedElsewhere = !isAdded && assignedElsewhereIds.has(patient.id);
 
     return (
       <TouchableOpacity
@@ -307,6 +335,14 @@ const PatientsList: React.FC<{ navigation: any; route: any }> = ({
               <View style={styles.managedBadge}>
                 <Ionicons name="people-outline" size={12} color={COLORS.FAMILY_PRIMARY} />
                 <Text style={styles.managedBadgeText}>Géré par {patient.managed_by_name}</Text>
+              </View>
+            ) : null}
+            {isAssignedElsewhere ? (
+              <View style={styles.assignedElsewhereBadge}>
+                <Ionicons name="information-circle-outline" size={12} color={COLORS.TEXT_MUTED} />
+                <Text style={styles.assignedElsewhereBadgeText}>
+                  Déjà suivi par un autre infirmier
+                </Text>
               </View>
             ) : null}
             {pp?.address ? (
@@ -657,6 +693,23 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '600',
     color: COLORS.FAMILY_PRIMARY,
+  },
+  // Assigned elsewhere badge
+  assignedElsewhereBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 4,
+    backgroundColor: COLORS.BACKGROUND,
+    paddingHorizontal: SIZES.SM,
+    paddingVertical: 2,
+    borderRadius: SIZES.BORDER_RADIUS_FULL,
+    alignSelf: 'flex-start',
+  },
+  assignedElsewhereBadgeText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: COLORS.TEXT_MUTED,
   },
   // Add button
   addButton: {
