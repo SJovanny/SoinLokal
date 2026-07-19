@@ -408,22 +408,24 @@ function AddPatientModal({
                             <Ionicons name="add" size={20} color={COLORS.WHITE} />
                           </TouchableOpacity>
                         </View>
-                        {[...customCareTypes, ...CARE_TYPES].map((item) => (
-                          <TouchableOpacity
-                            key={item}
-                            style={[styles.modalItem, careType === item && styles.modalItemSelected]}
-                            onPress={() => {
-                              setCareType(item);
-                              setShowCareTypeDropdown(false);
-                            }}
-                          >
-                            <Ionicons name="medkit" size={18} color={COLORS.NURSE_PRIMARY} />
-                            <Text style={[styles.modalItemName, { marginLeft: SIZES.SM, flex: 1 }]}>{item}</Text>
-                            {careType === item && (
-                              <Ionicons name="checkmark-circle" size={20} color={COLORS.SUCCESS} />
-                            )}
-                          </TouchableOpacity>
-                        ))}
+                        <ScrollView style={{ maxHeight: 250 }} nestedScrollEnabled>
+                          {[...customCareTypes, ...CARE_TYPES].map((item) => (
+                            <TouchableOpacity
+                              key={item}
+                              style={[styles.modalItem, careType === item && styles.modalItemSelected]}
+                              onPress={() => {
+                                setCareType(item);
+                                setShowCareTypeDropdown(false);
+                              }}
+                            >
+                              <Ionicons name="medkit" size={18} color={COLORS.NURSE_PRIMARY} />
+                              <Text style={[styles.modalItemName, { marginLeft: SIZES.SM, flex: 1 }]}>{item}</Text>
+                              {careType === item && (
+                                <Ionicons name="checkmark-circle" size={20} color={COLORS.SUCCESS} />
+                              )}
+                            </TouchableOpacity>
+                          ))}
+                        </ScrollView>
                       </View>
                     )}
 
@@ -1949,6 +1951,7 @@ const styles = StyleSheet.create({
     borderRadius: SIZES.BORDER_RADIUS_MD,
     marginTop: SIZES.XS,
     maxHeight: 400,
+    overflow: 'hidden',
   },
   // Add form (inside modal)
   addForm: {
