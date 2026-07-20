@@ -10,132 +10,163 @@ SoinLokal est une solution complète qui simplifie la gestion quotidienne des in
 
 ### Pour les Infirmières 👩‍⚕️
 - ✅ **Tableau de bord personnalisé** avec vue d'ensemble quotidienne
-- ✅ **Gestion des patients** avec fiches complètes et historique
-- ✅ **Optimisation des tournées** avec géolocalisation GPS
-- ✅ **Agenda intelligent** avec notifications et rappels
-- ✅ **Historique des soins** avec photos et signatures numériques
+- ✅ **Gestion des patients** avec fiches completes et historique
+- ✅ **Optimisation des tournees** avec geolocalisation GPS
+- ✅ **Agenda intelligent** avec rendez-vous et rappels
+- ✅ **Vérification RPPS** obligatoire pour l'inscription
 - ✅ **Messagerie sécurisée** avec patients et familles
-- ✅ **Profil professionnel** avec spécialités et zones d'intervention
+- ✅ **Profil professionnel** avec specialites et zones d'intervention
+- ✅ **Export PDF** des historiques de soins
+- ⏳ **Historique des soins** avec photos et signatures numeriques
 
 ### Pour les Patients/Familles 👨‍👩‍👧‍👦
-- ✅ **Suivi des soins** en temps réel
-- ✅ **Historique médical** accessible et sécurisé
-- ✅ **Communication directe** avec l'infirmière
-- ✅ **Notifications** pour les rendez-vous à venir
-- ✅ **Localisation** de l'infirmière (optionnel)
+- ✅ **Suivi des soins** en temps reel
+- ✅ **Historique des soins** accessible et securise
+- ✅ **Communication directe** avec l'infirmiere
+- ✅ **Comptes famille** (ombres) pour gerer les proches non-connectes
+- ✅ **Profil de l'infirmiere** consultable
+- ⏳ **Notifications** pour les rendez-vous a venir
 
-## 🛠 Technologies utilisées
+## 🛠 Technologies utilisees
 
-- **React Native** avec Expo CLI
-- **Firebase** (Authentication, Firestore, Storage)
-- **React Navigation** v6 pour la navigation
-- **Google Maps API** pour la géolocalisation
-- **React Native Elements** pour l'interface utilisateur
-- **Expo Location** pour la géolocalisation
-- **Expo Camera/ImagePicker** pour les photos
+- **React Native** avec Expo SDK 54
+- **Supabase** (Auth, PostgreSQL, Storage, Edge Functions, Realtime)
+- **React Navigation** v7 (stack + bottom tabs)
+- **Tamagui 2.4** (design system)
+- **Mapbox** (Geocoding + Directions API) + react-native-maps
+- **Expo Location**, Camera, ImagePicker, Print, Document Picker
+- **TypeScript** en mode strict
 
-## 🚀 Installation et démarrage
+## 🚀 Installation et demarrage
 
-### Prérequis
-- Node.js 16+ 
+### Prerequis
+- Node.js 18+
 - npm ou yarn
 - Expo CLI : `npm install -g expo-cli`
-- Compte Firebase configuré
+- Compte Supabase configure
+- Cle API Mapbox
 
 ### Installation
 ```bash
 # Cloner le repository
 git clone <repository-url>
-cd KEYPEYIA
+cd SoinLokal
 
-# Installer les dépendances
+# Installer les dependances
 npm install
 
-# Configuration Firebase
-# 1. Créer un projet Firebase
-# 2. Activer Authentication, Firestore et Storage
-# 3. Mettre à jour src/services/firebase.js avec vos clés
+# Configuration des variables d'environnement
+# 1. Copier .env.example (ou creer un .env) avec vos cles :
+#    EXPO_PUBLIC_SUPABASE_URL=<votre-url-supabase>
+#    EXPO_PUBLIC_SUPABASE_ANON_KEY=<votre-cle-anon>
+#    EXPO_PUBLIC_MAPBOX_API_KEY=<votre-cle-mapbox>
+# 2. Configurer votre projet Supabase (base de donnees, Auth, Storage, Edge Functions)
 
-# Démarrer l'application
+# Demarrer l'application
 npm start
 ```
 
 ### Scripts disponibles
 ```bash
-npm start          # Démarrer Expo
+npm start          # Demarrer Expo
 npm run android    # Lancer sur Android
 npm run ios        # Lancer sur iOS (macOS requis)
 npm run web        # Lancer sur navigateur web
+npm run typecheck  # Verifier le typage TypeScript
+npm run seed       # Peupler la base avec des donnees de test
 ```
 
 ## 📁 Structure du projet
 
 ```
 src/
-├── components/          # Composants réutilisables
-├── screens/            # Écrans de l'application
-│   ├── auth/           # Authentification
-│   ├── nurse/          # Interface infirmière
+├── components/          # Composants reutilisables
+│   └── ui/              # Composants UI de base (Button, Input, Card...)
+├── screens/            # Ecrans de l'application
+│   ├── auth/           # Authentification (Login, Register, UserType)
+│   ├── nurse/          # Interface infirmiere (Dashboard, Patients, Tournee)
 │   ├── patient/        # Interface patient
-│   └── shared/         # Écrans partagés
-├── navigation/         # Configuration navigation
-├── services/           # Services Firebase et API
-├── contexts/           # Contextes React (Auth, Theme)
-├── utils/             # Utilitaires et helpers
-└── hooks/             # Hooks personnalisés
+│   ├── family/         # Interface famille (Dashboard, Suivi, Profil infirmiere)
+│   ├── shared/         # Ecrans partages (Messagerie, Chat)
+│   └── admin/          # Ecran admin (redirection portail web)
+├── navigation/         # Configuration navigation (AppNavigator)
+├── contexts/           # Contextes React (Auth, MessageCount)
+├── utils/              # Utilitaires (supabase, mapbox, geocoding, routing, pdf)
+├── types/              # Declarations TypeScript
+└── polyfills.ts        # Polyfills pour l'environnement React Native
+
+admin-web/              # Portail d'administration (React + Vite)
+supabase/               # Migrations SQL et Edge Functions (Deno)
+scripts/                # Scripts utilitaires (seed, geocodage, creation admin)
 ```
 
 ## 🔧 Configuration
 
-### Firebase
-1. Créer un projet sur [Firebase Console](https://console.firebase.google.com)
-2. Activer les services :
+### Supabase
+1. Creer un projet sur [Supabase](https://supabase.com)
+2. Configurer les services :
    - Authentication (Email/Password)
-   - Cloud Firestore
-   - Storage
-3. Mettre à jour `src/services/firebase.js` avec votre configuration
+   - Base de donnees PostgreSQL
+   - Storage (avatars, documents infirmiers)
+   - Edge Functions (verification RPPS, creation patient gere)
+   - Realtime (messagerie)
+3. Appliquer les migrations : `npx supabase migration up`
+4. Configurer les variables d'environnement dans le fichier `.env`
 
-### Google Maps
-1. Obtenir une clé API Google Maps
-2. Activer les API nécessaires :
-   - Maps SDK for Android/iOS
-   - Places API
+### Mapbox
+1. Obtenir une cle API Mapbox
+2. Activer les services :
+   - Geocoding API
    - Directions API
+3. Ajouter la cle dans le `.env` : `EXPO_PUBLIC_MAPBOX_API_KEY`
 
 ## 👥 Types d'utilisateurs
 
-### Infirmière libérale
-- Inscription avec numéro ADELI
-- Vérification manuelle du profil
-- Accès complet aux fonctionnalités professionnelles
+### Infirmiere liberale
+- Inscription avec numero RPPS
+- Verification manuelle du profil (justificatifs)
+- Acces complet aux fonctionnalites professionnelles
 
-### Patient/Famille
-- Inscription simplifiée
-- Accès aux informations de soins
-- Communication avec l'infirmière assignée
+### Patient
+- Inscription simplifiee ou invitation par l'infirmiere
+- Acces aux informations de soins
+- Communication avec l'infirmiere assignee
 
-## 🏗 Roadmap de développement
+### Famille (proche aidant)
+- Creation de comptes ombres pour les patients non-connectes
+- Suivi des soins des proches geres
+- Messagerie avec l'equipe soignante
+
+### Administrateur
+- Portail web dedie (admin-web/)
+- Verification des profils infirmiers
+- Gestion des utilisateurs
+
+## 🏗 Roadmap de developpement
 
 ### Phase 1 (MVP) ✅
 - [x] Authentification et gestion des profils
-- [x] Interface de base infirmière/patient
-- [x] Navigation principale
-- [ ] Gestion des patients
-- [ ] Tournées avec géolocalisation
-- [ ] Messagerie de base
+- [x] Interface de base infirmiere/patient/famille
+- [x] Navigation principale (stack + bottom tabs)
+- [x] Gestion des patients (creation, fiche detaillee)
+- [x] Tournees avec geolocalisation et optimisation
+- [x] Messagerie securisee (temps reel via Supabase Realtime)
+- [x] Verification RPPS des infirmieres
+- [x] Portail d'administration web
+- [x] Comptes famille (ombres) pour patients non-connectes
 
 ### Phase 2
-- [ ] Signatures numériques
+- [ ] Signatures numeriques
 - [ ] Photos des soins
 - [ ] Notifications push
 - [ ] Mode hors-ligne
-- [ ] Rapports et statistiques
+- [ ] Rapports et statistiques avances
 
 ### Phase 3
-- [ ] Intégration DMP (Dossier Médical Partagé)
-- [ ] Facturation automatisée
+- [ ] Integration DMP (Dossier Medical Partage)
+- [ ] Facturation automatisee
 - [ ] Partenariats pharmacies
-- [ ] Formation intégrée
+- [ ] Formation integree
 
 ## 🌍 Spécificités Martinique
 

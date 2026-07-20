@@ -10,102 +10,163 @@ Application mobile unique avec deux interfaces distinctes selon le rôle connect
 ---
 
 ## 2. Stack Technique
-* **Mobile (Frontend) :** React Native (Expo SDK 50+).
+* **Mobile (Frontend) :** React Native (Expo SDK 54).
 * **Langage :** TypeScript (Strict mode).
-* **Backend (API) :** Node.js (Express ou NestJS).
-* **Base de Données :** PostgreSQL.
-* **ORM :** Prisma (Recommandé pour TypeScript).
-* **Offline/Sync :** WatermelonDB ou TanStack Query (React Query) + MMKV.
-* **Cartographie :** Google Maps API (Geocoding) + Deep linking vers Waze.
+* **Backend :** Supabase (PostgreSQL, Auth, Storage, Edge Functions Deno, Realtime).
+* **Design System :** Tamagui 2.4.
+* **Offline/Sync :** Non implemente (prevue WatermelonDB ou MMKV + TanStack Query).
+* **Cartographie :** Mapbox (Geocoding + Directions API) + react-native-maps + Deep linking vers Waze / Google Maps.
 
 ---
 
-## 3. Architecture Base de Données (PostgreSQL)
+## 3. Architecture Base de Donnees (PostgreSQL via Supabase)
 
-### A. Gestion des Utilisateurs & Rôles
-**`User`**
-* `id` (UUID)
-* `email`, `password_hash`
-* `role` (Enum: `NURSE`, `PATIENT`, `FAMILY`)
-* `push_token` (Pour les notifications)
+### A. Gestion des Utilisateurs & Roles
+**`profiles`**
+* `id` (UUID, lie a auth.users)
+* `email`, `first_name`, `last_name`
+* `user_type` (Enum: `nurse`, `patient`, `family`)
+* `phone`, `photo_url`, `avatar_type`, `avatar_seed`
+* `verified` (boolean)
+* `is_admin` (boolean)
+* `created_at`, `updated_at`
 
 ### B. Module Infirmier
-**`NurseProfile`**
-* `user_id` (FK)
-* `rpps_number`
-* `zone_intervention`
+**`nurse_profiles`**
+* `profile_id` (FK -> profiles)
+* `adeli` (historique), `rpps_number` (obligatoire)
+* `verification_status` (Enum: `pending_docs`, `pending_review`, `pending`, `verified`, `manual_review`, `rejected`)
+* `rejection_note`
+* `specialties` (text[]), `zone`, `address`, `gps_lat`, `gps_lng`
+* `bio`, `rating`, `total_patients`, `total_visits`
+* Documents: `cni_path`, `justificatif_domicile_path`, `carte_pro_path`
 
-**`PatientFile`** (Le dossier médical)
+**`nurse_verification_requests`**
 * `id` (UUID)
-* `nurse_id` (FK - L'infirmier titulaire)
-* `full_name`, `dob`
-* `address_label` (ex: "Maison jaune après le manguier")
-* `gps_coordinates` (Lat/Long - Vital !)
-* `access_code` (Digicode, clé...)
+* `profile_id` (FK -> profiles)
+* `document_path`, `status` (pending/approved/rejected), `notes`
+* `reviewed_by`, `reviewed_at`
 
-**`Appointment`** (Le soin planifié)
+**`nurse_care_types`**
+* `id` (UUID), `nurse_id` (FK -> profiles), `name`
+
+### C. Module Patient
+**`patient_profiles`**
+* `profile_id` (FK -> profiles)
+* `dob`, `address`, `address_label`, `gps_lat`, `gps_lng`
+* `access_code` (digicode, cle...)
+* `emergency_contact`, `medical_notes`, `allergies` (text[])
+* `managed_by` (FK -> profiles, pour comptes ombres famille)
+* `is_managed` (boolean)
+
+**`patient_files`** (Le dossier medical cree par l'infirmiere)
 * `id` (UUID)
-* `patient_file_id` (FK)
-* `scheduled_at` (DateTime)
-* `status` (Enum: `PENDING`, `DONE`, `MISSED`)
-* `care_type` (Enum: `PANSEMENT`, `INJECTION`, `TOILETTE`...)
-* `nurse_notes` (Privé infirmier)
+* `patient_id` (FK -> profiles)
+* `nurse_id` (FK -> profiles - L'infirmiere titulaire)
+* `prescription`, `care_plan`
+* `is_active` (boolean)
 
-### C. Module Famille / Liaison
-**`FamilyLink`** (Qui a le droit de voir quoi)
-* `id`
-* `user_id` (Le compte de la fille/fils)
-* `patient_file_id` (Le dossier du parent)
-* `permissions` (Enum: `READ_ONLY`, `CAN_MESSAGE`)
+### D. Rendez-vous
+**`appointments`**
+* `id` (UUID)
+* `patient_file_id` (FK -> patient_files)
+* `nurse_id` (FK -> profiles)
+* `date` (date), `time` (time)
+* `care_type` (text), `duration_min` (int)
+* `status` (Enum: `pending`, `confirmed`, `completed`, `cancelled`)
+* `address`, `notes`, `completion_note`, `care_performed`
+* `observations`, `remarks`
+* `visible_to_patient` (boolean)
 
-**`Message`** (Carnet de liaison)
-* `id`
-* `author_id` (User)
-* `patient_file_id` (Contexte)
-* `content` (Text)
-* `is_read` (Boolean)
+### E. Module Famille / Liaison
+**`family_links`**
+* `id` (UUID)
+* `family_user_id` (FK -> profiles - Le compte du proche)
+* `patient_file_id` (FK -> patient_files)
+* `permissions` (Enum: `read_only`, `can_message`)
+
+**`messages`**
+* `id` (UUID)
+* `author_id` (FK -> profiles)
+* `patient_file_id` (FK -> patient_files)
+* `content` (text), `is_read` (boolean)
+* `created_at` (timestamptz)
 
 ---
 
-## 4. Fonctionnalités à Implémenter
+## 4. Fonctionnalites
 
-### 🚑 Côté Infirmier (La priorité)
-1.  **Mode Offline-First (CRITIQUE) :**
-    * Téléchargement de la tournée le matin en Wi-Fi.
-    * Possibilité de valider un soin, prendre une photo et écrire une note sans réseau.
-    * Synchronisation automatique dès le retour de la 4G.
-2.  **Agenda & Routing :**
-    * Calcul automatique de l'ordre de passage (Optimisation simple).
-    * Bouton "Go" -> Ouvre Waze avec les coordonnées GPS exactes.
-3.  **Gestion Patient :**
-    * Création fiche patient + Photo ordonnance.
-    * Invitation de la famille (Génération d'un lien/code d'invitation).
+### 🚑 Cote Infirmier (La priorite)
+1.  **Agenda & Routing :**
+    * Calcule automatique de l'ordre de passage (optimisation de tournee). **[FAIT]**
+    * Bouton "Go" -> Ouvre Waze / Google Maps avec les coordonnees GPS exactes. **[FAIT]**
+    * Vue carte avec les patients du jour et navigation integree. **[FAIT]**
+2.  **Gestion Patient :**
+    * Creation fiche patient avec coordonnees GPS (geocodage Mapbox). **[FAIT]**
+    * Photo ordonnance et plan de soins. **[FAIT]**
+    * Invitation de la famille (generation d'un lien/code d'invitation). **[FAIT]**
+    * Export PDF de l'historique. **[FAIT]**
+3.  **Verification RPPS :**
+    * Verification du numero RPPS via Edge Function Supabase. **[FAIT]**
+    * Upload de justificatifs (CNI, carte pro, justificatif domicile). **[FAIT]**
+    * Workflow de validation par l'administrateur. **[FAIT]**
+4.  **Messagerie securisee :**
+    * Chat temps reel via Supabase Realtime entre infirmiere, patient et famille. **[FAIT]**
+    * Messagerie proxy : la famille peut envoyer des messages au nom du patient gere. **[FAIT]**
 
-### 🏠 Côté Patient / Famille
-1.  **Onboarding Sécurisé :**
-    * Ne peut pas créer de compte "vide". Doit entrer un code fourni par l'infirmier pour se lier à un dossier.
-2.  **Timeline des soins (Fil de vie) :**
-    * Vue simple : "Passage prévu ce matin" -> "Passage effectué à 09h12".
-    * Indicateur visuel rassurant (Vert = Tout va bien).
-3.  **Messagerie Asynchrone :**
-    * Chat sécurisé avec l'infirmier (pas de harcèlement, l'infirmier répond quand il peut).
-    * Envoi de demandes simples ("Besoin de renouveler l'ordonnance").
+### 🏠 Cote Patient / Famille
+1.  **Onboarding Securise :**
+    * Le patient ne peut pas creer de compte vide. Doit entrer un code fourni par l'infirmiere. **[FAIT]**
+    * Tutoriel d'introduction au premier lancement. **[FAIT]**
+2.  **Suivi des soins :**
+    * Vue calendrier des rendez-vous et historique. **[FAIT]**
+    * Consultation du profil de l'infirmiere assignee. **[FAIT]**
+3.  **Comptes famille (ombres) :**
+    * Creation de profils patients geres par un proche. **[FAIT]**
+    * Suivi des soins des proches non-connectes. **[FAIT]**
+
+### ⏳ A faire
+1.  **Signatures numeriques :** Validation des soins par signature sur l'ecran.
+2.  **Photos des soins :** Capture et stockage des photos de plaies/pansements.
+3.  **Mode Offline-First (CRITIQUE) :**
+    * Telechargement de la tournee le matin en Wi-Fi.
+    * Possibilite de valider un soin sans reseau.
+    * Synchronisation automatique au retour de la 4G.
+4.  **Notifications push :** Rappels de rendez-vous et nouveaux messages.
 
 ---
 
 ## 5. Logique des Dossiers (React Native)
 
-Structure recommandée pour ne pas mélanger les deux mondes :
+Structure recommandee pour separer les interfaces par role :
 
 ```text
 src/
 ├── navigation/
-│   ├── RootNavigator.tsx  # Switch (Auth ? Nurse : Patient)
-│   ├── NurseStack.tsx     # Ecrans Pro
-│   └── PatientStack.tsx   # Ecrans Famille
+│   └── AppNavigator.tsx         # Root navigator (Auth | Nurse | Patient | Family | Admin)
 ├── screens/
-│   ├── nurse/             # Dashboard, Map, SoinDetail
-│   └── patient/           # Timeline, ChatFamille
-├── components/            # Boutons, Cards (partagés)
-├── store/                 # Zustand/Redux (Gestion État Global)
-└── services/              # API, Auth, Database Local
+│   ├── auth/                    # Login, Register, UserType, ForgotPassword
+│   ├── nurse/                   # Dashboard, PatientsList, PatientDetail, Tournee, Profile, CareHistory
+│   ├── patient/                 # Dashboard, CareHistory, Profile
+│   ├── family/                  # Dashboard, CareHistory, Profile, AddManagedPatient, NurseProfileView
+│   ├── shared/                  # MessagingScreen, ChatScreen
+│   └── admin/                   # AdminWebOnlyScreen (redirection portail web)
+├── components/                  # Boutons, Cards, UI shared, Avatars, SplashScreen
+│   └── ui/                      # AppButton, AppInput, DashboardHeader, StatCard, AppointmentCard...
+├── contexts/                    # AuthContext, MessageCountContext
+├── utils/                       # supabase, mapbox, geocoding, routing, pdfExport, constants, helpers
+└── types/                       # Declarations TypeScript (.d.ts)
+
+admin-web/                       # Portail admin (React + Vite + TypeScript)
+├── src/
+│   ├── pages/                   # Login, VerificationQueue, VerificationDetail
+│   ├── components/              # Layout, ProtectedRoute
+│   ├── contexts/                # AuthContext
+│   └── lib/                     # supabase client
+
+supabase/
+├── functions/                   # Edge Functions (verify-rpps, create-managed-patient)
+└── migrations/                  # Migrations SQL
+
+scripts/                         # seed, regeocode, create-admin
+```
