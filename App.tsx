@@ -1,17 +1,34 @@
+import './src/i18n';
 import React, { useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { TamaguiProvider } from 'tamagui';
+
 import config from './tamagui.config';
 import { AuthProvider } from './src/contexts/AuthContext';
 import { MessageCountProvider } from './src/contexts/MessageCountContext';
+import { ThemeProvider, useTheme } from './src/contexts/ThemeContext';
 import AppNavigator from './src/navigation/AppNavigator';
 import CustomSplashScreen from './src/components/SplashScreen';
 import ErrorBoundary from './src/components/ErrorBoundary';
 
-// Hide the native splash screen immediately so our custom one takes over
 SplashScreen.hideAsync();
+
+function ThemedApp(): React.JSX.Element {
+  const { isDark } = useTheme();
+
+  return (
+    <TamaguiProvider config={config} defaultTheme={isDark ? 'dark' : 'light'}>
+      <AuthProvider>
+        <MessageCountProvider>
+          <AppNavigator />
+        </MessageCountProvider>
+        <StatusBar style={isDark ? 'light' : 'dark'} />
+      </AuthProvider>
+    </TamaguiProvider>
+  );
+}
 
 export default function App() {
   const [showCustomSplash, setShowCustomSplash] = useState(true);
@@ -27,14 +44,9 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <ErrorBoundary>
-        <TamaguiProvider config={config} defaultTheme="light">
-          <AuthProvider>
-            <MessageCountProvider>
-              <AppNavigator />
-            </MessageCountProvider>
-            <StatusBar style="auto" />
-          </AuthProvider>
-        </TamaguiProvider>
+        <ThemeProvider>
+          <ThemedApp />
+        </ThemeProvider>
       </ErrorBoundary>
     </SafeAreaProvider>
   );
