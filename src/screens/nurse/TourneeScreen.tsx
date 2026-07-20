@@ -20,8 +20,9 @@ import { Ionicons } from '@expo/vector-icons';
 import MapView, { Marker, Callout } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { useAuth } from '../../contexts/AuthContext';
+import { useTheme } from '../../contexts/ThemeContext';
 import { supabase } from '../../utils/supabase';
-import { COLORS, SIZES, CARE_TYPES } from '../../utils/constants';
+import { getColors, SIZES, CARE_TYPES } from '../../utils/constants';
 import {
   type GPSPoint,
   type FlexibleTourStop,
@@ -71,15 +72,17 @@ interface PatientOption {
 // Constants
 // ---------------------------------------------------------------------------
 
-const STATUS_CONFIG: Record<
+function getStatusConfig(colors: ReturnType<typeof getColors>): Record<
   string,
   { color: string; label: string; icon: React.ComponentProps<typeof Ionicons>['name'] }
-> = {
-  pending:   { color: COLORS.WARNING, label: 'En attente',   icon: 'time-outline' },
-  confirmed: { color: COLORS.NURSE_PRIMARY, label: 'Confirmé', icon: 'checkmark-circle-outline' },
-  completed: { color: COLORS.SUCCESS, label: 'Terminé',       icon: 'checkmark-circle' },
-  cancelled: { color: COLORS.DANGER,  label: 'Annulé',        icon: 'close-circle-outline' },
-};
+> {
+  return {
+    pending:   { color: colors.WARNING, label: 'En attente',   icon: 'time-outline' },
+    confirmed: { color: colors.NURSE_PRIMARY, label: 'Confirmé', icon: 'checkmark-circle-outline' },
+    completed: { color: colors.SUCCESS, label: 'Terminé',       icon: 'checkmark-circle' },
+    cancelled: { color: colors.DANGER,  label: 'Annulé',        icon: 'close-circle-outline' },
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -128,9 +131,13 @@ function getCurrentTimeHHMM(): string {
 function DateStrip({
   selectedDate,
   onSelect,
+  colors,
+  styles,
 }: {
   selectedDate: string;
   onSelect: (date: string) => void;
+  colors: ReturnType<typeof getColors>;
+  styles: ReturnType<typeof createStyles>;
 }) {
   const today = getTodayISO();
   const days: string[] = [];
@@ -144,7 +151,7 @@ function DateStrip({
         onPress={() => onSelect(addDays(selectedDate, -1))}
         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
       >
-        <Ionicons name="chevron-back" size={20} color={COLORS.NURSE_PRIMARY} />
+        <Ionicons name="chevron-back" size={20} color={colors.NURSE_PRIMARY} />
       </TouchableOpacity>
       {days.map((day) => {
         const isSelected = day === selectedDate;
@@ -186,7 +193,7 @@ function DateStrip({
         onPress={() => onSelect(addDays(selectedDate, 1))}
         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
       >
-        <Ionicons name="chevron-forward" size={20} color={COLORS.NURSE_PRIMARY} />
+        <Ionicons name="chevron-forward" size={20} color={colors.NURSE_PRIMARY} />
       </TouchableOpacity>
     </View>
   );
@@ -201,11 +208,15 @@ function AddPatientModal({
   onClose,
   onAdd,
   existingFileIds,
+  colors,
+  styles,
 }: {
   visible: boolean;
   onClose: () => void;
   onAdd: (patient: PatientOption, careType: string, durationMin: number, time: string | null) => void;
   existingFileIds: string[];
+  colors: ReturnType<typeof getColors>;
+  styles: ReturnType<typeof createStyles>;
 }) {
   const { user } = useAuth();
   const [patients, setPatients] = useState<PatientOption[]>([]);
@@ -320,7 +331,7 @@ function AddPatientModal({
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Ajouter un patient</Text>
             <TouchableOpacity onPress={onClose}>
-              <Ionicons name="close" size={24} color={COLORS.TEXT_PRIMARY} />
+              <Ionicons name="close" size={24} color={colors.TEXT_PRIMARY} />
             </TouchableOpacity>
           </View>
 
@@ -341,7 +352,7 @@ function AddPatientModal({
                   </Text>
 
                   {loading ? (
-                    <ActivityIndicator size="small" color={COLORS.NURSE_PRIMARY} style={{ padding: 20 }} />
+                    <ActivityIndicator size="small" color={colors.NURSE_PRIMARY} style={{ padding: 20 }} />
                   ) : patients.length === 0 ? (
                     <Text style={styles.modalEmptyText}>
                       Tous vos patients sont déjà dans la tournée.
@@ -353,14 +364,14 @@ function AddPatientModal({
                         style={[styles.modalItem]}
                         onPress={() => setSelectedPatient(item)}
                       >
-                        <Ionicons name="person" size={20} color={COLORS.NURSE_PRIMARY} />
+                        <Ionicons name="person" size={20} color={colors.NURSE_PRIMARY} />
                         <View style={{ flex: 1, marginLeft: SIZES.SM }}>
                           <Text style={styles.modalItemName}>{item.name}</Text>
                           {item.address ? (
                             <Text style={styles.modalItemSub} numberOfLines={1}>{item.address}</Text>
                           ) : null}
                         </View>
-                        <Ionicons name="chevron-forward" size={18} color={COLORS.TEXT_MUTED} />
+                        <Ionicons name="chevron-forward" size={18} color={colors.TEXT_MUTED} />
                       </TouchableOpacity>
                     ))
                   )}
@@ -369,7 +380,7 @@ function AddPatientModal({
                 <>
                   {/* Step 2 — Form */}
                   <View style={styles.selectedPatientRow}>
-                    <Ionicons name="person" size={20} color={COLORS.NURSE_PRIMARY} />
+                    <Ionicons name="person" size={20} color={colors.NURSE_PRIMARY} />
                     <Text style={styles.selectedPatientName} numberOfLines={1}>{selectedPatient.name}</Text>
                     <TouchableOpacity onPress={() => setSelectedPatient(null)}>
                       <Text style={styles.changeBtn}>Changer</Text>
@@ -382,11 +393,11 @@ function AddPatientModal({
                       style={styles.selectBtn}
                       onPress={() => setShowCareTypeDropdown(!showCareTypeDropdown)}
                     >
-                      <Ionicons name="medkit-outline" size={18} color={COLORS.TEXT_MUTED} />
+                      <Ionicons name="medkit-outline" size={18} color={colors.TEXT_MUTED} />
                       <Text style={[styles.selectText, !careType && styles.placeholder]}>
                         {careType || 'Sélectionner'}
                       </Text>
-                      <Ionicons name={showCareTypeDropdown ? 'chevron-up' : 'chevron-down'} size={16} color={COLORS.TEXT_MUTED} />
+                      <Ionicons name={showCareTypeDropdown ? 'chevron-up' : 'chevron-down'} size={16} color={colors.TEXT_MUTED} />
                     </TouchableOpacity>
 
                     {showCareTypeDropdown && (
@@ -395,7 +406,7 @@ function AddPatientModal({
                           <TextInput
                             style={styles.careTypeInput}
                             placeholder="Nouveau soin..."
-                            placeholderTextColor={COLORS.TEXT_MUTED}
+                            placeholderTextColor={colors.TEXT_MUTED}
                             value={newCareTypeInput}
                             onChangeText={setNewCareTypeInput}
                             onSubmitEditing={() => addCustomCareType(newCareTypeInput)}
@@ -405,7 +416,7 @@ function AddPatientModal({
                             style={styles.careTypeAddBtn}
                             onPress={() => addCustomCareType(newCareTypeInput)}
                           >
-                            <Ionicons name="add" size={20} color={COLORS.WHITE} />
+                            <Ionicons name="add" size={20} color={colors.WHITE} />
                           </TouchableOpacity>
                         </View>
                         <ScrollView style={{ maxHeight: 250 }} nestedScrollEnabled>
@@ -418,10 +429,10 @@ function AddPatientModal({
                                 setShowCareTypeDropdown(false);
                               }}
                             >
-                              <Ionicons name="medkit" size={18} color={COLORS.NURSE_PRIMARY} />
+                              <Ionicons name="medkit" size={18} color={colors.NURSE_PRIMARY} />
                               <Text style={[styles.modalItemName, { marginLeft: SIZES.SM, flex: 1 }]}>{item}</Text>
                               {careType === item && (
-                                <Ionicons name="checkmark-circle" size={20} color={COLORS.SUCCESS} />
+                                <Ionicons name="checkmark-circle" size={20} color={colors.SUCCESS} />
                               )}
                             </TouchableOpacity>
                           ))}
@@ -451,11 +462,11 @@ function AddPatientModal({
 
                     <Text style={styles.formLabel}>Heure (optionnel)</Text>
                     <View style={styles.inputWrap}>
-                      <Ionicons name="time-outline" size={18} color={COLORS.TEXT_MUTED} />
+                      <Ionicons name="time-outline" size={18} color={colors.TEXT_MUTED} />
                       <TextInput
                         style={styles.input}
                         placeholder="HH:MM"
-                        placeholderTextColor={COLORS.TEXT_MUTED}
+                        placeholderTextColor={colors.TEXT_MUTED}
                         value={time}
                         onChangeText={setTime}
                         keyboardType="numbers-and-punctuation"
@@ -464,7 +475,7 @@ function AddPatientModal({
                     </View>
 
                     <TouchableOpacity style={styles.addBtn} onPress={handleAdd}>
-                      <Ionicons name="add-circle" size={20} color={COLORS.WHITE} />
+                      <Ionicons name="add-circle" size={20} color={colors.WHITE} />
                       <Text style={styles.addBtnText}>Ajouter à la tournée</Text>
                     </TouchableOpacity>
                   </View>
@@ -484,6 +495,10 @@ function AddPatientModal({
 
 const TourneeScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, route }) => {
   const { user } = useAuth();
+  const { isDark } = useTheme();
+  const colors = getColors(isDark);
+  const styles = useMemo(() => createStyles(colors), [colors]);
+  const statusConfig = useMemo(() => getStatusConfig(colors), [colors]);
   const mapRef = useRef<MapView>(null);
 
   const [selectedDate, setSelectedDate] = useState(getTodayISO());
@@ -947,7 +962,7 @@ const TourneeScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, 
   const markers = useMemo(
     () =>
       orderedForMarkers.map((a, index) => {
-        const config = STATUS_CONFIG[a.status] ?? STATUS_CONFIG.pending;
+        const config = statusConfig[a.status] ?? statusConfig.pending;
         return {
           id: a.id,
           coordinate: {
@@ -960,7 +975,7 @@ const TourneeScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, 
           color: config.color,
         };
       }),
-    [orderedForMarkers],
+    [orderedForMarkers, statusConfig],
   );
 
   // -------------------------------------------------------------------------
@@ -991,7 +1006,7 @@ const TourneeScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, 
   // -------------------------------------------------------------------------
 
   const renderCard = ({ item }: { item: TourAppointment }) => {
-    const config = STATUS_CONFIG[item.status] ?? STATUS_CONFIG.pending;
+    const config = statusConfig[item.status] ?? statusConfig.pending;
     const isCompleted = item.status === 'completed';
     const isCompleting = completingId === item.id;
     const isSelected = selectedId === item.id;
@@ -1052,7 +1067,7 @@ const TourneeScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, 
 
         {/* Address */}
         <View style={styles.cardAddressRow}>
-          <Ionicons name="location-outline" size={14} color={COLORS.TEXT_MUTED} />
+          <Ionicons name="location-outline" size={14} color={colors.TEXT_MUTED} />
           <Text style={styles.cardAddress} numberOfLines={1}>
             {item.address_label ?? 'Adresse non renseignée'}
           </Text>
@@ -1061,7 +1076,7 @@ const TourneeScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, 
         {/* Travel info */}
         {legInfo && legInfo.distance > 0 && (
           <View style={styles.travelRow}>
-            <Ionicons name="car-outline" size={14} color={COLORS.NURSE_PRIMARY} />
+            <Ionicons name="car-outline" size={14} color={colors.NURSE_PRIMARY} />
             <Text style={styles.travelText}>
               {legInfo.estimated ? '~ ' : ''}{legInfo.distance} km · {legInfo.duration} min
             </Text>
@@ -1074,7 +1089,7 @@ const TourneeScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, 
         {/* Fixed-time conflict warning */}
         {tourResult?.conflicts[item.id] && (
           <View style={styles.conflictRow}>
-            <Ionicons name="warning-outline" size={13} color={COLORS.WARNING} />
+            <Ionicons name="warning-outline" size={13} color={colors.WARNING} />
             <Text style={styles.conflictText}>Horaire fixe difficile à respecter</Text>
           </View>
         )}
@@ -1087,22 +1102,22 @@ const TourneeScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, 
                 style={styles.actionBtn}
                 onPress={() => openNavigation(item.gps!.lat, item.gps!.lng)}
               >
-                <Ionicons name="navigate" size={18} color={COLORS.WHITE} />
+                <Ionicons name="navigate" size={18} color={colors.WHITE} />
                 <Text style={styles.actionBtnText}>Y aller</Text>
               </TouchableOpacity>
             )}
 
             {!isCompleted && (
               <TouchableOpacity
-                style={[styles.actionBtn, { backgroundColor: COLORS.SUCCESS }]}
+                style={[styles.actionBtn, { backgroundColor: colors.SUCCESS }]}
                 onPress={() => openCompleteModal(item)}
                 disabled={isCompleting}
               >
                 {isCompleting ? (
-                  <ActivityIndicator size="small" color={COLORS.WHITE} />
+                  <ActivityIndicator size="small" color={colors.WHITE} />
                 ) : (
                   <>
-                    <Ionicons name="checkmark-done" size={18} color={COLORS.WHITE} />
+                    <Ionicons name="checkmark-done" size={18} color={colors.WHITE} />
                     <Text style={styles.actionBtnText}>Terminé</Text>
                   </>
                 )}
@@ -1111,20 +1126,20 @@ const TourneeScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, 
 
             {isCompleted && (
               <TouchableOpacity
-                style={[styles.actionBtn, { backgroundColor: COLORS.WARNING }]}
+                style={[styles.actionBtn, { backgroundColor: colors.WARNING }]}
                 onPress={() => openEditNotesModal(item)}
               >
-                <Ionicons name="create-outline" size={18} color={COLORS.WHITE} />
+                <Ionicons name="create-outline" size={18} color={colors.WHITE} />
                 <Text style={styles.actionBtnText}>Notes</Text>
               </TouchableOpacity>
             )}
 
             {item.patient_phone && (
               <TouchableOpacity
-                style={[styles.actionBtn, { backgroundColor: COLORS.INFO }]}
+                style={[styles.actionBtn, { backgroundColor: colors.INFO }]}
                 onPress={() => Linking.openURL(`tel:${item.patient_phone}`)}
               >
-                <Ionicons name="call" size={18} color={COLORS.WHITE} />
+                <Ionicons name="call" size={18} color={colors.WHITE} />
                 <Text style={styles.actionBtnText}>Appeler</Text>
               </TouchableOpacity>
             )}
@@ -1137,16 +1152,16 @@ const TourneeScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, 
                 });
               }}
             >
-              <Ionicons name="person-outline" size={18} color={COLORS.NURSE_PRIMARY} />
-              <Text style={[styles.actionBtnText, { color: COLORS.NURSE_PRIMARY }]}>Fiche</Text>
+              <Ionicons name="person-outline" size={18} color={colors.NURSE_PRIMARY} />
+              <Text style={[styles.actionBtnText, { color: colors.NURSE_PRIMARY }]}>Fiche</Text>
             </TouchableOpacity>
 
             {!isCompleted && (
               <TouchableOpacity
-                style={[styles.actionBtn, { backgroundColor: COLORS.DANGER }]}
+                style={[styles.actionBtn, { backgroundColor: colors.DANGER }]}
                 onPress={() => handleRemove(item.id, item.patient_name)}
               >
-                <Ionicons name="trash-outline" size={18} color={COLORS.WHITE} />
+                <Ionicons name="trash-outline" size={18} color={colors.WHITE} />
                 <Text style={styles.actionBtnText}>Retirer</Text>
               </TouchableOpacity>
             )}
@@ -1164,7 +1179,7 @@ const TourneeScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, 
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.centerWrap}>
-          <ActivityIndicator size="large" color={COLORS.NURSE_PRIMARY} />
+          <ActivityIndicator size="large" color={colors.NURSE_PRIMARY} />
           <Text style={styles.loadingText}>Chargement de la tournée...</Text>
         </View>
       </SafeAreaView>
@@ -1186,16 +1201,16 @@ const TourneeScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, 
           onPress={fetchAppointments}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
-          <Ionicons name="refresh-outline" size={22} color={COLORS.NURSE_PRIMARY} />
+          <Ionicons name="refresh-outline" size={22} color={colors.NURSE_PRIMARY} />
         </TouchableOpacity>
       </View>
 
       {/* Date strip */}
-      <DateStrip selectedDate={selectedDate} onSelect={setSelectedDate} />
+      <DateStrip selectedDate={selectedDate} onSelect={setSelectedDate} colors={colors} styles={styles} />
 
       {/* Departure time */}
       <View style={styles.departureBar}>
-        <Ionicons name="time-outline" size={18} color={COLORS.NURSE_PRIMARY} />
+        <Ionicons name="time-outline" size={18} color={colors.NURSE_PRIMARY} />
         <Text style={styles.departureLabel}>Départ :</Text>
         {editingDeparture ? (
           <View style={styles.departureEditRow}>
@@ -1209,23 +1224,23 @@ const TourneeScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, 
               onBlur={saveDeparture}
               onSubmitEditing={saveDeparture}
               placeholder="HH:MM"
-              placeholderTextColor={COLORS.TEXT_MUTED}
+              placeholderTextColor={colors.TEXT_MUTED}
             />
             <TouchableOpacity onPress={saveDeparture}>
-              <Ionicons name="checkmark" size={20} color={COLORS.SUCCESS} />
+              <Ionicons name="checkmark" size={20} color={colors.SUCCESS} />
             </TouchableOpacity>
           </View>
         ) : (
           <TouchableOpacity onPress={startEditDeparture} style={styles.departureValueBtn}>
             <Text style={styles.departureValue}>{departureTime}</Text>
-            <Ionicons name="create-outline" size={14} color={COLORS.TEXT_MUTED} />
+            <Ionicons name="create-outline" size={14} color={colors.TEXT_MUTED} />
           </TouchableOpacity>
         )}
         <TouchableOpacity
           style={styles.addPatientBtn}
           onPress={() => setShowAddModal(true)}
         >
-          <Ionicons name="add" size={20} color={COLORS.WHITE} />
+          <Ionicons name="add" size={20} color={colors.WHITE} />
           <Text style={styles.addPatientBtnText}>Ajouter</Text>
         </TouchableOpacity>
       </View>
@@ -1283,12 +1298,12 @@ const TourneeScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, 
         </View>
         <View style={styles.statDivider} />
         <View style={styles.statItem}>
-          <Text style={[styles.statValue, { color: COLORS.SUCCESS }]}>{completedRDV}</Text>
+          <Text style={[styles.statValue, { color: colors.SUCCESS }]}>{completedRDV}</Text>
           <Text style={styles.statLabel}>Terminés</Text>
         </View>
         <View style={styles.statDivider} />
         <View style={styles.statItem}>
-          <Text style={[styles.statValue, { color: COLORS.WARNING }]}>{remainingRDV}</Text>
+          <Text style={[styles.statValue, { color: colors.WARNING }]}>{remainingRDV}</Text>
           <Text style={styles.statLabel}>Restants</Text>
         </View>
       </View>
@@ -1297,17 +1312,17 @@ const TourneeScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, 
       {tourResult && tourResult.orderIds.length > 0 && (
         <View style={styles.tourSummary}>
           {tourLoading ? (
-            <ActivityIndicator size="small" color={COLORS.NURSE_PRIMARY} />
+            <ActivityIndicator size="small" color={colors.NURSE_PRIMARY} />
           ) : (
             <>
-              <Ionicons name="map" size={16} color={COLORS.NURSE_PRIMARY} />
+              <Ionicons name="map" size={16} color={colors.NURSE_PRIMARY} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.tourSummaryText}>
                   {tourResult.totalDistanceKm} km · {tourResult.totalDurationMin} min de route
                 </Text>
                 {Object.values(tourResult.conflicts).some(Boolean) && (
                   <View style={styles.conflictRow}>
-                    <Ionicons name="warning-outline" size={13} color={COLORS.WARNING} />
+                    <Ionicons name="warning-outline" size={13} color={colors.WARNING} />
                     <Text style={styles.conflictText}>
                       Un ou plusieurs horaires fixes ne pourront pas être respectés avec ce trajet
                     </Text>
@@ -1322,7 +1337,7 @@ const TourneeScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, 
       {/* Patients list */}
       {appointments.length === 0 ? (
         <View style={styles.emptyState}>
-          <Ionicons name="calendar-outline" size={56} color={COLORS.BORDER} />
+          <Ionicons name="calendar-outline" size={56} color={colors.BORDER} />
           <Text style={styles.emptyTitle}>Aucun patient</Text>
           <Text style={styles.emptySubtitle}>
             Ajoutez des patients à votre tournée pour {selectedDate === getTodayISO() ? "aujourd'hui" : 'ce jour'}.
@@ -1331,7 +1346,7 @@ const TourneeScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, 
             style={styles.emptyButton}
             onPress={() => setShowAddModal(true)}
           >
-            <Ionicons name="add" size={18} color={COLORS.WHITE} />
+            <Ionicons name="add" size={18} color={colors.WHITE} />
             <Text style={styles.emptyButtonText}>Ajouter un patient</Text>
           </TouchableOpacity>
         </View>
@@ -1352,6 +1367,8 @@ const TourneeScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, 
         onClose={() => setShowAddModal(false)}
         onAdd={handleAddPatient}
         existingFileIds={appointments.map((a) => a.patient_file_id)}
+        colors={colors}
+        styles={styles}
       />
 
       {/* Completion Modal */}
@@ -1391,10 +1408,11 @@ const TourneeScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 const MAP_HEIGHT = SCREEN_HEIGHT * 0.28;
 
-const styles = StyleSheet.create({
+function createStyles(colors: ReturnType<typeof getColors>) {
+  return StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
   },
   centerWrap: {
     flex: 1,
@@ -1404,7 +1422,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: SIZES.FONT_SM,
-    color: COLORS.TEXT_MUTED,
+    color: colors.TEXT_MUTED,
   },
   // Header
   header: {
@@ -1413,18 +1431,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: SIZES.LG,
     paddingVertical: SIZES.MD,
-    backgroundColor: COLORS.WHITE,
+    backgroundColor: colors.WHITE,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.BORDER,
+    borderBottomColor: colors.BORDER,
   },
   headerTitle: {
     fontSize: SIZES.FONT_2XL,
     fontWeight: '700',
-    color: COLORS.TEXT_PRIMARY,
+    color: colors.TEXT_PRIMARY,
   },
   headerDate: {
     fontSize: SIZES.FONT_SM,
-    color: COLORS.TEXT_SECONDARY,
+    color: colors.TEXT_SECONDARY,
     marginTop: 2,
     textTransform: 'capitalize',
   },
@@ -1432,7 +1450,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: COLORS.NURSE_LIGHT,
+    backgroundColor: colors.NURSE_LIGHT,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1441,11 +1459,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: COLORS.WHITE,
+    backgroundColor: colors.WHITE,
     paddingHorizontal: SIZES.SM,
     paddingVertical: SIZES.SM,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.BORDER,
+    borderBottomColor: colors.BORDER,
   },
   dateChip: {
     alignItems: 'center',
@@ -1455,41 +1473,41 @@ const styles = StyleSheet.create({
     minWidth: 38,
   },
   dateChipSelected: {
-    backgroundColor: COLORS.NURSE_PRIMARY,
+    backgroundColor: colors.NURSE_PRIMARY,
   },
   dateChipToday: {
-    backgroundColor: COLORS.NURSE_LIGHT,
+    backgroundColor: colors.NURSE_LIGHT,
   },
   dateChipDay: {
     fontSize: 10,
-    color: COLORS.TEXT_MUTED,
+    color: colors.TEXT_MUTED,
     textTransform: 'capitalize',
   },
   dateChipDaySelected: {
-    color: COLORS.WHITE,
+    color: colors.WHITE,
   },
   dateChipNum: {
     fontSize: SIZES.FONT_MD,
     fontWeight: '700',
-    color: COLORS.TEXT_PRIMARY,
+    color: colors.TEXT_PRIMARY,
   },
   dateChipNumSelected: {
-    color: COLORS.WHITE,
+    color: colors.WHITE,
   },
   // Departure bar
   departureBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.WHITE,
+    backgroundColor: colors.WHITE,
     paddingHorizontal: SIZES.LG,
     paddingVertical: SIZES.SM,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.BORDER,
+    borderBottomColor: colors.BORDER,
     gap: SIZES.SM,
   },
   departureLabel: {
     fontSize: SIZES.FONT_SM,
-    color: COLORS.TEXT_SECONDARY,
+    color: colors.TEXT_SECONDARY,
     fontWeight: '600',
   },
   departureEditRow: {
@@ -1500,9 +1518,9 @@ const styles = StyleSheet.create({
   departureInput: {
     fontSize: SIZES.FONT_MD,
     fontWeight: '700',
-    color: COLORS.NURSE_PRIMARY,
+    color: colors.NURSE_PRIMARY,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.NURSE_PRIMARY,
+    borderBottomColor: colors.NURSE_PRIMARY,
     paddingHorizontal: SIZES.SM,
     paddingVertical: 2,
     minWidth: 60,
@@ -1516,12 +1534,12 @@ const styles = StyleSheet.create({
   departureValue: {
     fontSize: SIZES.FONT_MD,
     fontWeight: '700',
-    color: COLORS.NURSE_PRIMARY,
+    color: colors.NURSE_PRIMARY,
   },
   addPatientBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.NURSE_PRIMARY,
+    backgroundColor: colors.NURSE_PRIMARY,
     paddingHorizontal: SIZES.MD,
     paddingVertical: SIZES.SM,
     borderRadius: SIZES.BORDER_RADIUS_SM,
@@ -1529,7 +1547,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   addPatientBtnText: {
-    color: COLORS.WHITE,
+    color: colors.WHITE,
     fontSize: SIZES.FONT_SM,
     fontWeight: '600',
   },
@@ -1537,7 +1555,7 @@ const styles = StyleSheet.create({
   mapContainer: {
     height: MAP_HEIGHT,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.BORDER,
+    borderBottomColor: colors.BORDER,
   },
   map: {
     flex: 1,
@@ -1549,8 +1567,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
-    borderColor: COLORS.WHITE,
-    shadowColor: COLORS.BLACK,
+    borderColor: colors.WHITE,
+    shadowColor: colors.BLACK,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 3,
@@ -1571,20 +1589,20 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   markerSelected: {
-    borderColor: COLORS.BLACK,
+    borderColor: colors.BLACK,
     borderWidth: 3,
   },
   markerText: {
-    color: COLORS.WHITE,
+    color: colors.WHITE,
     fontSize: 14,
     fontWeight: '700',
   },
   calloutContent: {
-    backgroundColor: COLORS.WHITE,
+    backgroundColor: colors.WHITE,
     borderRadius: SIZES.BORDER_RADIUS_SM,
     padding: SIZES.SM,
     minWidth: 150,
-    shadowColor: COLORS.BLACK,
+    shadowColor: colors.BLACK,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
     shadowRadius: 4,
@@ -1593,22 +1611,22 @@ const styles = StyleSheet.create({
   calloutTitle: {
     fontSize: SIZES.FONT_SM,
     fontWeight: '600',
-    color: COLORS.TEXT_PRIMARY,
+    color: colors.TEXT_PRIMARY,
   },
   calloutSubtitle: {
     fontSize: SIZES.FONT_XS,
-    color: COLORS.TEXT_SECONDARY,
+    color: colors.TEXT_SECONDARY,
     marginTop: 2,
   },
   // Stats bar
   statsBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.WHITE,
+    backgroundColor: colors.WHITE,
     paddingVertical: SIZES.SM,
     paddingHorizontal: SIZES.LG,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.BORDER,
+    borderBottomColor: colors.BORDER,
   },
   statItem: {
     flex: 1,
@@ -1617,32 +1635,32 @@ const styles = StyleSheet.create({
   statValue: {
     fontSize: SIZES.FONT_LG,
     fontWeight: '700',
-    color: COLORS.TEXT_PRIMARY,
+    color: colors.TEXT_PRIMARY,
   },
   statLabel: {
     fontSize: SIZES.FONT_XS,
-    color: COLORS.TEXT_MUTED,
+    color: colors.TEXT_MUTED,
     marginTop: 2,
   },
   statDivider: {
     width: 1,
     height: 30,
-    backgroundColor: COLORS.BORDER,
+    backgroundColor: colors.BORDER,
   },
   // Tour summary
   tourSummary: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.NURSE_LIGHT,
+    backgroundColor: colors.NURSE_LIGHT,
     paddingVertical: SIZES.SM,
     paddingHorizontal: SIZES.LG,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.BORDER,
+    borderBottomColor: colors.BORDER,
     gap: SIZES.SM,
   },
   tourSummaryText: {
     fontSize: SIZES.FONT_SM,
-    color: COLORS.NURSE_PRIMARY,
+    color: colors.NURSE_PRIMARY,
     fontWeight: '600',
   },
   // List
@@ -1652,24 +1670,24 @@ const styles = StyleSheet.create({
   },
   // Card
   card: {
-    backgroundColor: COLORS.WHITE,
+    backgroundColor: colors.WHITE,
     borderRadius: SIZES.BORDER_RADIUS_MD,
     padding: SIZES.MD,
     marginBottom: SIZES.SM,
     borderLeftWidth: 4,
-    borderLeftColor: COLORS.WARNING,
-    shadowColor: COLORS.BLACK,
+    borderLeftColor: colors.WARNING,
+    shadowColor: colors.BLACK,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.06,
     shadowRadius: 4,
     elevation: 2,
   },
   cardCompleted: {
-    borderLeftColor: COLORS.SUCCESS,
+    borderLeftColor: colors.SUCCESS,
     opacity: 0.8,
   },
   cardSelected: {
-    borderLeftColor: COLORS.NURSE_PRIMARY,
+    borderLeftColor: colors.NURSE_PRIMARY,
     shadowOpacity: 0.12,
     elevation: 4,
   },
@@ -1687,7 +1705,7 @@ const styles = StyleSheet.create({
     marginRight: SIZES.SM,
   },
   numberText: {
-    color: COLORS.WHITE,
+    color: colors.WHITE,
     fontSize: SIZES.FONT_SM,
     fontWeight: '700',
   },
@@ -1698,22 +1716,22 @@ const styles = StyleSheet.create({
   cardTime: {
     fontSize: SIZES.FONT_SM,
     fontWeight: '700',
-    color: COLORS.NURSE_PRIMARY,
+    color: colors.NURSE_PRIMARY,
   },
   cardPatientName: {
     fontSize: SIZES.FONT_MD,
     fontWeight: '600',
-    color: COLORS.TEXT_PRIMARY,
+    color: colors.TEXT_PRIMARY,
     marginTop: 2,
   },
   cardCareType: {
     fontSize: SIZES.FONT_XS,
-    color: COLORS.TEXT_SECONDARY,
+    color: colors.TEXT_SECONDARY,
     marginTop: 2,
   },
   cardDuration: {
     fontSize: SIZES.FONT_XS,
-    color: COLORS.TEXT_MUTED,
+    color: colors.TEXT_MUTED,
     marginTop: 1,
   },
   statusBadge: {
@@ -1736,7 +1754,7 @@ const styles = StyleSheet.create({
   cardAddress: {
     flex: 1,
     fontSize: SIZES.FONT_XS,
-    color: COLORS.TEXT_MUTED,
+    color: colors.TEXT_MUTED,
     marginLeft: 6,
   },
   textMuted: {
@@ -1751,12 +1769,12 @@ const styles = StyleSheet.create({
   },
   travelText: {
     fontSize: SIZES.FONT_XS,
-    color: COLORS.NURSE_PRIMARY,
+    color: colors.NURSE_PRIMARY,
     fontWeight: '600',
   },
   estimatedBadgeText: {
     fontSize: SIZES.FONT_XS - 1,
-    color: COLORS.TEXT_MUTED,
+    color: colors.TEXT_MUTED,
     fontStyle: 'italic',
   },
   conflictRow: {
@@ -1767,7 +1785,7 @@ const styles = StyleSheet.create({
   },
   conflictText: {
     fontSize: SIZES.FONT_XS,
-    color: COLORS.WARNING,
+    color: colors.WARNING,
     fontWeight: '600',
     flexShrink: 1,
   },
@@ -1779,24 +1797,24 @@ const styles = StyleSheet.create({
     marginTop: SIZES.MD,
     paddingTop: SIZES.MD,
     borderTopWidth: 1,
-    borderTopColor: COLORS.BORDER,
+    borderTopColor: colors.BORDER,
   },
   actionBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.NURSE_PRIMARY,
+    backgroundColor: colors.NURSE_PRIMARY,
     paddingHorizontal: SIZES.MD,
     paddingVertical: SIZES.SM,
     borderRadius: SIZES.BORDER_RADIUS_SM,
     gap: 4,
   },
   actionBtnOutline: {
-    backgroundColor: COLORS.WHITE,
+    backgroundColor: colors.WHITE,
     borderWidth: 1,
-    borderColor: COLORS.NURSE_PRIMARY,
+    borderColor: colors.NURSE_PRIMARY,
   },
   actionBtnText: {
-    color: COLORS.WHITE,
+    color: colors.WHITE,
     fontSize: SIZES.FONT_XS,
     fontWeight: '600',
   },
@@ -1811,18 +1829,18 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: SIZES.FONT_LG,
     fontWeight: '600',
-    color: COLORS.TEXT_PRIMARY,
+    color: colors.TEXT_PRIMARY,
     marginTop: SIZES.SM,
   },
   emptySubtitle: {
     fontSize: SIZES.FONT_SM,
-    color: COLORS.TEXT_MUTED,
+    color: colors.TEXT_MUTED,
     textAlign: 'center',
   },
   emptyButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.NURSE_PRIMARY,
+    backgroundColor: colors.NURSE_PRIMARY,
     paddingHorizontal: SIZES.LG,
     paddingVertical: SIZES.MD,
     borderRadius: SIZES.BORDER_RADIUS_MD,
@@ -1830,7 +1848,7 @@ const styles = StyleSheet.create({
     marginTop: SIZES.SM,
   },
   emptyButtonText: {
-    color: COLORS.WHITE,
+    color: colors.WHITE,
     fontSize: SIZES.FONT_SM,
     fontWeight: '600',
   },
@@ -1842,7 +1860,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: SIZES.MD,
   },
   modalContent: {
-    backgroundColor: COLORS.WHITE,
+    backgroundColor: colors.WHITE,
     borderRadius: SIZES.BORDER_RADIUS_LG,
     height: '85%',
     maxHeight: '85%',
@@ -1853,17 +1871,17 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     padding: SIZES.LG,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.BORDER,
+    borderBottomColor: colors.BORDER,
   },
   modalTitle: {
     fontSize: SIZES.FONT_LG,
     fontWeight: '700',
-    color: COLORS.TEXT_PRIMARY,
+    color: colors.TEXT_PRIMARY,
   },
   modalSectionTitle: {
     fontSize: SIZES.FONT_SM,
     fontWeight: '600',
-    color: COLORS.TEXT_SECONDARY,
+    color: colors.TEXT_SECONDARY,
     paddingHorizontal: SIZES.LG,
     paddingTop: SIZES.MD,
     paddingBottom: SIZES.SM,
@@ -1874,19 +1892,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: SIZES.LG,
     paddingVertical: SIZES.MD,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.BORDER,
+    borderBottomColor: colors.BORDER,
   },
   modalItemSelected: {
-    backgroundColor: COLORS.NURSE_LIGHT,
+    backgroundColor: colors.NURSE_LIGHT,
   },
   modalItemName: {
     fontSize: SIZES.FONT_MD,
     fontWeight: '500',
-    color: COLORS.TEXT_PRIMARY,
+    color: colors.TEXT_PRIMARY,
   },
   modalItemSub: {
     fontSize: SIZES.FONT_XS,
-    color: COLORS.TEXT_MUTED,
+    color: colors.TEXT_MUTED,
     marginTop: 2,
   },
   careTypeInputRow: {
@@ -1895,30 +1913,30 @@ const styles = StyleSheet.create({
     paddingHorizontal: SIZES.SM,
     paddingVertical: SIZES.SM,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.BORDER,
+    borderBottomColor: colors.BORDER,
     gap: SIZES.SM,
   },
   careTypeInput: {
     flex: 1,
     height: 44,
     borderWidth: 1.5,
-    borderColor: COLORS.BORDER,
+    borderColor: colors.BORDER,
     borderRadius: SIZES.BORDER_RADIUS_MD,
     paddingHorizontal: SIZES.MD,
     fontSize: SIZES.FONT_MD,
-    color: COLORS.TEXT_PRIMARY,
+    color: colors.TEXT_PRIMARY,
   },
   careTypeAddBtn: {
     width: 44,
     height: 44,
     borderRadius: SIZES.BORDER_RADIUS_MD,
-    backgroundColor: COLORS.NURSE_PRIMARY,
+    backgroundColor: colors.NURSE_PRIMARY,
     alignItems: 'center',
     justifyContent: 'center',
   },
   modalEmptyText: {
     fontSize: SIZES.FONT_SM,
-    color: COLORS.TEXT_MUTED,
+    color: colors.TEXT_MUTED,
     textAlign: 'center',
     padding: SIZES.LG,
   },
@@ -1928,26 +1946,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: SIZES.LG,
     paddingVertical: SIZES.MD,
-    backgroundColor: COLORS.NURSE_LIGHT,
+    backgroundColor: colors.NURSE_LIGHT,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.BORDER,
+    borderBottomColor: colors.BORDER,
   },
   selectedPatientName: {
     flex: 1,
     fontSize: SIZES.FONT_MD,
     fontWeight: '600',
-    color: COLORS.TEXT_PRIMARY,
+    color: colors.TEXT_PRIMARY,
     marginLeft: SIZES.SM,
   },
   changeBtn: {
     fontSize: SIZES.FONT_SM,
     fontWeight: '600',
-    color: COLORS.NURSE_PRIMARY,
+    color: colors.NURSE_PRIMARY,
   },
   // Care type dropdown
   careTypeDropdown: {
     borderWidth: 1.5,
-    borderColor: COLORS.BORDER,
+    borderColor: colors.BORDER,
     borderRadius: SIZES.BORDER_RADIUS_MD,
     marginTop: SIZES.XS,
     maxHeight: 400,
@@ -1957,21 +1975,21 @@ const styles = StyleSheet.create({
   addForm: {
     padding: SIZES.LG,
     borderTopWidth: 1,
-    borderTopColor: COLORS.BORDER,
+    borderTopColor: colors.BORDER,
   },
   formLabel: {
     fontSize: SIZES.FONT_SM,
     fontWeight: '600',
-    color: COLORS.TEXT_SECONDARY,
+    color: colors.TEXT_SECONDARY,
     marginBottom: SIZES.XS,
     marginTop: SIZES.SM,
   },
   selectBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.WHITE,
+    backgroundColor: colors.WHITE,
     borderWidth: 1.5,
-    borderColor: COLORS.BORDER,
+    borderColor: colors.BORDER,
     borderRadius: SIZES.BORDER_RADIUS_MD,
     paddingHorizontal: SIZES.MD,
     height: 44,
@@ -1979,11 +1997,11 @@ const styles = StyleSheet.create({
   selectText: {
     flex: 1,
     fontSize: SIZES.FONT_MD,
-    color: COLORS.TEXT_PRIMARY,
+    color: colors.TEXT_PRIMARY,
     marginLeft: SIZES.SM,
   },
   placeholder: {
-    color: COLORS.TEXT_MUTED,
+    color: colors.TEXT_MUTED,
   },
   durationRow: {
     flexDirection: 'row',
@@ -1995,27 +2013,27 @@ const styles = StyleSheet.create({
     paddingHorizontal: SIZES.MD,
     borderRadius: SIZES.BORDER_RADIUS_FULL,
     borderWidth: 1.5,
-    borderColor: COLORS.BORDER,
-    backgroundColor: COLORS.WHITE,
+    borderColor: colors.BORDER,
+    backgroundColor: colors.WHITE,
   },
   durationChipSelected: {
-    borderColor: COLORS.NURSE_PRIMARY,
-    backgroundColor: COLORS.NURSE_LIGHT,
+    borderColor: colors.NURSE_PRIMARY,
+    backgroundColor: colors.NURSE_LIGHT,
   },
   durationChipText: {
     fontSize: SIZES.FONT_SM,
     fontWeight: '600',
-    color: COLORS.TEXT_SECONDARY,
+    color: colors.TEXT_SECONDARY,
   },
   durationChipTextSelected: {
-    color: COLORS.NURSE_PRIMARY,
+    color: colors.NURSE_PRIMARY,
   },
   inputWrap: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.WHITE,
+    backgroundColor: colors.WHITE,
     borderWidth: 1.5,
-    borderColor: COLORS.BORDER,
+    borderColor: colors.BORDER,
     borderRadius: SIZES.BORDER_RADIUS_MD,
     paddingHorizontal: SIZES.MD,
     height: 44,
@@ -2023,7 +2041,7 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     fontSize: SIZES.FONT_MD,
-    color: COLORS.TEXT_PRIMARY,
+    color: colors.TEXT_PRIMARY,
     marginLeft: SIZES.SM,
     height: '100%',
   },
@@ -2031,17 +2049,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: COLORS.NURSE_PRIMARY,
+    backgroundColor: colors.NURSE_PRIMARY,
     paddingVertical: SIZES.MD,
     borderRadius: SIZES.BORDER_RADIUS_MD,
     marginTop: SIZES.LG,
     gap: SIZES.SM,
   },
   addBtnText: {
-    color: COLORS.WHITE,
+    color: colors.WHITE,
     fontSize: SIZES.FONT_MD,
     fontWeight: '700',
   },
-});
+  });
+}
 
 export default TourneeScreen;
