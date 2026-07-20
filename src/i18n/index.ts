@@ -24,6 +24,7 @@ i18n
   .use(languageDetector)
   .use(initReactI18next)
   .init({
+    lng: 'fr',
     fallbackLng: 'fr',
     defaultNS: 'common',
     ns: ['common', 'auth', 'nurse', 'patient', 'family'],
