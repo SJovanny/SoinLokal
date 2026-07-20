@@ -24,7 +24,6 @@ i18n
   .use(languageDetector)
   .use(initReactI18next)
   .init({
-    compatibilityJSON: 'v4',
     fallbackLng: 'fr',
     defaultNS: 'common',
     ns: ['common', 'auth', 'nurse', 'patient', 'family'],
