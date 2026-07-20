@@ -15,6 +15,7 @@ import { supabase, type Appointment } from '../../utils/supabase';
 import { COLORS, SIZES } from '../../utils/constants';
 import CompletionModal, { type CareNotesData } from '../../components/CompletionModal';
 import MonthYearFilter from '../../components/MonthYearFilter';
+import { exportCareHistoryToPDF } from '../../utils/pdfExport';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -230,7 +231,20 @@ const CareHistoryScreen: React.FC<{ navigation: any; route: any }> = ({
           <Text style={styles.headerTitle}>Historique</Text>
           <Text style={styles.headerSubtitle}>{patientName}</Text>
         </View>
-        <View style={{ width: 40 }} />
+        <TouchableOpacity
+          style={styles.exportBtn}
+          onPress={() =>
+            exportCareHistoryToPDF({
+              appointments: filteredHistory,
+              title: `Historique des soins — ${patientName}`,
+              subtitle: `Infirmier : ${user?.email ?? ''}`,
+              accentColor: COLORS.NURSE_PRIMARY,
+            })
+          }
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Ionicons name="download-outline" size={22} color={COLORS.NURSE_PRIMARY} />
+        </TouchableOpacity>
       </View>
 
       {/* Month/Year Filter */}
@@ -320,6 +334,14 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 12,
     backgroundColor: COLORS.BACKGROUND,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  exportBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: COLORS.NURSE_LIGHT,
     alignItems: 'center',
     justifyContent: 'center',
   },

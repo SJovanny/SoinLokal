@@ -4,6 +4,7 @@ import {
   Text,
   StyleSheet,
   FlatList,
+  TouchableOpacity,
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -12,6 +13,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { supabase, type Appointment } from '../../utils/supabase';
 import { COLORS, SIZES } from '../../utils/constants';
 import MonthYearFilter from '../../components/MonthYearFilter';
+import { exportCareHistoryToPDF } from '../../utils/pdfExport';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -154,6 +156,22 @@ const PatientCareHistory: React.FC = () => {
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Historique des soins</Text>
+        {filteredHistory.length > 0 && (
+          <TouchableOpacity
+            style={styles.exportBtn}
+            onPress={() =>
+              exportCareHistoryToPDF({
+                appointments: filteredHistory,
+                title: 'Historique des soins',
+                subtitle: `Patient : ${user?.email ?? ''}`,
+                accentColor: COLORS.PATIENT_PRIMARY,
+              })
+            }
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="download-outline" size={22} color={COLORS.PATIENT_PRIMARY} />
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Month/Year Filter */}
@@ -206,6 +224,9 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.BACKGROUND,
   },
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: SIZES.LG,
     paddingVertical: SIZES.LG,
     backgroundColor: COLORS.WHITE,
@@ -216,6 +237,14 @@ const styles = StyleSheet.create({
     fontSize: SIZES.FONT_XL,
     fontWeight: '700',
     color: COLORS.TEXT_PRIMARY,
+  },
+  exportBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: COLORS.PATIENT_LIGHT,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   centerWrap: {
     flex: 1,
