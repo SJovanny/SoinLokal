@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -12,13 +12,17 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
+import { useTheme } from '../../contexts/ThemeContext';
 import { buildPatientExportData } from '../../utils/dataExport';
 import { exportPatientDossierToPDF } from '../../utils/pdfExport';
-import { COLORS, SIZES } from '../../utils/constants';
+import { getColors, SIZES } from '../../utils/constants';
 import type { Appointment } from '../../utils/supabase';
 
 const ExportDataScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { user, userProfile, patientProfile } = useAuth();
+  const { isDark } = useTheme();
+  const colors = getColors(isDark);
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [loading, setLoading] = useState(false);
   const [loadingType, setLoadingType] = useState<'pdf' | 'json' | null>(null);
 
@@ -39,7 +43,7 @@ const ExportDataScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         profile: userProfile,
         patientProfile,
         appointments: exportData.appointments as unknown as Appointment[],
-        accentColor: COLORS.PATIENT_PRIMARY,
+        accentColor: colors.PATIENT_PRIMARY,
       });
     } catch (err) {
       Alert.alert(
@@ -103,7 +107,7 @@ const ExportDataScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={COLORS.PATIENT_PRIMARY} />
+        <ActivityIndicator size="large" color={colors.PATIENT_PRIMARY} />
         <Text style={styles.loadingText}>
           {loadingType === 'pdf'
             ? 'Génération du dossier PDF...'
@@ -124,7 +128,7 @@ const ExportDataScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           style={styles.backButton}
         >
-          <Ionicons name="chevron-back" size={26} color={COLORS.PATIENT_PRIMARY} />
+          <Ionicons name="chevron-back" size={26} color={colors.PATIENT_PRIMARY} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Exporter mes données</Text>
         <View style={styles.headerPlaceholder} />
@@ -137,7 +141,7 @@ const ExportDataScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
       >
         <View style={styles.infoCard}>
           <View style={styles.infoCardIcon}>
-            <Ionicons name="shield-checkmark-outline" size={28} color={COLORS.PATIENT_PRIMARY} />
+            <Ionicons name="shield-checkmark-outline" size={28} color={colors.PATIENT_PRIMARY} />
           </View>
           <Text style={styles.infoCardText}>
             Conformément au RGPD (droit à la portabilité), vous pouvez exporter
@@ -152,7 +156,7 @@ const ExportDataScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           activeOpacity={0.7}
         >
           <View style={styles.optionIconContainer}>
-            <Ionicons name="document-text-outline" size={32} color={COLORS.PATIENT_PRIMARY} />
+            <Ionicons name="document-text-outline" size={32} color={colors.PATIENT_PRIMARY} />
           </View>
           <View style={styles.optionContent}>
             <Text style={styles.optionTitle}>Exporter en PDF</Text>
@@ -160,7 +164,7 @@ const ExportDataScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
               Dossier lisible incluant profil, soins et historique
             </Text>
           </View>
-          <Ionicons name="chevron-forward" size={22} color={COLORS.TEXT_MUTED} />
+          <Ionicons name="chevron-forward" size={22} color={colors.TEXT_MUTED} />
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -169,7 +173,7 @@ const ExportDataScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           activeOpacity={0.7}
         >
           <View style={styles.optionIconContainer}>
-            <Ionicons name="code-outline" size={32} color={COLORS.PATIENT_PRIMARY} />
+            <Ionicons name="code-outline" size={32} color={colors.PATIENT_PRIMARY} />
           </View>
           <View style={styles.optionContent}>
             <Text style={styles.optionTitle}>Exporter en JSON</Text>
@@ -177,17 +181,18 @@ const ExportDataScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
               Format brut pour importation dans une autre application
             </Text>
           </View>
-          <Ionicons name="chevron-forward" size={22} color={COLORS.TEXT_MUTED} />
+          <Ionicons name="chevron-forward" size={22} color={colors.TEXT_MUTED} />
         </TouchableOpacity>
       </ScrollView>
     </View>
   );
 };
 
-const styles = StyleSheet.create({
+function createStyles(colors: ReturnType<typeof getColors>) {
+  return StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
   },
   header: {
     flexDirection: 'row',
@@ -196,14 +201,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: SIZES.LG,
     paddingVertical: SIZES.MD,
     paddingTop: 60,
-    backgroundColor: COLORS.WHITE,
+    backgroundColor: colors.WHITE,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.BORDER,
+    borderBottomColor: colors.BORDER,
   },
   headerTitle: {
     fontSize: SIZES.FONT_XL,
     fontWeight: '700',
-    color: COLORS.PATIENT_PRIMARY,
+    color: colors.PATIENT_PRIMARY,
   },
   backButton: {
     padding: SIZES.XS,
@@ -219,14 +224,14 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   infoCard: {
-    backgroundColor: COLORS.PATIENT_LIGHT,
+    backgroundColor: colors.PATIENT_LIGHT,
     borderRadius: SIZES.BORDER_RADIUS_MD,
     padding: SIZES.MD,
     marginBottom: SIZES.XL,
     flexDirection: 'row',
     alignItems: 'flex-start',
     borderLeftWidth: 3,
-    borderLeftColor: COLORS.PATIENT_PRIMARY,
+    borderLeftColor: colors.PATIENT_PRIMARY,
   },
   infoCardIcon: {
     marginRight: SIZES.SM,
@@ -235,17 +240,17 @@ const styles = StyleSheet.create({
   infoCardText: {
     flex: 1,
     fontSize: SIZES.FONT_SM,
-    color: COLORS.TEXT_PRIMARY,
+    color: colors.TEXT_PRIMARY,
     lineHeight: 20,
   },
   optionCard: {
-    backgroundColor: COLORS.WHITE,
+    backgroundColor: colors.WHITE,
     borderRadius: SIZES.BORDER_RADIUS_MD,
     padding: SIZES.MD,
     marginBottom: SIZES.MD,
     flexDirection: 'row',
     alignItems: 'center',
-    shadowColor: COLORS.BLACK,
+    shadowColor: colors.BLACK,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.06,
     shadowRadius: 4,
@@ -255,7 +260,7 @@ const styles = StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: SIZES.BORDER_RADIUS_SM,
-    backgroundColor: COLORS.PATIENT_LIGHT,
+    backgroundColor: colors.PATIENT_LIGHT,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: SIZES.MD,
@@ -266,17 +271,17 @@ const styles = StyleSheet.create({
   optionTitle: {
     fontSize: SIZES.FONT_MD,
     fontWeight: '700',
-    color: COLORS.TEXT_PRIMARY,
+    color: colors.TEXT_PRIMARY,
     marginBottom: 2,
   },
   optionDescription: {
     fontSize: SIZES.FONT_XS,
-    color: COLORS.TEXT_SECONDARY,
+    color: colors.TEXT_SECONDARY,
     lineHeight: 16,
   },
   loadingContainer: {
     flex: 1,
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
     alignItems: 'center',
     justifyContent: 'center',
     padding: SIZES.XL,
@@ -284,14 +289,15 @@ const styles = StyleSheet.create({
   loadingText: {
     fontSize: SIZES.FONT_LG,
     fontWeight: '600',
-    color: COLORS.TEXT_PRIMARY,
+    color: colors.TEXT_PRIMARY,
     marginTop: SIZES.MD,
   },
   loadingSubtext: {
     fontSize: SIZES.FONT_SM,
-    color: COLORS.TEXT_MUTED,
+    color: colors.TEXT_MUTED,
     marginTop: SIZES.XS,
   },
-});
+  });
+}
 
 export default ExportDataScreen;

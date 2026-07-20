@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -12,8 +12,9 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
+import { useTheme } from '../../contexts/ThemeContext';
 import { supabase, type PatientProfile as PatientProfileData } from '../../utils/supabase';
-import { COLORS, SIZES } from '../../utils/constants';
+import { getColors, SIZES } from '../../utils/constants';
 import LogoutButton from '../../components/LogoutButton';
 import AvatarPicker from '../../components/AvatarPicker';
 import HelpSection from '../../components/HelpSection';
@@ -26,6 +27,9 @@ import OnboardingModal from '../../components/OnboardingModal';
 
 const PatientProfileScreen: React.FC = () => {
   const { userProfile, patientProfile, fetchProfile, user } = useAuth();
+  const { isDark } = useTheme();
+  const colors = getColors(isDark);
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -110,7 +114,7 @@ const PatientProfileScreen: React.FC = () => {
               style={[styles.headerSaveBtn, saving && { opacity: 0.6 }]}
             >
               {saving ? (
-                <ActivityIndicator size="small" color={COLORS.WHITE} />
+                <ActivityIndicator size="small" color={colors.WHITE} />
               ) : (
                 <Text style={styles.headerSaveText}>Enregistrer</Text>
               )}
@@ -118,7 +122,7 @@ const PatientProfileScreen: React.FC = () => {
           </View>
         ) : (
           <TouchableOpacity onPress={startEditing} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <Ionicons name="create-outline" size={20} color={COLORS.PATIENT_PRIMARY} />
+            <Ionicons name="create-outline" size={20} color={colors.PATIENT_PRIMARY} />
           </TouchableOpacity>
         )}
       </View>
@@ -148,14 +152,14 @@ const PatientProfileScreen: React.FC = () => {
                 value={editFirstName}
                 onChangeText={setEditFirstName}
                 placeholder="Prénom"
-                placeholderTextColor={COLORS.TEXT_MUTED}
+                placeholderTextColor={colors.TEXT_MUTED}
               />
               <TextInput
                 style={styles.editNameInput}
                 value={editLastName}
                 onChangeText={setEditLastName}
                 placeholder="Nom"
-                placeholderTextColor={COLORS.TEXT_MUTED}
+                placeholderTextColor={colors.TEXT_MUTED}
               />
             </View>
           ) : (
@@ -172,7 +176,7 @@ const PatientProfileScreen: React.FC = () => {
           <Text style={styles.sectionTitle}>Informations personnelles</Text>
 
           <View style={styles.infoRow}>
-            <Ionicons name="call-outline" size={20} color={COLORS.TEXT_MUTED} />
+            <Ionicons name="call-outline" size={20} color={colors.TEXT_MUTED} />
             <View style={styles.infoContent}>
               <Text style={styles.infoLabel}>Téléphone</Text>
               {isEditing ? (
@@ -181,7 +185,7 @@ const PatientProfileScreen: React.FC = () => {
                   value={editPhone}
                   onChangeText={setEditPhone}
                   placeholder="Téléphone"
-                  placeholderTextColor={COLORS.TEXT_MUTED}
+                  placeholderTextColor={colors.TEXT_MUTED}
                   keyboardType="phone-pad"
                 />
               ) : (
@@ -191,7 +195,7 @@ const PatientProfileScreen: React.FC = () => {
           </View>
 
           <View style={styles.infoRow}>
-            <Ionicons name="home-outline" size={20} color={COLORS.TEXT_MUTED} />
+            <Ionicons name="home-outline" size={20} color={colors.TEXT_MUTED} />
             <View style={styles.infoContent}>
               <Text style={styles.infoLabel}>Adresse</Text>
               {isEditing ? (
@@ -200,7 +204,7 @@ const PatientProfileScreen: React.FC = () => {
                   value={editAddress}
                   onChangeText={setEditAddress}
                   placeholder="Adresse"
-                  placeholderTextColor={COLORS.TEXT_MUTED}
+                  placeholderTextColor={colors.TEXT_MUTED}
                 />
               ) : (
                 <Text style={styles.infoValue}>{patientProfile?.address || 'Non renseigné'}</Text>
@@ -209,7 +213,7 @@ const PatientProfileScreen: React.FC = () => {
           </View>
 
           <View style={styles.infoRow}>
-            <Ionicons name="call-outline" size={20} color={COLORS.TEXT_MUTED} />
+            <Ionicons name="call-outline" size={20} color={colors.TEXT_MUTED} />
             <View style={styles.infoContent}>
               <Text style={styles.infoLabel}>Contact d'urgence</Text>
               {isEditing ? (
@@ -218,7 +222,7 @@ const PatientProfileScreen: React.FC = () => {
                   value={editEmergencyContact}
                   onChangeText={setEditEmergencyContact}
                   placeholder="Nom - Téléphone"
-                  placeholderTextColor={COLORS.TEXT_MUTED}
+                  placeholderTextColor={colors.TEXT_MUTED}
                 />
               ) : (
                 <Text style={styles.infoValue}>{patientProfile?.emergency_contact || 'Non renseigné'}</Text>
@@ -249,7 +253,7 @@ const PatientProfileScreen: React.FC = () => {
         )}
 
         {/* Appearance */}
-        <ThemeSelector accentColor={COLORS.PATIENT_PRIMARY} />
+        <ThemeSelector accentColor={colors.PATIENT_PRIMARY} />
 
         {/* Help & Support */}
         <HelpSection
@@ -276,10 +280,11 @@ const PatientProfileScreen: React.FC = () => {
 // Styles
 // ---------------------------------------------------------------------------
 
-const styles = StyleSheet.create({
+function createStyles(colors: ReturnType<typeof getColors>) {
+  return StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
   },
   header: {
     flexDirection: 'row',
@@ -287,14 +292,14 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: SIZES.LG,
     paddingVertical: SIZES.MD,
-    backgroundColor: COLORS.WHITE,
+    backgroundColor: colors.WHITE,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.BORDER,
+    borderBottomColor: colors.BORDER,
   },
   headerTitle: {
     fontSize: SIZES.FONT_2XL,
     fontWeight: '700',
-    color: COLORS.PATIENT_PRIMARY,
+    color: colors.PATIENT_PRIMARY,
   },
   headerActions: {
     flexDirection: 'row',
@@ -307,17 +312,17 @@ const styles = StyleSheet.create({
   },
   headerCancelText: {
     fontSize: SIZES.FONT_MD,
-    color: COLORS.TEXT_MUTED,
+    color: colors.TEXT_MUTED,
     fontWeight: '600',
   },
   headerSaveBtn: {
-    backgroundColor: COLORS.PATIENT_PRIMARY,
+    backgroundColor: colors.PATIENT_PRIMARY,
     paddingVertical: SIZES.XS,
     paddingHorizontal: SIZES.MD,
     borderRadius: SIZES.BORDER_RADIUS_SM,
   },
   headerSaveText: {
-    color: COLORS.WHITE,
+    color: colors.WHITE,
     fontSize: SIZES.FONT_MD,
     fontWeight: '700',
   },
@@ -330,12 +335,12 @@ const styles = StyleSheet.create({
   },
   // Profile card
   profileCard: {
-    backgroundColor: COLORS.WHITE,
+    backgroundColor: colors.WHITE,
     borderRadius: SIZES.BORDER_RADIUS_LG,
     padding: SIZES.XL,
     alignItems: 'center',
     marginBottom: SIZES.MD,
-    shadowColor: COLORS.BLACK,
+    shadowColor: colors.BLACK,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
     shadowRadius: 6,
@@ -344,17 +349,17 @@ const styles = StyleSheet.create({
   userName: {
     fontSize: SIZES.FONT_XL,
     fontWeight: '700',
-    color: COLORS.TEXT_PRIMARY,
+    color: colors.TEXT_PRIMARY,
   },
   userRole: {
     fontSize: SIZES.FONT_SM,
-    color: COLORS.PATIENT_PRIMARY,
+    color: colors.PATIENT_PRIMARY,
     fontWeight: '600',
     marginTop: 2,
   },
   userEmail: {
     fontSize: SIZES.FONT_SM,
-    color: COLORS.TEXT_MUTED,
+    color: colors.TEXT_MUTED,
     marginTop: 4,
   },
   editNameRow: {
@@ -366,19 +371,19 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: SIZES.FONT_MD,
     fontWeight: '600',
-    color: COLORS.TEXT_PRIMARY,
+    color: colors.TEXT_PRIMARY,
     borderBottomWidth: 1.5,
-    borderBottomColor: COLORS.PATIENT_PRIMARY,
+    borderBottomColor: colors.PATIENT_PRIMARY,
     paddingVertical: SIZES.XS,
     textAlign: 'center',
   },
   // Sections
   section: {
-    backgroundColor: COLORS.WHITE,
+    backgroundColor: colors.WHITE,
     borderRadius: SIZES.BORDER_RADIUS_MD,
     padding: SIZES.MD,
     marginBottom: SIZES.MD,
-    shadowColor: COLORS.BLACK,
+    shadowColor: colors.BLACK,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.06,
     shadowRadius: 4,
@@ -387,7 +392,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: SIZES.FONT_LG,
     fontWeight: '700',
-    color: COLORS.TEXT_PRIMARY,
+    color: colors.TEXT_PRIMARY,
     marginBottom: SIZES.MD,
   },
   // Info rows
@@ -402,20 +407,20 @@ const styles = StyleSheet.create({
   },
   infoLabel: {
     fontSize: SIZES.FONT_XS,
-    color: COLORS.TEXT_MUTED,
+    color: colors.TEXT_MUTED,
     marginBottom: 2,
   },
   infoValue: {
     fontSize: SIZES.FONT_MD,
-    color: COLORS.TEXT_PRIMARY,
+    color: colors.TEXT_PRIMARY,
     fontWeight: '500',
   },
   editInput: {
     fontSize: SIZES.FONT_MD,
-    color: COLORS.TEXT_PRIMARY,
+    color: colors.TEXT_PRIMARY,
     fontWeight: '500',
     borderBottomWidth: 1.5,
-    borderBottomColor: COLORS.PATIENT_PRIMARY,
+    borderBottomColor: colors.PATIENT_PRIMARY,
     paddingVertical: SIZES.XS,
   },
   // Tags
@@ -425,7 +430,7 @@ const styles = StyleSheet.create({
     gap: SIZES.SM,
   },
   tag: {
-    backgroundColor: COLORS.WARNING,
+    backgroundColor: colors.WARNING,
     paddingHorizontal: SIZES.SM,
     paddingVertical: 3,
     borderRadius: SIZES.BORDER_RADIUS_FULL,
@@ -433,7 +438,7 @@ const styles = StyleSheet.create({
   tagText: {
     fontSize: SIZES.FONT_XS,
     fontWeight: '600',
-    color: COLORS.WHITE,
+    color: colors.WHITE,
   },
   // Logout
   logoutSection: {
@@ -443,6 +448,7 @@ const styles = StyleSheet.create({
   logoutButton: {
     minWidth: 200,
   },
-});
+  });
+}
 
 export default PatientProfileScreen;

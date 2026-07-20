@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -10,8 +10,9 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
+import { useTheme } from '../../contexts/ThemeContext';
 import { supabase, type Appointment } from '../../utils/supabase';
-import { COLORS, SIZES } from '../../utils/constants';
+import { getColors, SIZES } from '../../utils/constants';
 import MonthYearFilter from '../../components/MonthYearFilter';
 import { exportCareHistoryToPDF } from '../../utils/pdfExport';
 
@@ -40,6 +41,9 @@ function formatTime(time: string | null): string {
 
 const PatientCareHistory: React.FC = () => {
   const { user } = useAuth();
+  const { isDark } = useTheme();
+  const colors = getColors(isDark);
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [history, setHistory] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
@@ -108,14 +112,14 @@ const PatientCareHistory: React.FC = () => {
 
       {item.nurse && (
         <View style={styles.nurseRow}>
-          <Ionicons name="person-outline" size={14} color={COLORS.TEXT_MUTED} />
+          <Ionicons name="person-outline" size={14} color={colors.TEXT_MUTED} />
           <Text style={styles.nurseName}>{item.nurse.first_name} {item.nurse.last_name}</Text>
         </View>
       )}
 
       {item.duration_min ? (
         <View style={styles.durationRow}>
-          <Ionicons name="time-outline" size={14} color={COLORS.TEXT_MUTED} />
+          <Ionicons name="time-outline" size={14} color={colors.TEXT_MUTED} />
           <Text style={styles.durationText}>{item.duration_min} min</Text>
         </View>
       ) : null}
@@ -164,12 +168,12 @@ const PatientCareHistory: React.FC = () => {
                 appointments: filteredHistory,
                 title: 'Historique des soins',
                 subtitle: `Patient : ${user?.email ?? ''}`,
-                accentColor: COLORS.PATIENT_PRIMARY,
+                accentColor: colors.PATIENT_PRIMARY,
               })
             }
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <Ionicons name="download-outline" size={22} color={COLORS.PATIENT_PRIMARY} />
+            <Ionicons name="download-outline" size={22} color={colors.PATIENT_PRIMARY} />
           </TouchableOpacity>
         )}
       </View>
@@ -180,20 +184,20 @@ const PatientCareHistory: React.FC = () => {
           appointments={history}
           selectedMonth={selectedMonth}
           onSelectMonth={setSelectedMonth}
-          accentColor={COLORS.PATIENT_PRIMARY}
-          lightColor={COLORS.PATIENT_LIGHT}
+          accentColor={colors.PATIENT_PRIMARY}
+          lightColor={colors.PATIENT_LIGHT}
         />
       )}
 
       {/* Content */}
       {loading ? (
         <View style={styles.centerWrap}>
-          <ActivityIndicator size="large" color={COLORS.PATIENT_PRIMARY} />
+          <ActivityIndicator size="large" color={colors.PATIENT_PRIMARY} />
           <Text style={styles.loadingText}>Chargement...</Text>
         </View>
       ) : filteredHistory.length === 0 ? (
         <View style={styles.centerWrap}>
-          <Ionicons name="document-text-outline" size={56} color={COLORS.BORDER} />
+          <Ionicons name="document-text-outline" size={56} color={colors.BORDER} />
           <Text style={styles.emptyTitle}>Aucun soin</Text>
           <Text style={styles.emptySubtitle}>
             {selectedMonth
@@ -218,10 +222,11 @@ const PatientCareHistory: React.FC = () => {
 // Styles
 // ---------------------------------------------------------------------------
 
-const styles = StyleSheet.create({
+function createStyles(colors: ReturnType<typeof getColors>) {
+  return StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
   },
   header: {
     flexDirection: 'row',
@@ -229,20 +234,20 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: SIZES.LG,
     paddingVertical: SIZES.LG,
-    backgroundColor: COLORS.WHITE,
+    backgroundColor: colors.WHITE,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.BORDER,
+    borderBottomColor: colors.BORDER,
   },
   headerTitle: {
     fontSize: SIZES.FONT_XL,
     fontWeight: '700',
-    color: COLORS.TEXT_PRIMARY,
+    color: colors.TEXT_PRIMARY,
   },
   exportBtn: {
     width: 40,
     height: 40,
     borderRadius: 12,
-    backgroundColor: COLORS.PATIENT_LIGHT,
+    backgroundColor: colors.PATIENT_LIGHT,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -255,16 +260,16 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: SIZES.FONT_SM,
-    color: COLORS.TEXT_MUTED,
+    color: colors.TEXT_MUTED,
   },
   emptyTitle: {
     fontSize: SIZES.FONT_LG,
     fontWeight: '600',
-    color: COLORS.TEXT_PRIMARY,
+    color: colors.TEXT_PRIMARY,
   },
   emptySubtitle: {
     fontSize: SIZES.FONT_SM,
-    color: COLORS.TEXT_MUTED,
+    color: colors.TEXT_MUTED,
     textAlign: 'center',
     lineHeight: 20,
   },
@@ -274,23 +279,23 @@ const styles = StyleSheet.create({
   },
   // Card
   card: {
-    backgroundColor: COLORS.WHITE,
+    backgroundColor: colors.WHITE,
     borderRadius: SIZES.BORDER_RADIUS_MD,
     padding: SIZES.MD,
     marginBottom: SIZES.MD,
-    shadowColor: COLORS.BLACK,
+    shadowColor: colors.BLACK,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.06,
     shadowRadius: 4,
     elevation: 2,
     borderLeftWidth: 4,
-    borderLeftColor: COLORS.PATIENT_PRIMARY,
+    borderLeftColor: colors.PATIENT_PRIMARY,
   },
   cardHeader: {
     marginBottom: SIZES.SM,
   },
   careTypeBadge: {
-    backgroundColor: COLORS.PATIENT_LIGHT,
+    backgroundColor: colors.PATIENT_LIGHT,
     paddingHorizontal: SIZES.SM,
     paddingVertical: 3,
     borderRadius: SIZES.BORDER_RADIUS_FULL,
@@ -300,11 +305,11 @@ const styles = StyleSheet.create({
   careTypeText: {
     fontSize: SIZES.FONT_XS,
     fontWeight: '600',
-    color: COLORS.PATIENT_PRIMARY,
+    color: colors.PATIENT_PRIMARY,
   },
   cardDate: {
     fontSize: SIZES.FONT_SM,
-    color: COLORS.TEXT_SECONDARY,
+    color: colors.TEXT_SECONDARY,
   },
   durationRow: {
     flexDirection: 'row',
@@ -314,7 +319,7 @@ const styles = StyleSheet.create({
   },
   durationText: {
     fontSize: SIZES.FONT_XS,
-    color: COLORS.TEXT_MUTED,
+    color: colors.TEXT_MUTED,
   },
   nurseRow: {
     flexDirection: 'row',
@@ -325,11 +330,11 @@ const styles = StyleSheet.create({
   nurseName: {
     fontSize: SIZES.FONT_SM,
     fontWeight: '600',
-    color: COLORS.TEXT_SECONDARY,
+    color: colors.TEXT_SECONDARY,
   },
   // Notes
   noteBlock: {
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
     borderRadius: SIZES.BORDER_RADIUS_SM,
     padding: SIZES.SM,
     marginBottom: SIZES.SM,
@@ -337,19 +342,20 @@ const styles = StyleSheet.create({
   noteLabel: {
     fontSize: SIZES.FONT_XS,
     fontWeight: '600',
-    color: COLORS.TEXT_MUTED,
+    color: colors.TEXT_MUTED,
     marginBottom: 2,
   },
   noteText: {
     fontSize: SIZES.FONT_SM,
-    color: COLORS.TEXT_PRIMARY,
+    color: colors.TEXT_PRIMARY,
     lineHeight: 18,
   },
   noNotes: {
     fontSize: SIZES.FONT_SM,
-    color: COLORS.TEXT_MUTED,
+    color: colors.TEXT_MUTED,
     fontStyle: 'italic',
   },
-});
+  });
+}
 
 export default PatientCareHistory;

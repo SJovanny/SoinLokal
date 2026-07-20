@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -13,8 +13,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { useMessageCount } from '../../contexts/MessageCountContext';
+import { useTheme } from '../../contexts/ThemeContext';
 import { supabase } from '../../utils/supabase';
-import { COLORS, SIZES } from '../../utils/constants';
+import { getColors, SIZES } from '../../utils/constants';
 import LogoutButton from '../../components/LogoutButton';
 import Avatar from '../../components/Avatar';
 
@@ -63,12 +64,14 @@ function formatDate(dateStr: string): string {
   return d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' });
 }
 
-const STATUS_CONFIG: Record<string, { color: string; label: string }> = {
-  pending:   { color: COLORS.WARNING, label: 'En attente' },
-  confirmed: { color: COLORS.NURSE_PRIMARY, label: 'Confirmé' },
-  completed: { color: COLORS.TEXT_MUTED, label: 'Terminé' },
-  cancelled: { color: COLORS.DANGER, label: 'Annulé' },
-};
+function getStatusConfig(colors: ReturnType<typeof getColors>): Record<string, { color: string; label: string }> {
+  return {
+    pending:   { color: colors.WARNING, label: 'En attente' },
+    confirmed: { color: colors.NURSE_PRIMARY, label: 'Confirmé' },
+    completed: { color: colors.TEXT_MUTED, label: 'Terminé' },
+    cancelled: { color: colors.DANGER, label: 'Annulé' },
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Component
@@ -77,6 +80,10 @@ const STATUS_CONFIG: Record<string, { color: string; label: string }> = {
 const PatientDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { userProfile, user } = useAuth();
   const { unreadCount } = useMessageCount();
+  const { isDark } = useTheme();
+  const colors = getColors(isDark);
+  const styles = useMemo(() => createStyles(colors), [colors]);
+  const STATUS_CONFIG = useMemo(() => getStatusConfig(colors), [colors]);
   const today = getTodayISO();
 
   const [stats, setStats] = useState<Stats>({ upcomingRDV: 0, recentCares: 0 });
@@ -269,7 +276,7 @@ const PatientDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.centerWrap}>
-          <ActivityIndicator size="large" color={COLORS.PATIENT_PRIMARY} />
+          <ActivityIndicator size="large" color={colors.PATIENT_PRIMARY} />
         </View>
       </SafeAreaView>
     );
@@ -281,7 +288,7 @@ const PatientDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.PATIENT_PRIMARY]} />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.PATIENT_PRIMARY]} />
         }
       >
         {/* Header */}
@@ -304,8 +311,8 @@ const PatientDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
                 firstName={userProfile?.first_name}
                 lastName={userProfile?.last_name}
                 size={36}
-                backgroundColor={COLORS.PATIENT_LIGHT}
-                textColor={COLORS.PATIENT_PRIMARY}
+                backgroundColor={colors.PATIENT_LIGHT}
+                textColor={colors.PATIENT_PRIMARY}
               />
             </TouchableOpacity>
             <LogoutButton
@@ -319,7 +326,7 @@ const PatientDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
         {/* Status Card */}
         <View style={styles.statusCard}>
           <View style={styles.statusHeader}>
-            <Ionicons name="heart" size={24} color={COLORS.PATIENT_PRIMARY} />
+            <Ionicons name="heart" size={24} color={colors.PATIENT_PRIMARY} />
             <Text style={styles.statusTitle}>Statut de vos soins</Text>
           </View>
           <View style={styles.statusContent}>
@@ -332,7 +339,7 @@ const PatientDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
               <Text style={styles.statusLabel}>Soins reçus</Text>
             </View>
             <View style={styles.statusItem}>
-              <Text style={[styles.statusValue, unreadCount > 0 && { color: COLORS.WARNING }]}>
+              <Text style={[styles.statusValue, unreadCount > 0 && { color: colors.WARNING }]}>
                 {unreadCount}
               </Text>
               <Text style={styles.statusLabel}>Messages</Text>
@@ -355,7 +362,7 @@ const PatientDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
             />
           ) : (
             <View style={styles.emptyState}>
-              <Ionicons name="calendar-outline" size={48} color={COLORS.BORDER} />
+              <Ionicons name="calendar-outline" size={48} color={colors.BORDER} />
               <Text style={styles.emptyStateText}>Aucun rendez-vous à venir</Text>
             </View>
           )}
@@ -372,7 +379,7 @@ const PatientDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
                 activeOpacity={0.7}
               >
                 <Text style={styles.viewAllText}>Voir tout</Text>
-                <Ionicons name="chevron-forward" size={16} color={COLORS.PATIENT_PRIMARY} />
+                <Ionicons name="chevron-forward" size={16} color={colors.PATIENT_PRIMARY} />
               </TouchableOpacity>
             )}
           </View>
@@ -386,7 +393,7 @@ const PatientDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
             />
           ) : (
             <View style={styles.emptyState}>
-              <Ionicons name="document-text-outline" size={48} color={COLORS.BORDER} />
+              <Ionicons name="document-text-outline" size={48} color={colors.BORDER} />
               <Text style={styles.emptyStateText}>Aucun soin récent</Text>
             </View>
           )}
@@ -400,10 +407,11 @@ const PatientDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
 // Styles
 // ---------------------------------------------------------------------------
 
-const styles = StyleSheet.create({
+function createStyles(colors: ReturnType<typeof getColors>) {
+  return StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
   },
   centerWrap: {
     flex: 1,
@@ -418,7 +426,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: SIZES.LG,
-    backgroundColor: COLORS.WHITE,
+    backgroundColor: colors.WHITE,
   },
   headerLeft: {
     flex: 1,
@@ -430,27 +438,27 @@ const styles = StyleSheet.create({
   },
   greeting: {
     fontSize: SIZES.FONT_MD,
-    color: COLORS.TEXT_SECONDARY,
+    color: colors.TEXT_SECONDARY,
   },
   userName: {
     fontSize: SIZES.FONT_XL,
     fontWeight: '700',
-    color: COLORS.TEXT_PRIMARY,
+    color: colors.TEXT_PRIMARY,
   },
   profileButton: {
     padding: SIZES.XS,
   },
   logoutButtonHeader: {
     backgroundColor: 'transparent',
-    borderColor: COLORS.DANGER,
+    borderColor: colors.DANGER,
     borderWidth: 1,
   },
   statusCard: {
-    backgroundColor: COLORS.WHITE,
+    backgroundColor: colors.WHITE,
     margin: SIZES.LG,
     padding: SIZES.LG,
     borderRadius: SIZES.BORDER_RADIUS_LG,
-    shadowColor: COLORS.BLACK,
+    shadowColor: colors.BLACK,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
     shadowRadius: 6,
@@ -464,7 +472,7 @@ const styles = StyleSheet.create({
   statusTitle: {
     fontSize: SIZES.FONT_LG,
     fontWeight: '700',
-    color: COLORS.TEXT_PRIMARY,
+    color: colors.TEXT_PRIMARY,
     marginLeft: SIZES.SM,
   },
   statusContent: {
@@ -477,11 +485,11 @@ const styles = StyleSheet.create({
   statusValue: {
     fontSize: SIZES.FONT_2XL,
     fontWeight: '700',
-    color: COLORS.PATIENT_PRIMARY,
+    color: colors.PATIENT_PRIMARY,
   },
   statusLabel: {
     fontSize: SIZES.FONT_XS,
-    color: COLORS.TEXT_MUTED,
+    color: colors.TEXT_MUTED,
     marginTop: SIZES.XS,
   },
   section: {
@@ -497,7 +505,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: SIZES.FONT_LG,
     fontWeight: '700',
-    color: COLORS.TEXT_PRIMARY,
+    color: colors.TEXT_PRIMARY,
   },
   viewAllButton: {
     flexDirection: 'row',
@@ -507,14 +515,14 @@ const styles = StyleSheet.create({
   viewAllText: {
     fontSize: SIZES.FONT_SM,
     fontWeight: '600',
-    color: COLORS.PATIENT_PRIMARY,
+    color: colors.PATIENT_PRIMARY,
   },
   appointmentCard: {
-    backgroundColor: COLORS.WHITE,
+    backgroundColor: colors.WHITE,
     padding: SIZES.MD,
     borderRadius: SIZES.BORDER_RADIUS_MD,
     marginBottom: SIZES.SM,
-    shadowColor: COLORS.BLACK,
+    shadowColor: colors.BLACK,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.08,
     shadowRadius: 4,
@@ -532,11 +540,11 @@ const styles = StyleSheet.create({
   nurseName: {
     fontSize: SIZES.FONT_MD,
     fontWeight: '700',
-    color: COLORS.TEXT_PRIMARY,
+    color: colors.TEXT_PRIMARY,
   },
   appointmentType: {
     fontSize: SIZES.FONT_SM,
-    color: COLORS.TEXT_SECONDARY,
+    color: colors.TEXT_SECONDARY,
     marginTop: 2,
   },
   appointmentTime: {
@@ -545,11 +553,11 @@ const styles = StyleSheet.create({
   time: {
     fontSize: SIZES.FONT_SM,
     fontWeight: '600',
-    color: COLORS.TEXT_PRIMARY,
+    color: colors.TEXT_PRIMARY,
   },
   date: {
     fontSize: SIZES.FONT_XS,
-    color: COLORS.TEXT_MUTED,
+    color: colors.TEXT_MUTED,
     marginTop: 2,
     textTransform: 'capitalize',
   },
@@ -564,17 +572,17 @@ const styles = StyleSheet.create({
   },
   statusText: {
     fontSize: SIZES.FONT_XS,
-    color: COLORS.WHITE,
+    color: colors.WHITE,
     fontWeight: '600',
   },
   careCard: {
-    backgroundColor: COLORS.WHITE,
+    backgroundColor: colors.WHITE,
     padding: SIZES.MD,
     borderRadius: SIZES.BORDER_RADIUS_MD,
     marginBottom: SIZES.SM,
     borderLeftWidth: 3,
-    borderLeftColor: COLORS.PATIENT_LIGHT,
-    shadowColor: COLORS.BLACK,
+    borderLeftColor: colors.PATIENT_LIGHT,
+    shadowColor: colors.BLACK,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.06,
     shadowRadius: 4,
@@ -589,20 +597,20 @@ const styles = StyleSheet.create({
   careType: {
     fontSize: SIZES.FONT_SM,
     fontWeight: '600',
-    color: COLORS.PATIENT_PRIMARY,
+    color: colors.PATIENT_PRIMARY,
   },
   careDate: {
     fontSize: SIZES.FONT_XS,
-    color: COLORS.TEXT_MUTED,
+    color: colors.TEXT_MUTED,
   },
   careNurse: {
     fontSize: SIZES.FONT_SM,
-    color: COLORS.TEXT_SECONDARY,
+    color: colors.TEXT_SECONDARY,
     marginBottom: SIZES.XS,
   },
   careNote: {
     fontSize: SIZES.FONT_SM,
-    color: COLORS.TEXT_PRIMARY,
+    color: colors.TEXT_PRIMARY,
     lineHeight: 18,
   },
   emptyState: {
@@ -612,9 +620,10 @@ const styles = StyleSheet.create({
   },
   emptyStateText: {
     fontSize: SIZES.FONT_MD,
-    color: COLORS.TEXT_MUTED,
+    color: colors.TEXT_MUTED,
     marginTop: SIZES.SM,
   },
-});
+  });
+}
 
 export default PatientDashboard;
