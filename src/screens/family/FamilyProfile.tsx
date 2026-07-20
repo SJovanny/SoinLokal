@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -10,7 +10,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../utils/supabase';
-import { COLORS, SIZES } from '../../utils/constants';
+import { getColors, SIZES } from '../../utils/constants';
+import { useTheme } from '../../contexts/ThemeContext';
 import LogoutButton from '../../components/LogoutButton';
 import Avatar from '../../components/Avatar';
 import AvatarPicker from '../../components/AvatarPicker';
@@ -41,6 +42,9 @@ interface LinkedPatientInfo {
 
 const FamilyProfile: React.FC = () => {
   const { userProfile, familyLinks, user, fetchProfile } = useAuth();
+  const { isDark } = useTheme();
+  const colors = getColors(isDark);
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [linkedPatient, setLinkedPatient] = useState<LinkedPatientInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -148,7 +152,7 @@ const FamilyProfile: React.FC = () => {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.centerWrap}>
-          <ActivityIndicator size="large" color={COLORS.FAMILY_PRIMARY} />
+          <ActivityIndicator size="large" color={colors.FAMILY_PRIMARY} />
         </View>
       </SafeAreaView>
     );
@@ -175,8 +179,8 @@ const FamilyProfile: React.FC = () => {
             firstName={userProfile?.first_name}
             lastName={userProfile?.last_name}
             size={80}
-            backgroundColor={COLORS.FAMILY_LIGHT}
-            textColor={COLORS.FAMILY_PRIMARY}
+            backgroundColor={colors.FAMILY_LIGHT}
+            textColor={colors.FAMILY_PRIMARY}
           />
           <Text style={styles.userName}>
             {userProfile?.first_name} {userProfile?.last_name}
@@ -205,8 +209,8 @@ const FamilyProfile: React.FC = () => {
                 <Text style={styles.patientName}>{linkedPatient.firstName} {linkedPatient.lastName}</Text>
                 <View style={styles.patientBadgeRow}>
                   {linkedPatient.isManaged ? (
-                    <View style={[styles.badge, { backgroundColor: COLORS.FAMILY_LIGHT }]}>
-                      <Text style={[styles.badgeText, { color: COLORS.FAMILY_PRIMARY }]}>Géré par vous</Text>
+                    <View style={[styles.badge, { backgroundColor: colors.FAMILY_LIGHT }]}>
+                      <Text style={[styles.badgeText, { color: colors.FAMILY_PRIMARY }]}>Géré par vous</Text>
                     </View>
                   ) : (
                     <Text style={styles.patientPerm}>
@@ -218,7 +222,7 @@ const FamilyProfile: React.FC = () => {
             </View>
           ) : (
             <View style={styles.emptyState}>
-              <Ionicons name="people-outline" size={32} color={COLORS.BORDER} />
+              <Ionicons name="people-outline" size={32} color={colors.BORDER} />
               <Text style={styles.emptyText}>Aucun proche associé</Text>
             </View>
           )}
@@ -228,7 +232,7 @@ const FamilyProfile: React.FC = () => {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Informations</Text>
           <View style={styles.infoRow}>
-            <Ionicons name="mail-outline" size={20} color={COLORS.TEXT_MUTED} />
+            <Ionicons name="mail-outline" size={20} color={colors.TEXT_MUTED} />
             <View style={styles.infoContent}>
               <Text style={styles.infoLabel}>Email</Text>
               <Text style={styles.infoValue}>{userProfile?.email}</Text>
@@ -236,7 +240,7 @@ const FamilyProfile: React.FC = () => {
           </View>
           {userProfile?.phone ? (
             <View style={styles.infoRow}>
-              <Ionicons name="call-outline" size={20} color={COLORS.TEXT_MUTED} />
+              <Ionicons name="call-outline" size={20} color={colors.TEXT_MUTED} />
               <View style={styles.infoContent}>
                 <Text style={styles.infoLabel}>Téléphone</Text>
                 <Text style={styles.infoValue}>{userProfile.phone}</Text>
@@ -246,7 +250,7 @@ const FamilyProfile: React.FC = () => {
         </View>
 
         {/* Appearance */}
-        <ThemeSelector accentColor={COLORS.FAMILY_PRIMARY} />
+        <ThemeSelector accentColor={colors.FAMILY_PRIMARY} />
 
         {/* Help & Support */}
         <HelpSection
@@ -273,10 +277,11 @@ const FamilyProfile: React.FC = () => {
 // Styles
 // ---------------------------------------------------------------------------
 
-const styles = StyleSheet.create({
+function createStyles(colors: ReturnType<typeof getColors>) {
+  return StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
   },
   centerWrap: {
     flex: 1,
@@ -286,14 +291,14 @@ const styles = StyleSheet.create({
   header: {
     paddingHorizontal: SIZES.LG,
     paddingVertical: SIZES.MD,
-    backgroundColor: COLORS.WHITE,
+    backgroundColor: colors.WHITE,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.BORDER,
+    borderBottomColor: colors.BORDER,
   },
   headerTitle: {
     fontSize: SIZES.FONT_2XL,
     fontWeight: '700',
-    color: COLORS.FAMILY_PRIMARY,
+    color: colors.FAMILY_PRIMARY,
   },
   scrollView: {
     flex: 1,
@@ -304,12 +309,12 @@ const styles = StyleSheet.create({
   },
   // Profile card
   profileCard: {
-    backgroundColor: COLORS.WHITE,
+    backgroundColor: colors.WHITE,
     borderRadius: SIZES.BORDER_RADIUS_LG,
     padding: SIZES.XL,
     alignItems: 'center',
     marginBottom: SIZES.MD,
-    shadowColor: COLORS.BLACK,
+    shadowColor: colors.BLACK,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
     shadowRadius: 6,
@@ -319,7 +324,7 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: COLORS.FAMILY_LIGHT,
+    backgroundColor: colors.FAMILY_LIGHT,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: SIZES.MD,
@@ -327,31 +332,31 @@ const styles = StyleSheet.create({
   avatarText: {
     fontSize: SIZES.FONT_XL,
     fontWeight: '700',
-    color: COLORS.FAMILY_PRIMARY,
+    color: colors.FAMILY_PRIMARY,
   },
   userName: {
     fontSize: SIZES.FONT_XL,
     fontWeight: '700',
-    color: COLORS.TEXT_PRIMARY,
+    color: colors.TEXT_PRIMARY,
   },
   userRole: {
     fontSize: SIZES.FONT_SM,
-    color: COLORS.FAMILY_PRIMARY,
+    color: colors.FAMILY_PRIMARY,
     fontWeight: '600',
     marginTop: 2,
   },
   userEmail: {
     fontSize: SIZES.FONT_SM,
-    color: COLORS.TEXT_MUTED,
+    color: colors.TEXT_MUTED,
     marginTop: 4,
   },
   // Sections
   section: {
-    backgroundColor: COLORS.WHITE,
+    backgroundColor: colors.WHITE,
     borderRadius: SIZES.BORDER_RADIUS_MD,
     padding: SIZES.MD,
     marginBottom: SIZES.MD,
-    shadowColor: COLORS.BLACK,
+    shadowColor: colors.BLACK,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.06,
     shadowRadius: 4,
@@ -360,7 +365,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: SIZES.FONT_LG,
     fontWeight: '700',
-    color: COLORS.TEXT_PRIMARY,
+    color: colors.TEXT_PRIMARY,
     marginBottom: SIZES.MD,
   },
   // Patient rows
@@ -370,7 +375,7 @@ const styles = StyleSheet.create({
     gap: SIZES.MD,
     paddingVertical: SIZES.SM,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.BORDER,
+    borderBottomColor: colors.BORDER,
   },
   patientInfo: {
     flex: 1,
@@ -378,11 +383,11 @@ const styles = StyleSheet.create({
   patientName: {
     fontSize: SIZES.FONT_MD,
     fontWeight: '600',
-    color: COLORS.TEXT_PRIMARY,
+    color: colors.TEXT_PRIMARY,
   },
   patientPerm: {
     fontSize: SIZES.FONT_XS,
-    color: COLORS.TEXT_MUTED,
+    color: colors.TEXT_MUTED,
     marginTop: 2,
   },
   patientBadgeRow: {
@@ -406,7 +411,7 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: SIZES.FONT_MD,
-    color: COLORS.TEXT_MUTED,
+    color: colors.TEXT_MUTED,
   },
   // Info rows
   infoRow: {
@@ -420,12 +425,12 @@ const styles = StyleSheet.create({
   },
   infoLabel: {
     fontSize: SIZES.FONT_XS,
-    color: COLORS.TEXT_MUTED,
+    color: colors.TEXT_MUTED,
     marginBottom: 2,
   },
   infoValue: {
     fontSize: SIZES.FONT_MD,
-    color: COLORS.TEXT_PRIMARY,
+    color: colors.TEXT_PRIMARY,
     fontWeight: '500',
   },
   // Logout
@@ -436,6 +441,7 @@ const styles = StyleSheet.create({
   logoutButton: {
     minWidth: 200,
   },
-});
+  });
+}
 
 export default FamilyProfile;

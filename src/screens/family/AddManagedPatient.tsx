@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -15,7 +15,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../utils/supabase';
-import { COLORS, SIZES } from '../../utils/constants';
+import { getColors, SIZES } from '../../utils/constants';
+import { useTheme } from '../../contexts/ThemeContext';
 import { searchAddressMapbox, type MapboxGeocodingResult } from '../../utils/mapboxGeocoding';
 import { nativeGeocode } from '../../utils/nativeGeocoding';
 
@@ -25,6 +26,9 @@ import { nativeGeocode } from '../../utils/nativeGeocoding';
 
 const AddManagedPatient: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { user, familyLinks, fetchProfile } = useAuth();
+  const { isDark } = useTheme();
+  const colors = getColors(isDark);
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -217,13 +221,13 @@ const AddManagedPatient: React.FC<{ navigation: any }> = ({ navigation }) => {
             onPress={() => navigation.goBack()}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <Ionicons name="chevron-back" size={24} color={COLORS.TEXT_PRIMARY} />
+            <Ionicons name="chevron-back" size={24} color={colors.TEXT_PRIMARY} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Ajouter un proche</Text>
           <View style={{ width: 40 }} />
         </View>
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <ActivityIndicator size="large" color={COLORS.FAMILY_PRIMARY} />
+          <ActivityIndicator size="large" color={colors.FAMILY_PRIMARY} />
         </View>
       </SafeAreaView>
     );
@@ -238,17 +242,17 @@ const AddManagedPatient: React.FC<{ navigation: any }> = ({ navigation }) => {
             onPress={() => navigation.goBack()}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <Ionicons name="chevron-back" size={24} color={COLORS.TEXT_PRIMARY} />
+            <Ionicons name="chevron-back" size={24} color={colors.TEXT_PRIMARY} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Ajouter un proche</Text>
           <View style={{ width: 40 }} />
         </View>
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: SIZES.XXL, gap: SIZES.MD }}>
-          <Ionicons name="alert-circle-outline" size={56} color={COLORS.WARNING} />
-          <Text style={{ fontSize: SIZES.FONT_LG, fontWeight: '600', color: COLORS.TEXT_PRIMARY, textAlign: 'center' }}>
+          <Ionicons name="alert-circle-outline" size={56} color={colors.WARNING} />
+          <Text style={{ fontSize: SIZES.FONT_LG, fontWeight: '600', color: colors.TEXT_PRIMARY, textAlign: 'center' }}>
             Vous avez déjà un proche associé
           </Text>
-          <Text style={{ fontSize: SIZES.FONT_SM, color: COLORS.TEXT_MUTED, textAlign: 'center', lineHeight: 20 }}>
+          <Text style={{ fontSize: SIZES.FONT_SM, color: colors.TEXT_MUTED, textAlign: 'center', lineHeight: 20 }}>
             Un compte famille ne peut être lié qu'à un seul patient. Pour ajouter un autre proche, contactez l'équipe soignante.
           </Text>
           <TouchableOpacity
@@ -272,7 +276,7 @@ const AddManagedPatient: React.FC<{ navigation: any }> = ({ navigation }) => {
           onPress={() => navigation.goBack()}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
-          <Ionicons name="chevron-back" size={24} color={COLORS.TEXT_PRIMARY} />
+          <Ionicons name="chevron-back" size={24} color={colors.TEXT_PRIMARY} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Ajouter un proche</Text>
         <View style={{ width: 40 }} />
@@ -294,11 +298,11 @@ const AddManagedPatient: React.FC<{ navigation: any }> = ({ navigation }) => {
 
             <Text style={styles.inputLabel}>Prénom *</Text>
             <View style={styles.inputWrap}>
-              <Ionicons name="person-outline" size={20} color={COLORS.TEXT_MUTED} />
+              <Ionicons name="person-outline" size={20} color={colors.TEXT_MUTED} />
               <TextInput
                 style={styles.input}
                 placeholder="Prénom du patient"
-                placeholderTextColor={COLORS.TEXT_MUTED}
+                placeholderTextColor={colors.TEXT_MUTED}
                 value={firstName}
                 onChangeText={setFirstName}
                 autoCorrect={false}
@@ -307,11 +311,11 @@ const AddManagedPatient: React.FC<{ navigation: any }> = ({ navigation }) => {
 
             <Text style={styles.inputLabel}>Nom *</Text>
             <View style={styles.inputWrap}>
-              <Ionicons name="person-outline" size={20} color={COLORS.TEXT_MUTED} />
+              <Ionicons name="person-outline" size={20} color={colors.TEXT_MUTED} />
               <TextInput
                 style={styles.input}
                 placeholder="Nom du patient"
-                placeholderTextColor={COLORS.TEXT_MUTED}
+                placeholderTextColor={colors.TEXT_MUTED}
                 value={lastName}
                 onChangeText={setLastName}
                 autoCorrect={false}
@@ -320,11 +324,11 @@ const AddManagedPatient: React.FC<{ navigation: any }> = ({ navigation }) => {
 
             <Text style={styles.inputLabel}>Date de naissance</Text>
             <View style={styles.inputWrap}>
-              <Ionicons name="calendar-outline" size={20} color={COLORS.TEXT_MUTED} />
+              <Ionicons name="calendar-outline" size={20} color={colors.TEXT_MUTED} />
               <TextInput
                 style={styles.input}
                 placeholder="AAAA-MM-JJ"
-                placeholderTextColor={COLORS.TEXT_MUTED}
+                placeholderTextColor={colors.TEXT_MUTED}
                 value={dob}
                 onChangeText={setDob}
                 keyboardType="numbers-and-punctuation"
@@ -338,11 +342,11 @@ const AddManagedPatient: React.FC<{ navigation: any }> = ({ navigation }) => {
 
             <Text style={styles.inputLabel}>Adresse *</Text>
             <View style={styles.inputWrap}>
-              <Ionicons name="search-outline" size={20} color={COLORS.TEXT_MUTED} />
+              <Ionicons name="search-outline" size={20} color={colors.TEXT_MUTED} />
               <TextInput
                 style={styles.input}
                 placeholder="Chercher une adresse..."
-                placeholderTextColor={COLORS.TEXT_MUTED}
+                placeholderTextColor={colors.TEXT_MUTED}
                 value={searchQuery}
                 onChangeText={(t) => {
                   setSearchQuery(t);
@@ -351,7 +355,7 @@ const AddManagedPatient: React.FC<{ navigation: any }> = ({ navigation }) => {
                 }}
                 multiline
               />
-              {searching && <ActivityIndicator size="small" color={COLORS.FAMILY_PRIMARY} />}
+              {searching && <ActivityIndicator size="small" color={colors.FAMILY_PRIMARY} />}
             </View>
 
             {/* Suggestions dropdown */}
@@ -363,7 +367,7 @@ const AddManagedPatient: React.FC<{ navigation: any }> = ({ navigation }) => {
                     style={styles.suggestionItem}
                     onPress={() => handleSelectSuggestion(s)}
                   >
-                    <Ionicons name="location-outline" size={16} color={COLORS.FAMILY_PRIMARY} />
+                    <Ionicons name="location-outline" size={16} color={colors.FAMILY_PRIMARY} />
                     <Text style={styles.suggestionText} numberOfLines={2}>
                       {s.address}
                     </Text>
@@ -378,7 +382,7 @@ const AddManagedPatient: React.FC<{ navigation: any }> = ({ navigation }) => {
             {/* No results */}
             {!searching && searchQuery.trim().length >= 3 && suggestions.length === 0 && (
               <View style={styles.noResults}>
-                <Ionicons name="alert-circle-outline" size={16} color={COLORS.WARNING} />
+                <Ionicons name="alert-circle-outline" size={16} color={colors.WARNING} />
                 <Text style={styles.noResultsText}>Aucune adresse trouvée</Text>
               </View>
             )}
@@ -386,7 +390,7 @@ const AddManagedPatient: React.FC<{ navigation: any }> = ({ navigation }) => {
             {/* GPS confirmation */}
             {selectedGPS && (
               <View style={styles.gpsConfirm}>
-                <Ionicons name="checkmark-circle" size={16} color={COLORS.SUCCESS} />
+                <Ionicons name="checkmark-circle" size={16} color={colors.SUCCESS} />
                 <Text style={styles.gpsConfirmText}>
                   GPS validé : {selectedGPS.lat.toFixed(4)}, {selectedGPS.lng.toFixed(4)}
                 </Text>
@@ -395,11 +399,11 @@ const AddManagedPatient: React.FC<{ navigation: any }> = ({ navigation }) => {
 
             <Text style={styles.inputLabel}>Repère / Libellé</Text>
             <View style={styles.inputWrap}>
-              <Ionicons name="bookmark-outline" size={20} color={COLORS.TEXT_MUTED} />
+              <Ionicons name="bookmark-outline" size={20} color={colors.TEXT_MUTED} />
               <TextInput
                 style={styles.input}
                 placeholder="Ex: appartement 3B, interphone Borgia"
-                placeholderTextColor={COLORS.TEXT_MUTED}
+                placeholderTextColor={colors.TEXT_MUTED}
                 value={addressLabel}
                 onChangeText={setAddressLabel}
               />
@@ -407,11 +411,11 @@ const AddManagedPatient: React.FC<{ navigation: any }> = ({ navigation }) => {
 
             <Text style={styles.inputLabel}>Code d'accès / Digicode</Text>
             <View style={styles.inputWrap}>
-              <Ionicons name="keypad-outline" size={20} color={COLORS.TEXT_MUTED} />
+              <Ionicons name="keypad-outline" size={20} color={colors.TEXT_MUTED} />
               <TextInput
                 style={styles.input}
                 placeholder="Ex: A1234 ou interphone 3B"
-                placeholderTextColor={COLORS.TEXT_MUTED}
+                placeholderTextColor={colors.TEXT_MUTED}
                 value={accessCode}
                 onChangeText={setAccessCode}
               />
@@ -424,11 +428,11 @@ const AddManagedPatient: React.FC<{ navigation: any }> = ({ navigation }) => {
 
             <Text style={styles.inputLabel}>Notes médicales</Text>
             <View style={[styles.inputWrap, { height: 80, alignItems: 'flex-start' }]}>
-              <Ionicons name="document-text-outline" size={20} color={COLORS.TEXT_MUTED} style={{ marginTop: 12 }} />
+              <Ionicons name="document-text-outline" size={20} color={colors.TEXT_MUTED} style={{ marginTop: 12 }} />
               <TextInput
                 style={[styles.input, { textAlignVertical: 'top', paddingTop: 12 }]}
                 placeholder="Diabète, hypertension, suivi régulier..."
-                placeholderTextColor={COLORS.TEXT_MUTED}
+                placeholderTextColor={colors.TEXT_MUTED}
                 value={medicalNotes}
                 onChangeText={setMedicalNotes}
                 multiline
@@ -437,11 +441,11 @@ const AddManagedPatient: React.FC<{ navigation: any }> = ({ navigation }) => {
 
             <Text style={styles.inputLabel}>Allergies (séparées par des virgules)</Text>
             <View style={styles.inputWrap}>
-              <Ionicons name="warning-outline" size={20} color={COLORS.WARNING} />
+              <Ionicons name="warning-outline" size={20} color={colors.WARNING} />
               <TextInput
                 style={styles.input}
                 placeholder="Pénicilline, Aspirine..."
-                placeholderTextColor={COLORS.TEXT_MUTED}
+                placeholderTextColor={colors.TEXT_MUTED}
                 value={allergies}
                 onChangeText={setAllergies}
               />
@@ -449,11 +453,11 @@ const AddManagedPatient: React.FC<{ navigation: any }> = ({ navigation }) => {
 
             <Text style={styles.inputLabel}>Contact d'urgence</Text>
             <View style={styles.inputWrap}>
-              <Ionicons name="call-outline" size={20} color={COLORS.TEXT_MUTED} />
+              <Ionicons name="call-outline" size={20} color={colors.TEXT_MUTED} />
               <TextInput
                 style={styles.input}
                 placeholder="Numéro de téléphone"
-                placeholderTextColor={COLORS.TEXT_MUTED}
+                placeholderTextColor={colors.TEXT_MUTED}
                 value={emergencyContact}
                 onChangeText={setEmergencyContact}
                 keyboardType="phone-pad"
@@ -469,10 +473,10 @@ const AddManagedPatient: React.FC<{ navigation: any }> = ({ navigation }) => {
             activeOpacity={0.85}
           >
             {saving ? (
-              <ActivityIndicator color={COLORS.WHITE} />
+              <ActivityIndicator color={colors.WHITE} />
             ) : (
               <>
-                <Ionicons name="person-add" size={20} color={COLORS.WHITE} />
+                <Ionicons name="person-add" size={20} color={colors.WHITE} />
                 <Text style={styles.submitBtnText}>Créer le dossier patient</Text>
               </>
             )}
@@ -480,7 +484,7 @@ const AddManagedPatient: React.FC<{ navigation: any }> = ({ navigation }) => {
 
           {/* Info */}
           <View style={styles.infoBox}>
-            <Ionicons name="information-circle-outline" size={18} color={COLORS.FAMILY_PRIMARY} />
+            <Ionicons name="information-circle-outline" size={18} color={colors.FAMILY_PRIMARY} />
             <Text style={styles.infoBoxText}>
               Ce patient sera créé en votre nom et apparaîtra dans la liste des infirmières. Elles pourront l'ajouter à leur liste de suivi et gérer ses rendez-vous.
             </Text>
@@ -495,10 +499,11 @@ const AddManagedPatient: React.FC<{ navigation: any }> = ({ navigation }) => {
 // Styles
 // ---------------------------------------------------------------------------
 
-const styles = StyleSheet.create({
+function createStyles(colors: ReturnType<typeof getColors>) {
+  return StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
   },
   header: {
     flexDirection: 'row',
@@ -506,22 +511,22 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: SIZES.LG,
     paddingVertical: SIZES.MD,
-    backgroundColor: COLORS.WHITE,
+    backgroundColor: colors.WHITE,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.BORDER,
+    borderBottomColor: colors.BORDER,
   },
   backButton: {
     width: 40,
     height: 40,
     borderRadius: 12,
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
     alignItems: 'center',
     justifyContent: 'center',
   },
   headerTitle: {
     fontSize: SIZES.FONT_LG,
     fontWeight: '700',
-    color: COLORS.TEXT_PRIMARY,
+    color: colors.TEXT_PRIMARY,
   },
   scrollView: {
     flex: 1,
@@ -532,11 +537,11 @@ const styles = StyleSheet.create({
   },
   // Section
   section: {
-    backgroundColor: COLORS.WHITE,
+    backgroundColor: colors.WHITE,
     borderRadius: SIZES.BORDER_RADIUS_MD,
     padding: SIZES.MD,
     marginBottom: SIZES.MD,
-    shadowColor: COLORS.BLACK,
+    shadowColor: colors.BLACK,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.06,
     shadowRadius: 4,
@@ -545,28 +550,28 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: SIZES.FONT_SM,
     fontWeight: '700',
-    color: COLORS.TEXT_MUTED,
+    color: colors.TEXT_MUTED,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginBottom: SIZES.MD,
     paddingBottom: SIZES.SM,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.BORDER,
+    borderBottomColor: colors.BORDER,
   },
   // Input
   inputLabel: {
     fontSize: SIZES.FONT_SM,
     fontWeight: '600',
-    color: COLORS.TEXT_SECONDARY,
+    color: colors.TEXT_SECONDARY,
     marginBottom: SIZES.XS,
     marginTop: SIZES.MD,
   },
   inputWrap: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.WHITE,
+    backgroundColor: colors.WHITE,
     borderWidth: 1.5,
-    borderColor: COLORS.BORDER,
+    borderColor: colors.BORDER,
     borderRadius: SIZES.BORDER_RADIUS_MD,
     paddingHorizontal: SIZES.MD,
     height: SIZES.INPUT_HEIGHT,
@@ -574,15 +579,15 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     fontSize: SIZES.FONT_MD,
-    color: COLORS.TEXT_PRIMARY,
+    color: colors.TEXT_PRIMARY,
     marginLeft: SIZES.SM,
     height: '100%',
   },
   // Suggestions
   suggestionsList: {
-    backgroundColor: COLORS.WHITE,
+    backgroundColor: colors.WHITE,
     borderWidth: 1,
-    borderColor: COLORS.BORDER,
+    borderColor: colors.BORDER,
     borderRadius: SIZES.BORDER_RADIUS_SM,
     marginTop: SIZES.XS,
     overflow: 'hidden',
@@ -593,13 +598,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: SIZES.MD,
     paddingVertical: SIZES.SM,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.BORDER,
+    borderBottomColor: colors.BORDER,
     gap: SIZES.SM,
   },
   suggestionText: {
     flex: 1,
     fontSize: SIZES.FONT_SM,
-    color: COLORS.TEXT_PRIMARY,
+    color: colors.TEXT_PRIMARY,
   },
   suggestionsCredit: {
     padding: SIZES.SM,
@@ -607,7 +612,7 @@ const styles = StyleSheet.create({
   },
   suggestionsCreditText: {
     fontSize: 9,
-    color: COLORS.TEXT_MUTED,
+    color: colors.TEXT_MUTED,
   },
   gpsConfirm: {
     flexDirection: 'row',
@@ -617,7 +622,7 @@ const styles = StyleSheet.create({
   },
   gpsConfirmText: {
     fontSize: SIZES.FONT_XS,
-    color: COLORS.SUCCESS,
+    color: colors.SUCCESS,
     fontWeight: '600',
   },
   noResults: {
@@ -628,21 +633,21 @@ const styles = StyleSheet.create({
   },
   noResultsText: {
     fontSize: SIZES.FONT_XS,
-    color: COLORS.WARNING,
+    color: colors.WARNING,
   },
   // Submit
   submitBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: COLORS.FAMILY_PRIMARY,
+    backgroundColor: colors.FAMILY_PRIMARY,
     height: SIZES.BUTTON_HEIGHT,
     borderRadius: SIZES.BORDER_RADIUS_MD,
     marginTop: SIZES.MD,
     gap: SIZES.SM,
   },
   submitBtnText: {
-    color: COLORS.WHITE,
+    color: colors.WHITE,
     fontSize: SIZES.FONT_LG,
     fontWeight: '700',
   },
@@ -651,7 +656,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: SIZES.SM,
-    backgroundColor: COLORS.FAMILY_LIGHT,
+    backgroundColor: colors.FAMILY_LIGHT,
     padding: SIZES.MD,
     borderRadius: SIZES.BORDER_RADIUS_MD,
     marginTop: SIZES.MD,
@@ -659,9 +664,10 @@ const styles = StyleSheet.create({
   infoBoxText: {
     flex: 1,
     fontSize: SIZES.FONT_SM,
-    color: COLORS.FAMILY_DARK,
+    color: colors.FAMILY_DARK,
     lineHeight: 20,
   },
-});
+  });
+}
 
 export default AddManagedPatient;

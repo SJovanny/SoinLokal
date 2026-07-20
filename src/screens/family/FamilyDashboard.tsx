@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -14,7 +14,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { useMessageCount } from '../../contexts/MessageCountContext';
 import { supabase } from '../../utils/supabase';
-import { COLORS, SIZES } from '../../utils/constants';
+import { getColors, SIZES } from '../../utils/constants';
+import { useTheme } from '../../contexts/ThemeContext';
 import LogoutButton from '../../components/LogoutButton';
 import Avatar from '../../components/Avatar';
 
@@ -74,12 +75,14 @@ function formatDate(dateStr: string): string {
   return d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' });
 }
 
-const STATUS_CONFIG: Record<string, { color: string; label: string }> = {
-  pending:   { color: COLORS.WARNING, label: 'En attente' },
-  confirmed: { color: COLORS.FAMILY_PRIMARY, label: 'Confirmé' },
-  completed: { color: COLORS.TEXT_MUTED, label: 'Terminé' },
-  cancelled: { color: COLORS.DANGER, label: 'Annulé' },
-};
+function getStatusConfig(colors: ReturnType<typeof getColors>): Record<string, { color: string; label: string }> {
+  return {
+    pending:   { color: colors.WARNING, label: 'En attente' },
+    confirmed: { color: colors.FAMILY_PRIMARY, label: 'Confirmé' },
+    completed: { color: colors.TEXT_MUTED, label: 'Terminé' },
+    cancelled: { color: colors.DANGER, label: 'Annulé' },
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Component
@@ -88,6 +91,10 @@ const STATUS_CONFIG: Record<string, { color: string; label: string }> = {
 const FamilyDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { userProfile, user, familyLinks, fetchProfile } = useAuth();
   const { unreadCount } = useMessageCount();
+  const { isDark } = useTheme();
+  const colors = getColors(isDark);
+  const styles = useMemo(() => createStyles(colors), [colors]);
+  const statusConfig = useMemo(() => getStatusConfig(colors), [colors]);
   const today = getTodayISO();
 
   const [linkedPatient, setLinkedPatient] = useState<LinkedPatient | null>(null);
@@ -331,7 +338,7 @@ const FamilyDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
   // -------------------------------------------------------------------------
 
   const renderAppointment = ({ item }: { item: UpcomingAppointment }) => {
-    const config = STATUS_CONFIG[item.status] ?? STATUS_CONFIG.pending;
+    const config = statusConfig[item.status] ?? statusConfig.pending;
     return (
       <View style={styles.appointmentCard}>
         <View style={styles.appointmentHeader}>
@@ -370,7 +377,7 @@ const FamilyDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.centerWrap}>
-          <ActivityIndicator size="large" color={COLORS.FAMILY_PRIMARY} />
+          <ActivityIndicator size="large" color={colors.FAMILY_PRIMARY} />
         </View>
       </SafeAreaView>
     );
@@ -396,21 +403,21 @@ const FamilyDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
                 firstName={userProfile?.first_name}
                 lastName={userProfile?.last_name}
                 size={36}
-                backgroundColor={COLORS.FAMILY_LIGHT}
-                textColor={COLORS.FAMILY_PRIMARY}
+                backgroundColor={colors.FAMILY_LIGHT}
+                textColor={colors.FAMILY_PRIMARY}
               />
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.addProcheBtn}
               onPress={() => navigation.navigate('AddManagedPatient')}
             >
-              <Ionicons name="person-add-outline" size={20} color={COLORS.FAMILY_PRIMARY} />
+              <Ionicons name="person-add-outline" size={20} color={colors.FAMILY_PRIMARY} />
             </TouchableOpacity>
             <LogoutButton variant="icon" showText={false} />
           </View>
         </View>
         <View style={styles.centerWrap}>
-          <Ionicons name="people-outline" size={56} color={COLORS.BORDER} />
+          <Ionicons name="people-outline" size={56} color={colors.BORDER} />
           <Text style={styles.emptyTitle}>Aucun proche associé</Text>
           <Text style={styles.emptySubtitle}>
             Votre compte famille n'est encore lié à aucun patient.{'\n'}
@@ -420,7 +427,7 @@ const FamilyDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
             style={styles.emptyAddBtn}
             onPress={() => navigation.navigate('AddManagedPatient')}
           >
-            <Ionicons name="person-add-outline" size={18} color={COLORS.WHITE} />
+            <Ionicons name="person-add-outline" size={18} color={colors.WHITE} />
             <Text style={styles.emptyAddBtnText}>Ajouter un proche</Text>
           </TouchableOpacity>
         </View>
@@ -434,7 +441,7 @@ const FamilyDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.FAMILY_PRIMARY]} />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.FAMILY_PRIMARY]} />
         }
       >
         {/* Header */}
@@ -455,15 +462,15 @@ const FamilyDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
                 firstName={userProfile?.first_name}
                 lastName={userProfile?.last_name}
                 size={36}
-                backgroundColor={COLORS.FAMILY_LIGHT}
-                textColor={COLORS.FAMILY_PRIMARY}
+                backgroundColor={colors.FAMILY_LIGHT}
+                textColor={colors.FAMILY_PRIMARY}
               />
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.addProcheBtn}
               onPress={() => navigation.navigate('AddManagedPatient')}
             >
-              <Ionicons name="person-add-outline" size={20} color={COLORS.FAMILY_PRIMARY} />
+              <Ionicons name="person-add-outline" size={20} color={colors.FAMILY_PRIMARY} />
             </TouchableOpacity>
             <LogoutButton variant="icon" showText={false} />
           </View>
@@ -472,7 +479,7 @@ const FamilyDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
         {/* Patient card */}
         <View style={styles.patientCard}>
           <View style={styles.patientCardHeader}>
-            <Ionicons name="heart" size={20} color={COLORS.FAMILY_PRIMARY} />
+            <Ionicons name="heart" size={20} color={colors.FAMILY_PRIMARY} />
             <Text style={styles.patientCardTitle}>
               {linkedPatient.isManaged ? 'Proche géré' : 'Suivi de votre proche'}
             </Text>
@@ -485,14 +492,14 @@ const FamilyDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
                 onPress={() => navigation.navigate('NurseProfileView', { nurseId: linkedPatient.nurseId })}
                 activeOpacity={0.7}
               >
-                <Ionicons name="checkmark-circle" size={16} color={COLORS.SUCCESS} />
+                <Ionicons name="checkmark-circle" size={16} color={colors.SUCCESS} />
                 <Text style={styles.nurseStatusText}>Suivi par {linkedPatient.nurseName}</Text>
-                <Ionicons name="chevron-forward" size={14} color={COLORS.SUCCESS} />
+                <Ionicons name="chevron-forward" size={14} color={colors.SUCCESS} />
               </TouchableOpacity>
             ) : (
               <View style={styles.nurseStatusRow}>
-                <Ionicons name="time-outline" size={16} color={COLORS.WARNING} />
-                <Text style={[styles.nurseStatusText, { color: COLORS.WARNING }]}>
+                <Ionicons name="time-outline" size={16} color={colors.WARNING} />
+                <Text style={[styles.nurseStatusText, { color: colors.WARNING }]}>
                   En attente d'infirmière
                 </Text>
               </View>
@@ -516,7 +523,7 @@ const FamilyDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
               <Text style={styles.statLabel}>Soins reçus</Text>
             </View>
             <View style={styles.statItem}>
-              <Text style={[styles.statValue, unreadCount > 0 && { color: COLORS.WARNING }]}>
+              <Text style={[styles.statValue, unreadCount > 0 && { color: colors.WARNING }]}>
                 {unreadCount}
               </Text>
               <Text style={styles.statLabel}>Messages</Text>
@@ -536,7 +543,7 @@ const FamilyDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
             />
           ) : (
             <View style={styles.emptySection}>
-              <Ionicons name="calendar-outline" size={40} color={COLORS.BORDER} />
+              <Ionicons name="calendar-outline" size={40} color={colors.BORDER} />
               <Text style={styles.emptySectionText}>Aucun rendez-vous à venir</Text>
             </View>
           )}
@@ -553,7 +560,7 @@ const FamilyDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
                 activeOpacity={0.7}
               >
                 <Text style={styles.viewAllText}>Voir tout</Text>
-                <Ionicons name="chevron-forward" size={16} color={COLORS.FAMILY_PRIMARY} />
+                <Ionicons name="chevron-forward" size={16} color={colors.FAMILY_PRIMARY} />
               </TouchableOpacity>
             )}
           </View>
@@ -566,7 +573,7 @@ const FamilyDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
             />
           ) : (
             <View style={styles.emptySection}>
-              <Ionicons name="document-text-outline" size={40} color={COLORS.BORDER} />
+              <Ionicons name="document-text-outline" size={40} color={colors.BORDER} />
               <Text style={styles.emptySectionText}>Aucun soin récent</Text>
             </View>
           )}
@@ -580,10 +587,11 @@ const FamilyDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
 // Styles
 // ---------------------------------------------------------------------------
 
-const styles = StyleSheet.create({
+function createStyles(colors: ReturnType<typeof getColors>) {
+  return StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
   },
   centerWrap: {
     flex: 1,
@@ -600,7 +608,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: SIZES.LG,
-    backgroundColor: COLORS.WHITE,
+    backgroundColor: colors.WHITE,
   },
   headerLeft: {
     flex: 1,
@@ -612,18 +620,18 @@ const styles = StyleSheet.create({
   },
   greeting: {
     fontSize: SIZES.FONT_MD,
-    color: COLORS.TEXT_SECONDARY,
+    color: colors.TEXT_SECONDARY,
   },
   userName: {
     fontSize: SIZES.FONT_XL,
     fontWeight: '700',
-    color: COLORS.TEXT_PRIMARY,
+    color: colors.TEXT_PRIMARY,
   },
   addProcheBtn: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: COLORS.FAMILY_LIGHT,
+    backgroundColor: colors.FAMILY_LIGHT,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -632,14 +640,14 @@ const styles = StyleSheet.create({
   },
   // Patient card
   patientCard: {
-    backgroundColor: COLORS.WHITE,
+    backgroundColor: colors.WHITE,
     marginHorizontal: SIZES.LG,
     marginTop: SIZES.MD,
     padding: SIZES.LG,
     borderRadius: SIZES.BORDER_RADIUS_LG,
     borderLeftWidth: 4,
-    borderLeftColor: COLORS.FAMILY_PRIMARY,
-    shadowColor: COLORS.BLACK,
+    borderLeftColor: colors.FAMILY_PRIMARY,
+    shadowColor: colors.BLACK,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
     shadowRadius: 6,
@@ -654,16 +662,16 @@ const styles = StyleSheet.create({
   patientCardTitle: {
     fontSize: SIZES.FONT_LG,
     fontWeight: '700',
-    color: COLORS.TEXT_PRIMARY,
+    color: colors.TEXT_PRIMARY,
   },
   patientName: {
     fontSize: SIZES.FONT_2XL,
     fontWeight: '700',
-    color: COLORS.FAMILY_PRIMARY,
+    color: colors.FAMILY_PRIMARY,
   },
   patientPermission: {
     fontSize: SIZES.FONT_SM,
-    color: COLORS.TEXT_MUTED,
+    color: colors.TEXT_MUTED,
     marginTop: SIZES.XS,
   },
   nurseStatusRow: {
@@ -675,17 +683,17 @@ const styles = StyleSheet.create({
   nurseStatusText: {
     fontSize: SIZES.FONT_SM,
     fontWeight: '600',
-    color: COLORS.SUCCESS,
+    color: colors.SUCCESS,
   },
   // Stats
   statsCard: {
-    backgroundColor: COLORS.WHITE,
+    backgroundColor: colors.WHITE,
     marginHorizontal: SIZES.LG,
     marginTop: SIZES.MD,
     marginBottom: SIZES.LG,
     padding: SIZES.LG,
     borderRadius: SIZES.BORDER_RADIUS_LG,
-    shadowColor: COLORS.BLACK,
+    shadowColor: colors.BLACK,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
     shadowRadius: 6,
@@ -701,11 +709,11 @@ const styles = StyleSheet.create({
   statValue: {
     fontSize: SIZES.FONT_2XL,
     fontWeight: '700',
-    color: COLORS.FAMILY_PRIMARY,
+    color: colors.FAMILY_PRIMARY,
   },
   statLabel: {
     fontSize: SIZES.FONT_XS,
-    color: COLORS.TEXT_MUTED,
+    color: colors.TEXT_MUTED,
     marginTop: SIZES.XS,
   },
   // Sections
@@ -722,7 +730,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: SIZES.FONT_LG,
     fontWeight: '700',
-    color: COLORS.TEXT_PRIMARY,
+    color: colors.TEXT_PRIMARY,
   },
   viewAllButton: {
     flexDirection: 'row',
@@ -732,7 +740,7 @@ const styles = StyleSheet.create({
   viewAllText: {
     fontSize: SIZES.FONT_SM,
     fontWeight: '600',
-    color: COLORS.FAMILY_PRIMARY,
+    color: colors.FAMILY_PRIMARY,
   },
   emptySection: {
     alignItems: 'center',
@@ -741,15 +749,15 @@ const styles = StyleSheet.create({
   },
   emptySectionText: {
     fontSize: SIZES.FONT_MD,
-    color: COLORS.TEXT_MUTED,
+    color: colors.TEXT_MUTED,
   },
   // Appointment cards
   appointmentCard: {
-    backgroundColor: COLORS.WHITE,
+    backgroundColor: colors.WHITE,
     padding: SIZES.MD,
     borderRadius: SIZES.BORDER_RADIUS_MD,
     marginBottom: SIZES.SM,
-    shadowColor: COLORS.BLACK,
+    shadowColor: colors.BLACK,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.08,
     shadowRadius: 4,
@@ -767,11 +775,11 @@ const styles = StyleSheet.create({
   nurseName: {
     fontSize: SIZES.FONT_MD,
     fontWeight: '700',
-    color: COLORS.TEXT_PRIMARY,
+    color: colors.TEXT_PRIMARY,
   },
   appointmentType: {
     fontSize: SIZES.FONT_SM,
-    color: COLORS.TEXT_SECONDARY,
+    color: colors.TEXT_SECONDARY,
     marginTop: 2,
   },
   appointmentTime: {
@@ -780,11 +788,11 @@ const styles = StyleSheet.create({
   time: {
     fontSize: SIZES.FONT_SM,
     fontWeight: '600',
-    color: COLORS.TEXT_PRIMARY,
+    color: colors.TEXT_PRIMARY,
   },
   date: {
     fontSize: SIZES.FONT_XS,
-    color: COLORS.TEXT_MUTED,
+    color: colors.TEXT_MUTED,
     marginTop: 2,
   },
   statusContainer: {
@@ -798,18 +806,18 @@ const styles = StyleSheet.create({
   },
   statusText: {
     fontSize: SIZES.FONT_XS,
-    color: COLORS.WHITE,
+    color: colors.WHITE,
     fontWeight: '600',
   },
   // Care cards
   careCard: {
-    backgroundColor: COLORS.WHITE,
+    backgroundColor: colors.WHITE,
     padding: SIZES.MD,
     borderRadius: SIZES.BORDER_RADIUS_MD,
     marginBottom: SIZES.SM,
     borderLeftWidth: 3,
-    borderLeftColor: COLORS.FAMILY_LIGHT,
-    shadowColor: COLORS.BLACK,
+    borderLeftColor: colors.FAMILY_LIGHT,
+    shadowColor: colors.BLACK,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.06,
     shadowRadius: 4,
@@ -824,38 +832,38 @@ const styles = StyleSheet.create({
   careType: {
     fontSize: SIZES.FONT_SM,
     fontWeight: '600',
-    color: COLORS.FAMILY_PRIMARY,
+    color: colors.FAMILY_PRIMARY,
   },
   careDate: {
     fontSize: SIZES.FONT_XS,
-    color: COLORS.TEXT_MUTED,
+    color: colors.TEXT_MUTED,
   },
   careNurse: {
     fontSize: SIZES.FONT_SM,
-    color: COLORS.TEXT_SECONDARY,
+    color: colors.TEXT_SECONDARY,
     marginBottom: SIZES.XS,
   },
   careNote: {
     fontSize: SIZES.FONT_SM,
-    color: COLORS.TEXT_PRIMARY,
+    color: colors.TEXT_PRIMARY,
     lineHeight: 18,
   },
   // Empty state
   emptyTitle: {
     fontSize: SIZES.FONT_LG,
     fontWeight: '600',
-    color: COLORS.TEXT_PRIMARY,
+    color: colors.TEXT_PRIMARY,
   },
   emptySubtitle: {
     fontSize: SIZES.FONT_SM,
-    color: COLORS.TEXT_MUTED,
+    color: colors.TEXT_MUTED,
     textAlign: 'center',
     lineHeight: 20,
   },
   emptyAddBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.FAMILY_PRIMARY,
+    backgroundColor: colors.FAMILY_PRIMARY,
     paddingHorizontal: SIZES.LG,
     paddingVertical: SIZES.MD,
     borderRadius: SIZES.BORDER_RADIUS_MD,
@@ -863,10 +871,11 @@ const styles = StyleSheet.create({
     marginTop: SIZES.MD,
   },
   emptyAddBtnText: {
-    color: COLORS.WHITE,
+    color: colors.WHITE,
     fontSize: SIZES.FONT_SM,
     fontWeight: '600',
   },
-});
+  });
+}
 
 export default FamilyDashboard;

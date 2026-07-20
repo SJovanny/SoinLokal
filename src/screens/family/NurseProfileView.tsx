@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -10,7 +10,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../utils/supabase';
-import { COLORS, SIZES } from '../../utils/constants';
+import { getColors, SIZES } from '../../utils/constants';
+import { useTheme } from '../../contexts/ThemeContext';
 import Avatar from '../../components/Avatar';
 
 // ---------------------------------------------------------------------------
@@ -39,6 +40,9 @@ const NurseProfileView: React.FC<{ navigation: any; route: any }> = ({
   route,
 }) => {
   const { nurseId } = route.params;
+  const { isDark } = useTheme();
+  const colors = getColors(isDark);
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [data, setData] = useState<NurseData | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -102,7 +106,7 @@ const NurseProfileView: React.FC<{ navigation: any; route: any }> = ({
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.centerWrap}>
-          <ActivityIndicator size="large" color={COLORS.FAMILY_PRIMARY} />
+          <ActivityIndicator size="large" color={colors.FAMILY_PRIMARY} />
         </View>
       </SafeAreaView>
     );
@@ -112,7 +116,7 @@ const NurseProfileView: React.FC<{ navigation: any; route: any }> = ({
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.centerWrap}>
-          <Ionicons name="alert-circle-outline" size={48} color={COLORS.DANGER} />
+          <Ionicons name="alert-circle-outline" size={48} color={colors.DANGER} />
           <Text style={styles.errorText}>Infirmière introuvable</Text>
         </View>
       </SafeAreaView>
@@ -132,7 +136,7 @@ const NurseProfileView: React.FC<{ navigation: any; route: any }> = ({
           onPress={() => navigation.goBack()}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
-          <Ionicons name="chevron-back" size={24} color={COLORS.TEXT_PRIMARY} />
+          <Ionicons name="chevron-back" size={24} color={colors.TEXT_PRIMARY} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Infirmière</Text>
         <View style={{ width: 40 }} />
@@ -152,8 +156,8 @@ const NurseProfileView: React.FC<{ navigation: any; route: any }> = ({
             firstName={data.firstName}
             lastName={data.lastName}
             size={80}
-            backgroundColor={COLORS.FAMILY_LIGHT}
-            textColor={COLORS.FAMILY_PRIMARY}
+            backgroundColor={colors.FAMILY_LIGHT}
+            textColor={colors.FAMILY_PRIMARY}
           />
           <Text style={styles.profileName}>
             {data.firstName} {data.lastName}
@@ -164,17 +168,17 @@ const NurseProfileView: React.FC<{ navigation: any; route: any }> = ({
         {/* Contact */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Contact</Text>
-          <InfoRow icon="mail-outline" label="Email" value={data.email ?? '—'} />
-          <InfoRow icon="call-outline" label="Téléphone" value={data.phone ?? '—'} />
+          <InfoRow colors={colors} styles={styles} icon="mail-outline" label="Email" value={data.email ?? '—'} />
+          <InfoRow colors={colors} styles={styles} icon="call-outline" label="Téléphone" value={data.phone ?? '—'} />
         </View>
 
         {/* Professional info */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Informations professionnelles</Text>
-          <InfoRow icon="id-card-outline" label="N° RPPS" value={data.rppsNumber ?? '—'} />
-          <InfoRow icon="map-outline" label="Zone d'intervention" value={data.zone ?? '—'} />
+          <InfoRow colors={colors} styles={styles} icon="id-card-outline" label="N° RPPS" value={data.rppsNumber ?? '—'} />
+          <InfoRow colors={colors} styles={styles} icon="map-outline" label="Zone d'intervention" value={data.zone ?? '—'} />
           {data.specialties.length > 0 && (
-            <InfoRow icon="medical-outline" label="Spécialités" value={data.specialties.join(', ')} />
+            <InfoRow colors={colors} styles={styles} icon="medical-outline" label="Spécialités" value={data.specialties.join(', ')} />
           )}
         </View>
 
@@ -191,14 +195,18 @@ function InfoRow({
   icon,
   label,
   value,
+  colors,
+  styles,
 }: {
   icon: React.ComponentProps<typeof Ionicons>['name'];
   label: string;
   value: string;
+  colors: ReturnType<typeof getColors>;
+  styles: ReturnType<typeof createStyles>;
 }) {
   return (
     <View style={styles.infoRow}>
-      <Ionicons name={icon} size={20} color={COLORS.TEXT_MUTED} style={styles.infoIcon} />
+      <Ionicons name={icon} size={20} color={colors.TEXT_MUTED} style={styles.infoIcon} />
       <View style={styles.infoTextBlock}>
         <Text style={styles.infoLabel}>{label}</Text>
         <Text style={styles.infoValue}>{value}</Text>
@@ -211,10 +219,11 @@ function InfoRow({
 // Styles
 // ---------------------------------------------------------------------------
 
-const styles = StyleSheet.create({
+function createStyles(colors: ReturnType<typeof getColors>) {
+  return StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
   },
   centerWrap: {
     flex: 1,
@@ -224,7 +233,7 @@ const styles = StyleSheet.create({
   },
   errorText: {
     fontSize: SIZES.FONT_MD,
-    color: COLORS.TEXT_SECONDARY,
+    color: colors.TEXT_SECONDARY,
   },
   // Header
   header: {
@@ -233,22 +242,22 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: SIZES.LG,
     paddingVertical: SIZES.MD,
-    backgroundColor: COLORS.WHITE,
+    backgroundColor: colors.WHITE,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.BORDER,
+    borderBottomColor: colors.BORDER,
   },
   backButton: {
     width: 40,
     height: 40,
     borderRadius: 12,
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
     alignItems: 'center',
     justifyContent: 'center',
   },
   headerTitle: {
     fontSize: SIZES.FONT_LG,
     fontWeight: '700',
-    color: COLORS.TEXT_PRIMARY,
+    color: colors.TEXT_PRIMARY,
   },
   scrollView: {
     flex: 1,
@@ -267,7 +276,7 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: COLORS.FAMILY_LIGHT,
+    backgroundColor: colors.FAMILY_LIGHT,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: SIZES.MD,
@@ -275,26 +284,26 @@ const styles = StyleSheet.create({
   avatarText: {
     fontSize: SIZES.FONT_XL,
     fontWeight: '700',
-    color: COLORS.FAMILY_PRIMARY,
+    color: colors.FAMILY_PRIMARY,
   },
   profileName: {
     fontSize: SIZES.FONT_2XL,
     fontWeight: '700',
-    color: COLORS.TEXT_PRIMARY,
+    color: colors.TEXT_PRIMARY,
   },
   profileRole: {
     fontSize: SIZES.FONT_SM,
-    color: COLORS.FAMILY_PRIMARY,
+    color: colors.FAMILY_PRIMARY,
     fontWeight: '600',
     marginTop: 4,
   },
   // Sections
   section: {
-    backgroundColor: COLORS.WHITE,
+    backgroundColor: colors.WHITE,
     borderRadius: SIZES.BORDER_RADIUS_MD,
     padding: SIZES.MD,
     marginBottom: SIZES.MD,
-    shadowColor: COLORS.BLACK,
+    shadowColor: colors.BLACK,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 4,
@@ -303,13 +312,13 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: SIZES.FONT_SM,
     fontWeight: '700',
-    color: COLORS.TEXT_MUTED,
+    color: colors.TEXT_MUTED,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginBottom: SIZES.SM,
     paddingBottom: SIZES.SM,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.BORDER,
+    borderBottomColor: colors.BORDER,
   },
   // Info row
   infoRow: {
@@ -327,14 +336,15 @@ const styles = StyleSheet.create({
   },
   infoLabel: {
     fontSize: SIZES.FONT_XS,
-    color: COLORS.TEXT_MUTED,
+    color: colors.TEXT_MUTED,
     marginBottom: 2,
   },
   infoValue: {
     fontSize: SIZES.FONT_MD,
-    color: COLORS.TEXT_PRIMARY,
+    color: colors.TEXT_PRIMARY,
     fontWeight: '500',
   },
-});
+  });
+}
 
 export default NurseProfileView;
