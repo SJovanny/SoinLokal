@@ -11,7 +11,7 @@ const languageDetector = {
   detect: async (callback: (lang: string) => void) => {
     const saved = await AsyncStorage.getItem('soinlokal.lang');
     if (saved) return callback(saved);
-    const deviceLang = Localization.locale?.split('-')[0];
+    const deviceLang = Localization.getLocales()[0]?.languageCode;
     callback(deviceLang === 'fr' ? 'fr' : 'en');
   },
   init: () => {},

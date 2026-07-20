@@ -15,6 +15,7 @@ import LogoutButton from '../../components/LogoutButton';
 import Avatar from '../../components/Avatar';
 import AvatarPicker from '../../components/AvatarPicker';
 import HelpSection from '../../components/HelpSection';
+import ThemeSelector from '../../components/ThemeSelector';
 import OnboardingModal from '../../components/OnboardingModal';
 
 // ---------------------------------------------------------------------------
@@ -243,6 +244,9 @@ const FamilyProfile: React.FC = () => {
             </View>
           ) : null}
         </View>
+
+        {/* Appearance */}
+        <ThemeSelector accentColor={COLORS.FAMILY_PRIMARY} />
 
         {/* Help & Support */}
         <HelpSection

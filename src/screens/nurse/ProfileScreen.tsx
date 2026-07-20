@@ -24,6 +24,7 @@ import { nativeGeocode } from '../../utils/nativeGeocoding';
 import LogoutButton from '../../components/LogoutButton';
 import AvatarPicker from '../../components/AvatarPicker';
 import HelpSection from '../../components/HelpSection';
+import ThemeSelector from '../../components/ThemeSelector';
 import OnboardingModal from '../../components/OnboardingModal';
 
 // ---------------------------------------------------------------------------
@@ -539,6 +540,9 @@ const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
             )}
           </View>
         )}
+
+        {/* Appearance */}
+        <ThemeSelector accentColor={COLORS.NURSE_PRIMARY} />
 
         {/* Help & Support */}
         <HelpSection

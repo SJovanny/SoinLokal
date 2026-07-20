@@ -1,11 +1,15 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import { useColorScheme } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const STORAGE_KEY = 'soinlokal.theme';
+const STORAGE_KEY = 'soinlokal.themePreference';
+
+export type ThemePreference = 'system' | 'light' | 'dark';
 
 interface ThemeContextType {
   isDark: boolean;
-  toggleTheme: () => void;
+  themePreference: ThemePreference;
+  setThemePreference: (preference: ThemePreference) => void;
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
@@ -23,25 +27,28 @@ interface ThemeProviderProps {
 }
 
 export function ThemeProvider({ children }: ThemeProviderProps): React.JSX.Element {
-  const [isDark, setIsDark] = useState<boolean>(false);
+  const systemScheme = useColorScheme();
+  const [themePreference, setThemePreferenceState] = useState<ThemePreference>('system');
 
   useEffect(() => {
     AsyncStorage.getItem(STORAGE_KEY)
       .then((stored) => {
-        if (stored !== null) setIsDark(stored === 'true');
+        if (stored === 'system' || stored === 'light' || stored === 'dark') {
+          setThemePreferenceState(stored);
+        }
       })
       .catch(() => {});
   }, []);
 
-  const toggleTheme = () => {
-    setIsDark((prev) => {
-      const next = !prev;
-      AsyncStorage.setItem(STORAGE_KEY, String(next)).catch(() => {});
-      return next;
-    });
+  const setThemePreference = (preference: ThemePreference) => {
+    setThemePreferenceState(preference);
+    AsyncStorage.setItem(STORAGE_KEY, preference).catch(() => {});
   };
 
-  const value: ThemeContextType = { isDark, toggleTheme };
+  const isDark =
+    themePreference === 'system' ? systemScheme === 'dark' : themePreference === 'dark';
+
+  const value: ThemeContextType = { isDark, themePreference, setThemePreference };
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }

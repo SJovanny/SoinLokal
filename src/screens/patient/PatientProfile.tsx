@@ -17,6 +17,7 @@ import { COLORS, SIZES } from '../../utils/constants';
 import LogoutButton from '../../components/LogoutButton';
 import AvatarPicker from '../../components/AvatarPicker';
 import HelpSection from '../../components/HelpSection';
+import ThemeSelector from '../../components/ThemeSelector';
 import OnboardingModal from '../../components/OnboardingModal';
 
 // ---------------------------------------------------------------------------
@@ -246,6 +247,9 @@ const PatientProfileScreen: React.FC = () => {
             </View>
           </View>
         )}
+
+        {/* Appearance */}
+        <ThemeSelector accentColor={COLORS.PATIENT_PRIMARY} />
 
         {/* Help & Support */}
         <HelpSection
