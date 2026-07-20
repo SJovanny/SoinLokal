@@ -162,3 +162,25 @@ Critique pour les patients âgés utilisant VoiceOver/TalkBack.
 | 11 | Accessibilité | Moyenne | Moyenne | À faire |
 | 12 | Cache géocoding | Moyenne | Faible | À faire |
 | 16 | Statistiques enrichies | Basse | Moyenne | À faire |
+| 18 | Widget écran d'accueil | Basse | Très élevée | Reporté |
+
+---
+
+## #18 — Widget écran d'accueil (iOS/Android)
+
+**Problème** : Affichage du prochain RDV directement sur l'écran d'accueil sans ouvrir l'app.
+
+**Analyse de faisabilité** :
+
+| Approche | Faisabilité | Contrainte |
+|----------|-------------|------------|
+| Expo managed workflow | ❌ Impossible | Expo ne supporte pas les widgets natifs (WidgetKit, AppWidgetProvider) |
+| Ejecter en bare workflow | ✅ Possible | Perte des avantages Expo (OTA updates, build simplifié) |
+| Module natif via expo-modules-core | ⚠️ Théorique | Très complexe, peu documenté pour les widgets |
+| App native séparée | ✅ Possible | Maintenir deux codebases, partager la logique via un package commun |
+| react-native-widget-bridge | ⚠️ Instable | Librairie peu maintenue, bugs fréquents |
+
+**Recommandation** : Reporter jusqu'à maturité de l'écosystème Expo pour les widgets.
+Alternative pragmatique : notifier le prochain RDV via une notification locale persistante
+(expo-notifications avec `ongoing: true`), ce qui donne un résultat similaire sans widget natif.
+
