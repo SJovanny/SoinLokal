@@ -26,9 +26,10 @@ i18n
   .init({
     lng: 'fr',
     fallbackLng: 'fr',
-    defaultNS: 'common',
-    ns: ['common', 'auth', 'nurse', 'patient', 'family'],
-    resources: { fr, en },
+    resources: {
+      fr: { translation: fr },
+      en: { translation: en },
+    },
     interpolation: { escapeValue: false },
     react: { useSuspense: false },
   });
