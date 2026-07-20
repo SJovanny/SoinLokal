@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   StyleSheet,
   Text,
@@ -7,7 +7,8 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-import { COLORS, SIZES } from '../../utils/constants';
+import { getColors, SIZES } from '../../utils/constants';
+import { useTheme } from '../../contexts/ThemeContext';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -34,6 +35,10 @@ export function DashboardHeader({
   onProfilePress,
   rightAction,
 }: DashboardHeaderProps): React.JSX.Element {
+  const { isDark } = useTheme();
+  const colors = getColors(isDark);
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   return (
     <View style={styles.container}>
       {/* Left — greeting + name */}
@@ -72,49 +77,51 @@ export function DashboardHeader({
 // Styles
 // ---------------------------------------------------------------------------
 
-const styles = StyleSheet.create({
-  container: {
-    flexDirection:     'row',
-    alignItems:        'center',
-    justifyContent:    'space-between',
-    backgroundColor:   COLORS.WHITE,
-    paddingHorizontal: SIZES.LG,
-    paddingVertical:   SIZES.LG,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.BORDER,
-  },
-  leftBlock: {
-    flex: 1,
-  },
-  greeting: {
-    fontSize:  15,
-    color:     COLORS.TEXT_SECONDARY,
-    fontWeight: '400',
-  },
-  userName: {
-    fontSize:   20,
-    fontWeight: '700',
-    color:      COLORS.TEXT_PRIMARY,
-    marginTop:  2,
-  },
-  badge: {
-    alignSelf:         'flex-start',
-    marginTop:         SIZES.XS,
-    borderRadius:      SIZES.BORDER_RADIUS_FULL,
-    borderWidth:       1,
-    paddingHorizontal: SIZES.SM,
-    paddingVertical:   2,
-  },
-  badgeText: {
-    fontSize:   SIZES.FONT_XS,
-    fontWeight: '600',
-  },
-  rightBlock: {
-    flexDirection: 'row',
-    alignItems:    'center',
-    gap:           SIZES.SM,
-  },
-  profileBtn: {
-    padding: 2,
-  },
-});
+function createStyles(colors: ReturnType<typeof getColors>) {
+  return StyleSheet.create({
+    container: {
+      flexDirection:     'row',
+      alignItems:        'center',
+      justifyContent:    'space-between',
+      backgroundColor:   colors.WHITE,
+      paddingHorizontal: SIZES.LG,
+      paddingVertical:   SIZES.LG,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.BORDER,
+    },
+    leftBlock: {
+      flex: 1,
+    },
+    greeting: {
+      fontSize:  15,
+      color:     colors.TEXT_SECONDARY,
+      fontWeight: '400',
+    },
+    userName: {
+      fontSize:   20,
+      fontWeight: '700',
+      color:      colors.TEXT_PRIMARY,
+      marginTop:  2,
+    },
+    badge: {
+      alignSelf:         'flex-start',
+      marginTop:         SIZES.XS,
+      borderRadius:      SIZES.BORDER_RADIUS_FULL,
+      borderWidth:       1,
+      paddingHorizontal: SIZES.SM,
+      paddingVertical:   2,
+    },
+    badgeText: {
+      fontSize:   SIZES.FONT_XS,
+      fontWeight: '600',
+    },
+    rightBlock: {
+      flexDirection: 'row',
+      alignItems:    'center',
+      gap:           SIZES.SM,
+    },
+    profileBtn: {
+      padding: 2,
+    },
+  });
+}

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   ActivityIndicator,
   StyleSheet,
@@ -9,7 +9,8 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-import { COLORS, SIZES } from '../../utils/constants';
+import { getColors, SIZES } from '../../utils/constants';
+import { useTheme } from '../../contexts/ThemeContext';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -53,40 +54,44 @@ export function AppButton({
   label,
   onPress,
   variant    = 'primary',
-  themeColor = COLORS.NURSE_PRIMARY,
+  themeColor,
   loading    = false,
   disabled   = false,
   icon,
   fullWidth  = true,
   size       = 'md',
 }: AppButtonProps): React.JSX.Element {
+  const { isDark } = useTheme();
+  const colors = getColors(isDark);
+  const styles = useMemo(() => createStyles(colors), [colors]);
+  const resolvedThemeColor = themeColor ?? colors.NURSE_PRIMARY;
   const isDisabled = disabled || loading;
   const height     = HEIGHT_MAP[size];
   const fontSize   = FONT_MAP[size];
 
   // ---- Resolve variant styles ----
   const resolvedBackground = (): string => {
-    if (isDisabled) return COLORS.BORDER;
+    if (isDisabled) return colors.BORDER;
     switch (variant) {
-      case 'primary':   return themeColor;
-      case 'secondary': return COLORS.WHITE;
-      case 'danger':    return COLORS.DANGER;
+      case 'primary':   return resolvedThemeColor;
+      case 'secondary': return colors.WHITE;
+      case 'danger':    return colors.DANGER;
       case 'ghost':     return 'transparent';
     }
   };
 
   const resolvedTextColor = (): string => {
-    if (isDisabled) return COLORS.TEXT_MUTED;
+    if (isDisabled) return colors.TEXT_MUTED;
     switch (variant) {
-      case 'primary':   return COLORS.WHITE;
-      case 'secondary': return themeColor;
-      case 'danger':    return COLORS.WHITE;
-      case 'ghost':     return themeColor;
+      case 'primary':   return colors.WHITE;
+      case 'secondary': return resolvedThemeColor;
+      case 'danger':    return colors.WHITE;
+      case 'ghost':     return resolvedThemeColor;
     }
   };
 
   const resolvedBorderColor = (): string | undefined => {
-    if (variant === 'secondary') return themeColor;
+    if (variant === 'secondary') return resolvedThemeColor;
     return undefined;
   };
 
@@ -115,7 +120,7 @@ export function AppButton({
       {loading ? (
         <ActivityIndicator
           size="small"
-          color={variant === 'primary' || variant === 'danger' ? COLORS.WHITE : themeColor}
+          color={variant === 'primary' || variant === 'danger' ? colors.WHITE : resolvedThemeColor}
         />
       ) : (
         <>
@@ -138,17 +143,19 @@ export function AppButton({
 // Styles
 // ---------------------------------------------------------------------------
 
-const styles = StyleSheet.create({
-  base: {
-    flexDirection:  'row',
-    alignItems:     'center',
-    justifyContent: 'center',
-    borderRadius:   SIZES.BORDER_RADIUS_MD,
-  },
-  icon: {
-    marginRight: SIZES.SM,
-  },
-  label: {
-    fontWeight: '600',
-  },
-});
+function createStyles(colors: ReturnType<typeof getColors>) {
+  return StyleSheet.create({
+    base: {
+      flexDirection:  'row',
+      alignItems:     'center',
+      justifyContent: 'center',
+      borderRadius:   SIZES.BORDER_RADIUS_MD,
+    },
+    icon: {
+      marginRight: SIZES.SM,
+    },
+    label: {
+      fontWeight: '600',
+    },
+  });
+}

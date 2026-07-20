@@ -1,12 +1,16 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
-import { COLORS } from '../utils/constants';
+import { useTheme } from '../contexts/ThemeContext';
+import { getColors } from '../utils/constants';
 
 const UserDebugInfo: React.FC = () => {
   if (!__DEV__) return null;
 
   const { user, userProfile, logout } = useAuth();
+  const { isDark } = useTheme();
+  const colors = getColors(isDark);
+  const styles = useMemo(() => createStyles(colors), [colors]);
   if (!user) return null;
 
   return (
@@ -33,18 +37,20 @@ const UserDebugInfo: React.FC = () => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    position: 'absolute', top: 50, left: 10, right: 10,
-    backgroundColor: 'rgba(0,0,0,0.85)', padding: 12,
-    borderRadius: 10, zIndex: 1000,
-  },
-  title: { color: 'white', fontSize: 13, fontWeight: 'bold', marginBottom: 8, textAlign: 'center' },
-  infoRow: { flexDirection: 'row', marginBottom: 4 },
-  label: { color: '#aaa', fontSize: 12, width: 55 },
-  value: { color: 'white', fontSize: 12, flex: 1 },
-  logoutButton: { backgroundColor: COLORS.DANGER, padding: 6, borderRadius: 6, marginTop: 8, alignItems: 'center' },
-  logoutText: { color: 'white', fontSize: 12, fontWeight: 'bold' },
-});
+function createStyles(colors: ReturnType<typeof getColors>) {
+  return StyleSheet.create({
+    container: {
+      position: 'absolute', top: 50, left: 10, right: 10,
+      backgroundColor: 'rgba(0,0,0,0.85)', padding: 12,
+      borderRadius: 10, zIndex: 1000,
+    },
+    title: { color: 'white', fontSize: 13, fontWeight: 'bold', marginBottom: 8, textAlign: 'center' },
+    infoRow: { flexDirection: 'row', marginBottom: 4 },
+    label: { color: '#aaa', fontSize: 12, width: 55 },
+    value: { color: 'white', fontSize: 12, flex: 1 },
+    logoutButton: { backgroundColor: colors.DANGER, padding: 6, borderRadius: 6, marginTop: 8, alignItems: 'center' },
+    logoutText: { color: 'white', fontSize: 12, fontWeight: 'bold' },
+  });
+}
 
 export default UserDebugInfo;

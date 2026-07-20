@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, Image, StyleSheet, type ImageStyle } from 'react-native';
 import { getDicebearUrl, nameToSeed, type AvatarType } from '../utils/avatar';
-import { COLORS, SIZES } from '../utils/constants';
+import { getColors, SIZES } from '../utils/constants';
+import { useTheme } from '../contexts/ThemeContext';
 
 // ---------------------------------------------------------------------------
 // Props
@@ -40,9 +41,15 @@ export const Avatar: React.FC<AvatarProps> = ({
   lastName = '',
   size = 80,
   style,
-  backgroundColor = COLORS.NURSE_LIGHT,
-  textColor = COLORS.NURSE_PRIMARY,
+  backgroundColor,
+  textColor,
 }) => {
+  const { isDark } = useTheme();
+  const colors = getColors(isDark);
+  const styles = useMemo(() => createStyles(colors), [colors]);
+  const resolvedBackgroundColor = backgroundColor ?? colors.NURSE_LIGHT;
+  const resolvedTextColor = textColor ?? colors.NURSE_PRIMARY;
+
   const borderRadius = size / 2;
   const fontSize = size * 0.36;
 
@@ -86,12 +93,12 @@ export const Avatar: React.FC<AvatarProps> = ({
           width: size,
           height: size,
           borderRadius,
-          backgroundColor,
+          backgroundColor: resolvedBackgroundColor,
         },
         style,
       ]}
     >
-      <Text style={[styles.initials, { fontSize, color: textColor }]}>
+      <Text style={[styles.initials, { fontSize, color: resolvedTextColor }]}>
         {initials}
       </Text>
     </View>
@@ -102,14 +109,16 @@ export const Avatar: React.FC<AvatarProps> = ({
 // Styles
 // ---------------------------------------------------------------------------
 
-const styles = StyleSheet.create({
-  container: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  initials: {
-    fontWeight: '700',
-  },
-});
+function createStyles(colors: ReturnType<typeof getColors>) {
+  return StyleSheet.create({
+    container: {
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    initials: {
+      fontWeight: '700',
+    },
+  });
+}
 
 export default Avatar;

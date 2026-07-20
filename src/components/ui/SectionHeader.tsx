@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   StyleSheet,
   Text,
@@ -6,7 +6,8 @@ import {
   View,
 } from 'react-native';
 
-import { COLORS, SIZES } from '../../utils/constants';
+import { getColors, SIZES } from '../../utils/constants';
+import { useTheme } from '../../contexts/ThemeContext';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -27,15 +28,20 @@ export function SectionHeader({
   title,
   actionLabel,
   onActionPress,
-  themeColor = COLORS.NURSE_PRIMARY,
+  themeColor,
 }: SectionHeaderProps): React.JSX.Element {
+  const { isDark } = useTheme();
+  const colors = getColors(isDark);
+  const styles = useMemo(() => createStyles(colors), [colors]);
+  const resolvedThemeColor = themeColor ?? colors.NURSE_PRIMARY;
+
   return (
     <View style={styles.row}>
       <Text style={styles.title}>{title}</Text>
 
       {actionLabel && onActionPress ? (
         <TouchableOpacity onPress={onActionPress} activeOpacity={0.7}>
-          <Text style={[styles.action, { color: themeColor }]}>{actionLabel}</Text>
+          <Text style={[styles.action, { color: resolvedThemeColor }]}>{actionLabel}</Text>
         </TouchableOpacity>
       ) : null}
     </View>
@@ -46,20 +52,22 @@ export function SectionHeader({
 // Styles
 // ---------------------------------------------------------------------------
 
-const styles = StyleSheet.create({
-  row: {
-    flexDirection:  'row',
-    alignItems:     'center',
-    justifyContent: 'space-between',
-    marginBottom:   SIZES.SM,
-  },
-  title: {
-    fontSize:   SIZES.FONT_LG,
-    fontWeight: '700',
-    color:      COLORS.TEXT_PRIMARY,
-  },
-  action: {
-    fontSize:   SIZES.FONT_SM,
-    fontWeight: '600',
-  },
-});
+function createStyles(colors: ReturnType<typeof getColors>) {
+  return StyleSheet.create({
+    row: {
+      flexDirection:  'row',
+      alignItems:     'center',
+      justifyContent: 'space-between',
+      marginBottom:   SIZES.SM,
+    },
+    title: {
+      fontSize:   SIZES.FONT_LG,
+      fontWeight: '700',
+      color:      colors.TEXT_PRIMARY,
+    },
+    action: {
+      fontSize:   SIZES.FONT_SM,
+      fontWeight: '600',
+    },
+  });
+}

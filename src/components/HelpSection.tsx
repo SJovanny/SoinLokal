@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,7 +9,8 @@ import {
   UIManager,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS, SIZES, getThemeColor } from '../utils/constants';
+import { getColors, SIZES, getThemeColor } from '../utils/constants';
+import { useTheme } from '../contexts/ThemeContext';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -112,12 +113,15 @@ function FAQItem({
   isOpen,
   onToggle,
   themeColor,
+  colors,
 }: {
   item: FAQItem;
   isOpen: boolean;
   onToggle: () => void;
   themeColor: string;
+  colors: ReturnType<typeof getColors>;
 }) {
+  const faq = useMemo(() => createFaqStyles(colors), [colors]);
   const height = useRef(new RNAnimated.Value(isOpen ? 1 : 0)).current;
 
   useEffect(() => {
@@ -139,13 +143,13 @@ function FAQItem({
         <Ionicons
           name={isOpen ? 'help-circle' : 'help-circle-outline'}
           size={20}
-          color={isOpen ? themeColor : COLORS.TEXT_MUTED}
+          color={isOpen ? themeColor : colors.TEXT_MUTED}
         />
         <Text style={[faq.q, isOpen && { color: themeColor }]}>{item.question}</Text>
         <Ionicons
           name={isOpen ? 'chevron-up' : 'chevron-down'}
           size={18}
-          color={isOpen ? themeColor : COLORS.TEXT_MUTED}
+          color={isOpen ? themeColor : colors.TEXT_MUTED}
         />
       </TouchableOpacity>
       <RNAnimated.View style={{ height: animatedHeight, overflow: 'hidden' }}>
@@ -163,6 +167,9 @@ function FAQItem({
 
 export default function HelpSection({ userType, onRestartTutorial }: HelpSectionProps) {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
+  const { isDark } = useTheme();
+  const colors = getColors(isDark);
+  const hs = useMemo(() => createHsStyles(colors), [colors]);
   const themeColor = getThemeColor(userType);
 
   const faqItems = userType === 'nurse' ? NURSE_FAQ
@@ -187,6 +194,7 @@ export default function HelpSection({ userType, onRestartTutorial }: HelpSection
           isOpen={openIndex === i}
           onToggle={() => handleToggle(i)}
           themeColor={themeColor}
+          colors={colors}
         />
       ))}
 
@@ -206,69 +214,73 @@ export default function HelpSection({ userType, onRestartTutorial }: HelpSection
 // Styles
 // ---------------------------------------------------------------------------
 
-const hs = StyleSheet.create({
-  section: {
-    backgroundColor: COLORS.WHITE,
-    borderRadius: SIZES.BORDER_RADIUS_MD,
-    padding: SIZES.MD,
-    marginBottom: SIZES.MD,
-    shadowColor: COLORS.BLACK,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SIZES.SM,
-    marginBottom: SIZES.MD,
-  },
-  title: {
-    fontSize: SIZES.FONT_LG,
-    fontWeight: '700',
-    color: COLORS.TEXT_PRIMARY,
-  },
-  restart: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: SIZES.SM,
-    paddingVertical: SIZES.MD,
-    marginTop: SIZES.MD,
-    borderRadius: SIZES.BORDER_RADIUS_MD,
-    borderWidth: 1.5,
-  },
-  restartTxt: {
-    fontSize: SIZES.FONT_SM,
-    fontWeight: '600',
-  },
-});
+function createHsStyles(colors: ReturnType<typeof getColors>) {
+  return StyleSheet.create({
+    section: {
+      backgroundColor: colors.WHITE,
+      borderRadius: SIZES.BORDER_RADIUS_MD,
+      padding: SIZES.MD,
+      marginBottom: SIZES.MD,
+      shadowColor: colors.BLACK,
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.06,
+      shadowRadius: 4,
+      elevation: 2,
+    },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: SIZES.SM,
+      marginBottom: SIZES.MD,
+    },
+    title: {
+      fontSize: SIZES.FONT_LG,
+      fontWeight: '700',
+      color: colors.TEXT_PRIMARY,
+    },
+    restart: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: SIZES.SM,
+      paddingVertical: SIZES.MD,
+      marginTop: SIZES.MD,
+      borderRadius: SIZES.BORDER_RADIUS_MD,
+      borderWidth: 1.5,
+    },
+    restartTxt: {
+      fontSize: SIZES.FONT_SM,
+      fontWeight: '600',
+    },
+  });
+}
 
-const faq = StyleSheet.create({
-  item: {
-    borderRadius: SIZES.BORDER_RADIUS_SM,
-    overflow: 'hidden',
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: SIZES.SM,
-    gap: SIZES.SM,
-  },
-  q: {
-    flex: 1,
-    fontSize: SIZES.FONT_SM,
-    fontWeight: '600',
-    color: COLORS.TEXT_PRIMARY,
-  },
-  answer: {
-    paddingLeft: 28,
-    paddingBottom: SIZES.SM,
-  },
-  a: {
-    fontSize: SIZES.FONT_SM,
-    color: COLORS.TEXT_SECONDARY,
-    lineHeight: 20,
-  },
-});
+function createFaqStyles(colors: ReturnType<typeof getColors>) {
+  return StyleSheet.create({
+    item: {
+      borderRadius: SIZES.BORDER_RADIUS_SM,
+      overflow: 'hidden',
+    },
+    row: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: SIZES.SM,
+      gap: SIZES.SM,
+    },
+    q: {
+      flex: 1,
+      fontSize: SIZES.FONT_SM,
+      fontWeight: '600',
+      color: colors.TEXT_PRIMARY,
+    },
+    answer: {
+      paddingLeft: 28,
+      paddingBottom: SIZES.SM,
+    },
+    a: {
+      fontSize: SIZES.FONT_SM,
+      color: colors.TEXT_SECONDARY,
+      lineHeight: 20,
+    },
+  });
+}

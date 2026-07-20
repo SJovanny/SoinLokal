@@ -1,7 +1,8 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { Animated, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS, SIZES } from '../utils/constants';
+import { getColors, SIZES } from '../utils/constants';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface NetworkStatusToastProps {
   visible: boolean;
@@ -12,6 +13,9 @@ const TOAST_HEIGHT = 56;
 const AUTO_DISMISS_MS = 3000;
 
 export default function NetworkStatusToast({ visible, onDismiss }: NetworkStatusToastProps) {
+  const { isDark } = useTheme();
+  const colors = getColors(isDark);
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const translateY = useRef(new Animated.Value(-TOAST_HEIGHT)).current;
 
   useEffect(() => {
@@ -54,7 +58,7 @@ export default function NetworkStatusToast({ visible, onDismiss }: NetworkStatus
         <Ionicons
           name="wifi-outline"
           size={20}
-          color={COLORS.WHITE}
+          color={colors.WHITE}
           style={styles.icon}
         />
         <Text style={styles.text}>Connexion internet perdue</Text>
@@ -63,30 +67,32 @@ export default function NetworkStatusToast({ visible, onDismiss }: NetworkStatus
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 9999,
-    elevation: 9999,
-  },
-  content: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: COLORS.WARNING,
-    paddingVertical: SIZES.SM,
-    paddingHorizontal: SIZES.MD,
-    minHeight: TOAST_HEIGHT,
-  },
-  icon: {
-    marginRight: SIZES.SM,
-  },
-  text: {
-    fontSize: SIZES.FONT_SM,
-    fontWeight: '600',
-    color: COLORS.WHITE,
-  },
-});
+function createStyles(colors: ReturnType<typeof getColors>) {
+  return StyleSheet.create({
+    container: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      zIndex: 9999,
+      elevation: 9999,
+    },
+    content: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.WARNING,
+      paddingVertical: SIZES.SM,
+      paddingHorizontal: SIZES.MD,
+      minHeight: TOAST_HEIGHT,
+    },
+    icon: {
+      marginRight: SIZES.SM,
+    },
+    text: {
+      fontSize: SIZES.FONT_SM,
+      fontWeight: '600',
+      color: colors.WHITE,
+    },
+  });
+}

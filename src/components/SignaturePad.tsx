@@ -1,7 +1,8 @@
-import React, { forwardRef, useImperativeHandle, useRef, useState, useCallback } from 'react';
+import React, { forwardRef, useImperativeHandle, useRef, useState, useCallback, useMemo } from 'react';
 import { View, PanResponder, Text, StyleSheet, LayoutChangeEvent } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
-import { COLORS, SIZES } from '../utils/constants';
+import { getColors, SIZES } from '../utils/constants';
+import { useTheme } from '../contexts/ThemeContext';
 
 export interface SignaturePadRef {
   clear: () => void;
@@ -27,6 +28,9 @@ const SignaturePad = forwardRef<SignaturePadRef, SignaturePadProps>(({
   strokeWidth = 2,
   height = 250,
 }, ref) => {
+  const { isDark } = useTheme();
+  const colors = getColors(isDark);
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [strokes, setStrokes] = useState<StrokeData[]>([]);
   const [currentPath, setCurrentPath] = useState('');
   const [dimensions, setDimensions] = useState({ w: 0, h: 0 });
@@ -126,29 +130,31 @@ const SignaturePad = forwardRef<SignaturePadRef, SignaturePadProps>(({
   );
 });
 
-const styles = StyleSheet.create({
-  container: {
-    borderRadius: SIZES.BORDER_RADIUS_MD,
-    overflow: 'hidden',
-  },
-  padContainer: {
-    backgroundColor: COLORS.WHITE,
-    borderWidth: 2,
-    borderColor: COLORS.BORDER,
-    borderStyle: 'dashed',
-    borderRadius: SIZES.BORDER_RADIUS_MD,
-    overflow: 'hidden',
-  },
-  placeholderContainer: {
-    ...StyleSheet.absoluteFillObject,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  placeholder: {
-    fontSize: SIZES.FONT_XL,
-    color: COLORS.TEXT_MUTED,
-    fontWeight: '300',
-  },
-});
+function createStyles(colors: ReturnType<typeof getColors>) {
+  return StyleSheet.create({
+    container: {
+      borderRadius: SIZES.BORDER_RADIUS_MD,
+      overflow: 'hidden',
+    },
+    padContainer: {
+      backgroundColor: colors.WHITE,
+      borderWidth: 2,
+      borderColor: colors.BORDER,
+      borderStyle: 'dashed',
+      borderRadius: SIZES.BORDER_RADIUS_MD,
+      overflow: 'hidden',
+    },
+    placeholderContainer: {
+      ...StyleSheet.absoluteFillObject,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    placeholder: {
+      fontSize: SIZES.FONT_XL,
+      color: colors.TEXT_MUTED,
+      fontWeight: '300',
+    },
+  });
+}
 
 export default SignaturePad;

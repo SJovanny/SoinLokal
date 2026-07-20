@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { TouchableOpacity, Text, StyleSheet, Alert, ViewStyle, TextStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
-import { COLORS } from '../utils/constants';
+import { useTheme } from '../contexts/ThemeContext';
+import { getColors } from '../utils/constants';
 
 type Variant = 'default' | 'icon' | 'minimal' | 'danger';
 
@@ -26,6 +27,9 @@ const LogoutButton: React.FC<LogoutButtonProps> = ({
   onLogoutComplete,
 }) => {
   const { logout, userProfile } = useAuth();
+  const { isDark } = useTheme();
+  const colors = getColors(isDark);
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   const handleLogout = () => {
     const userName = userProfile?.first_name || 'utilisateur';
@@ -82,11 +86,11 @@ const LogoutButton: React.FC<LogoutButtonProps> = ({
   const getIconColor = (): string => {
     switch (variant) {
       case 'danger':
-        return COLORS.WHITE;
+        return colors.WHITE;
       case 'minimal':
-        return COLORS.TEXT_SECONDARY;
+        return colors.TEXT_SECONDARY;
       default:
-        return COLORS.NURSE_PRIMARY;
+        return colors.NURSE_PRIMARY;
     }
   };
 
@@ -109,59 +113,61 @@ const LogoutButton: React.FC<LogoutButtonProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
-  defaultButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.BACKGROUND,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: COLORS.NURSE_PRIMARY,
-  },
-  iconButton: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: COLORS.BACKGROUND,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    borderWidth: 1,
-    borderColor: COLORS.BORDER,
-  },
-  minimalButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 8,
-  },
-  dangerButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.DANGER,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 8,
-  },
-  defaultText: {
-    color: COLORS.NURSE_PRIMARY,
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  minimalText: {
-    color: COLORS.TEXT_SECONDARY,
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  dangerText: {
-    color: COLORS.WHITE,
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  iconWithText: {
-    marginRight: 8,
-  },
-});
+function createStyles(colors: ReturnType<typeof getColors>) {
+  return StyleSheet.create({
+    defaultButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.BACKGROUND,
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: colors.NURSE_PRIMARY,
+    },
+    iconButton: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.BACKGROUND,
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      borderWidth: 1,
+      borderColor: colors.BORDER,
+    },
+    minimalButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 8,
+      paddingVertical: 8,
+    },
+    dangerButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.DANGER,
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      borderRadius: 8,
+    },
+    defaultText: {
+      color: colors.NURSE_PRIMARY,
+      fontSize: 16,
+      fontWeight: '600',
+    },
+    minimalText: {
+      color: colors.TEXT_SECONDARY,
+      fontSize: 14,
+      fontWeight: '500',
+    },
+    dangerText: {
+      color: colors.WHITE,
+      fontSize: 16,
+      fontWeight: '600',
+    },
+    iconWithText: {
+      marginRight: 8,
+    },
+  });
+}
 
 export default LogoutButton;

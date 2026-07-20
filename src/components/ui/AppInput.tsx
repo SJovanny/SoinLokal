@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -10,7 +10,8 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-import { COLORS, SIZES } from '../../utils/constants';
+import { getColors, SIZES } from '../../utils/constants';
+import { useTheme } from '../../contexts/ThemeContext';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -39,13 +40,16 @@ export function AppInput({
   style,
   ...textInputProps
 }: AppInputProps): React.JSX.Element {
+  const { isDark } = useTheme();
+  const colors = getColors(isDark);
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [focused, setFocused] = useState(false);
 
   const borderColor = error
-    ? COLORS.DANGER
+    ? colors.DANGER
     : focused
-    ? COLORS.NURSE_PRIMARY
-    : COLORS.BORDER;
+    ? colors.NURSE_PRIMARY
+    : colors.BORDER;
 
   return (
     <View style={[styles.wrapper, containerStyle]}>
@@ -56,7 +60,7 @@ export function AppInput({
           <Ionicons
             name={icon}
             size={20}
-            color={focused ? COLORS.NURSE_PRIMARY : COLORS.TEXT_MUTED}
+            color={focused ? colors.NURSE_PRIMARY : colors.TEXT_MUTED}
             style={styles.iconLeft}
           />
         ) : null}
@@ -72,7 +76,7 @@ export function AppInput({
             textInputProps.onBlur?.(e);
           }}
           style={[styles.input, style]}
-          placeholderTextColor={COLORS.TEXT_MUTED}
+          placeholderTextColor={colors.TEXT_MUTED}
         />
 
         {rightElement ? (
@@ -89,40 +93,42 @@ export function AppInput({
 // Styles
 // ---------------------------------------------------------------------------
 
-const styles = StyleSheet.create({
-  wrapper: {
-    marginBottom: SIZES.MD,
-  },
-  label: {
-    fontSize:     SIZES.FONT_SM,
-    color:        COLORS.TEXT_SECONDARY,
-    marginBottom: SIZES.XS,
-    fontWeight:   '500',
-  },
-  inputRow: {
-    flexDirection:   'row',
-    alignItems:      'center',
-    backgroundColor: COLORS.WHITE,
-    borderWidth:     1.5,
-    borderRadius:    SIZES.BORDER_RADIUS_MD,
-    height:          SIZES.INPUT_HEIGHT,
-    paddingHorizontal: SIZES.MD,
-  },
-  iconLeft: {
-    marginRight: SIZES.SM,
-  },
-  input: {
-    flex:      1,
-    fontSize:  SIZES.FONT_MD,
-    color:     COLORS.TEXT_PRIMARY,
-    height:    '100%',
-  },
-  rightElement: {
-    marginLeft: SIZES.SM,
-  },
-  errorText: {
-    marginTop: SIZES.XS,
-    fontSize:  SIZES.FONT_XS,
-    color:     COLORS.DANGER,
-  },
-});
+function createStyles(colors: ReturnType<typeof getColors>) {
+  return StyleSheet.create({
+    wrapper: {
+      marginBottom: SIZES.MD,
+    },
+    label: {
+      fontSize:     SIZES.FONT_SM,
+      color:        colors.TEXT_SECONDARY,
+      marginBottom: SIZES.XS,
+      fontWeight:   '500',
+    },
+    inputRow: {
+      flexDirection:   'row',
+      alignItems:      'center',
+      backgroundColor: colors.WHITE,
+      borderWidth:     1.5,
+      borderRadius:    SIZES.BORDER_RADIUS_MD,
+      height:          SIZES.INPUT_HEIGHT,
+      paddingHorizontal: SIZES.MD,
+    },
+    iconLeft: {
+      marginRight: SIZES.SM,
+    },
+    input: {
+      flex:      1,
+      fontSize:  SIZES.FONT_MD,
+      color:     colors.TEXT_PRIMARY,
+      height:    '100%',
+    },
+    rightElement: {
+      marginLeft: SIZES.SM,
+    },
+    errorText: {
+      marginTop: SIZES.XS,
+      fontSize:  SIZES.FONT_XS,
+      color:     colors.DANGER,
+    },
+  });
+}
