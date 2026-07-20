@@ -24,26 +24,13 @@ interface ThemeProviderProps {
 
 export function ThemeProvider({ children }: ThemeProviderProps): React.JSX.Element {
   const [isDark, setIsDark] = useState<boolean>(false);
-  const [loaded, setLoaded] = useState<boolean>(false);
 
   useEffect(() => {
-    let mounted = true;
-
     AsyncStorage.getItem(STORAGE_KEY)
       .then((stored) => {
-        if (!mounted) return;
-        if (stored !== null) {
-          setIsDark(stored === 'true');
-        }
-        setLoaded(true);
+        if (stored !== null) setIsDark(stored === 'true');
       })
-      .catch(() => {
-        if (mounted) setLoaded(true);
-      });
-
-    return () => {
-      mounted = false;
-    };
+      .catch(() => {});
   }, []);
 
   const toggleTheme = () => {
@@ -53,8 +40,6 @@ export function ThemeProvider({ children }: ThemeProviderProps): React.JSX.Eleme
       return next;
     });
   };
-
-  if (!loaded) return <>{children}</>;
 
   const value: ThemeContextType = { isDark, toggleTheme };
 
