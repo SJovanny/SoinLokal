@@ -1,7 +1,8 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useMemo } from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS, SIZES } from '../utils/constants';
+import { getColors, SIZES } from '../utils/constants';
+import { useTheme } from '../contexts/ThemeContext';
 import SignaturePad, { SignaturePadRef } from './SignaturePad';
 import { serializeSignatureToSVG, StrokeData } from '../utils/signatureStorage';
 
@@ -12,6 +13,9 @@ interface SignatureModalProps {
 }
 
 export default function SignatureModal({ visible, onClose, onSave }: SignatureModalProps) {
+  const { isDark } = useTheme();
+  const colors = getColors(isDark);
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const padRef = useRef<SignaturePadRef>(null);
   const [hasSignature, setHasSignature] = useState(false);
 
@@ -33,7 +37,7 @@ export default function SignatureModal({ visible, onClose, onSave }: SignatureMo
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Signature numérique</Text>
           <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <Ionicons name="close" size={24} color={COLORS.TEXT_MUTED} />
+            <Ionicons name="close" size={24} color={colors.TEXT_MUTED} />
           </TouchableOpacity>
         </View>
 
@@ -53,7 +57,7 @@ export default function SignatureModal({ visible, onClose, onSave }: SignatureMo
 
         <View style={styles.actions}>
           <TouchableOpacity style={styles.clearButton} onPress={handleClear}>
-            <Ionicons name="trash-outline" size={18} color={COLORS.TEXT_SECONDARY} />
+            <Ionicons name="trash-outline" size={18} color={colors.TEXT_SECONDARY} />
             <Text style={styles.clearText}>Effacer</Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -61,7 +65,7 @@ export default function SignatureModal({ visible, onClose, onSave }: SignatureMo
             onPress={handleSave}
             disabled={!hasSignature}
           >
-            <Ionicons name="checkmark-circle" size={18} color={COLORS.WHITE} />
+            <Ionicons name="checkmark-circle" size={18} color={colors.WHITE} />
             <Text style={styles.saveText}>Valider</Text>
           </TouchableOpacity>
         </View>
@@ -70,89 +74,91 @@ export default function SignatureModal({ visible, onClose, onSave }: SignatureMo
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.BACKGROUND,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: SIZES.LG,
-    paddingTop: 60,
-    paddingBottom: SIZES.MD,
-    backgroundColor: COLORS.WHITE,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.BORDER,
-  },
-  headerTitle: {
-    fontSize: SIZES.FONT_LG,
-    fontWeight: '700',
-    color: COLORS.TEXT_PRIMARY,
-  },
-  body: {
-    flex: 1,
-    padding: SIZES.LG,
-  },
-  infoText: {
-    fontSize: SIZES.FONT_SM,
-    color: COLORS.TEXT_SECONDARY,
-    textAlign: 'center',
-    marginBottom: SIZES.LG,
-  },
-  padCard: {
-    backgroundColor: COLORS.WHITE,
-    borderRadius: SIZES.BORDER_RADIUS_LG,
-    padding: SIZES.MD,
-    elevation: 2,
-    shadowColor: COLORS.BLACK,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-  },
-  actions: {
-    flexDirection: 'row',
-    gap: SIZES.SM,
-    paddingHorizontal: SIZES.LG,
-    paddingBottom: SIZES.XL,
-    paddingTop: SIZES.MD,
-    backgroundColor: COLORS.WHITE,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.BORDER,
-  },
-  clearButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: SIZES.XS,
-    paddingVertical: SIZES.MD,
-    paddingHorizontal: SIZES.LG,
-    borderRadius: SIZES.BORDER_RADIUS_MD,
-    borderWidth: 1.5,
-    borderColor: COLORS.BORDER,
-  },
-  clearText: {
-    fontSize: SIZES.FONT_SM,
-    fontWeight: '600',
-    color: COLORS.TEXT_SECONDARY,
-  },
-  saveButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: SIZES.XS,
-    paddingVertical: SIZES.MD,
-    borderRadius: SIZES.BORDER_RADIUS_MD,
-    backgroundColor: COLORS.NURSE_PRIMARY,
-  },
-  saveButtonDisabled: {
-    opacity: 0.5,
-  },
-  saveText: {
-    fontSize: SIZES.FONT_SM,
-    fontWeight: '600',
-    color: COLORS.WHITE,
-  },
-});
+function createStyles(colors: ReturnType<typeof getColors>) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.BACKGROUND,
+    },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: SIZES.LG,
+      paddingTop: 60,
+      paddingBottom: SIZES.MD,
+      backgroundColor: colors.WHITE,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.BORDER,
+    },
+    headerTitle: {
+      fontSize: SIZES.FONT_LG,
+      fontWeight: '700',
+      color: colors.TEXT_PRIMARY,
+    },
+    body: {
+      flex: 1,
+      padding: SIZES.LG,
+    },
+    infoText: {
+      fontSize: SIZES.FONT_SM,
+      color: colors.TEXT_SECONDARY,
+      textAlign: 'center',
+      marginBottom: SIZES.LG,
+    },
+    padCard: {
+      backgroundColor: colors.WHITE,
+      borderRadius: SIZES.BORDER_RADIUS_LG,
+      padding: SIZES.MD,
+      elevation: 2,
+      shadowColor: colors.BLACK,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.08,
+      shadowRadius: 8,
+    },
+    actions: {
+      flexDirection: 'row',
+      gap: SIZES.SM,
+      paddingHorizontal: SIZES.LG,
+      paddingBottom: SIZES.XL,
+      paddingTop: SIZES.MD,
+      backgroundColor: colors.WHITE,
+      borderTopWidth: 1,
+      borderTopColor: colors.BORDER,
+    },
+    clearButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: SIZES.XS,
+      paddingVertical: SIZES.MD,
+      paddingHorizontal: SIZES.LG,
+      borderRadius: SIZES.BORDER_RADIUS_MD,
+      borderWidth: 1.5,
+      borderColor: colors.BORDER,
+    },
+    clearText: {
+      fontSize: SIZES.FONT_SM,
+      fontWeight: '600',
+      color: colors.TEXT_SECONDARY,
+    },
+    saveButton: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: SIZES.XS,
+      paddingVertical: SIZES.MD,
+      borderRadius: SIZES.BORDER_RADIUS_MD,
+      backgroundColor: colors.NURSE_PRIMARY,
+    },
+    saveButtonDisabled: {
+      opacity: 0.5,
+    },
+    saveText: {
+      fontSize: SIZES.FONT_SM,
+      fontWeight: '600',
+      color: colors.WHITE,
+    },
+  });
+}

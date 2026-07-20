@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -11,8 +11,9 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
+import { useTheme } from '../../contexts/ThemeContext';
 import { supabase, type Appointment } from '../../utils/supabase';
-import { COLORS, SIZES } from '../../utils/constants';
+import { getColors, SIZES } from '../../utils/constants';
 import CompletionModal, { type CareNotesData } from '../../components/CompletionModal';
 import MonthYearFilter from '../../components/MonthYearFilter';
 import { exportCareHistoryToPDF } from '../../utils/pdfExport';
@@ -40,12 +41,12 @@ function formatTime(time: string | null): string {
 // Component
 // ---------------------------------------------------------------------------
 
-const CareHistoryScreen: React.FC<{ navigation: any; route: any }> = ({
-  navigation,
-  route,
-}) => {
+const CareHistoryScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, route }) => {
   const { patientId, patientName } = route.params;
   const { user } = useAuth();
+  const { isDark } = useTheme();
+  const colors = getColors(isDark);
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [history, setHistory] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
@@ -54,7 +55,7 @@ const CareHistoryScreen: React.FC<{ navigation: any; route: any }> = ({
   const [saving, setSaving] = useState(false);
 
   const filteredHistory = selectedMonth
-    ? history.filter((a) => a.date.startsWith(selectedMonth))
+    ? history.filter(a => a.date.startsWith(selectedMonth))
     : history;
 
   const fetchHistory = useCallback(async () => {
@@ -118,8 +119,8 @@ const CareHistoryScreen: React.FC<{ navigation: any; route: any }> = ({
         return;
       }
 
-      setHistory((prev) =>
-        prev.map((a) =>
+      setHistory(prev =>
+        prev.map(a =>
           a.id === editingAppointment.id
             ? {
                 ...a,
@@ -163,13 +164,13 @@ const CareHistoryScreen: React.FC<{ navigation: any; route: any }> = ({
             setEditModalVisible(true);
           }}
         >
-          <Ionicons name="create-outline" size={18} color={COLORS.NURSE_PRIMARY} />
+          <Ionicons name="create-outline" size={18} color={colors.NURSE_PRIMARY} />
         </TouchableOpacity>
       </View>
 
       {item.duration_min ? (
         <View style={styles.durationRow}>
-          <Ionicons name="time-outline" size={14} color={COLORS.TEXT_MUTED} />
+          <Ionicons name="time-outline" size={14} color={colors.TEXT_MUTED} />
           <Text style={styles.durationText}>{item.duration_min} min</Text>
         </View>
       ) : null}
@@ -203,9 +204,14 @@ const CareHistoryScreen: React.FC<{ navigation: any; route: any }> = ({
         <Ionicons
           name={item.visible_to_patient ? 'eye-outline' : 'eye-off-outline'}
           size={14}
-          color={item.visible_to_patient ? COLORS.NURSE_PRIMARY : COLORS.TEXT_MUTED}
+          color={item.visible_to_patient ? colors.NURSE_PRIMARY : colors.TEXT_MUTED}
         />
-        <Text style={[styles.visibilityText, item.visible_to_patient && { color: COLORS.NURSE_PRIMARY }]}>
+        <Text
+          style={[
+            styles.visibilityText,
+            item.visible_to_patient && { color: colors.NURSE_PRIMARY },
+          ]}
+        >
           {item.visible_to_patient ? 'Visible par le patient' : 'Masqué pour le patient'}
         </Text>
       </View>
@@ -225,7 +231,7 @@ const CareHistoryScreen: React.FC<{ navigation: any; route: any }> = ({
           onPress={() => navigation.goBack()}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
-          <Ionicons name="chevron-back" size={24} color={COLORS.TEXT_PRIMARY} />
+          <Ionicons name="chevron-back" size={24} color={colors.TEXT_PRIMARY} />
         </TouchableOpacity>
         <View style={styles.headerCenter}>
           <Text style={styles.headerTitle}>Historique</Text>
@@ -238,12 +244,12 @@ const CareHistoryScreen: React.FC<{ navigation: any; route: any }> = ({
               appointments: filteredHistory,
               title: `Historique des soins — ${patientName}`,
               subtitle: `Infirmier : ${user?.email ?? ''}`,
-              accentColor: COLORS.NURSE_PRIMARY,
+              accentColor: colors.NURSE_PRIMARY,
             })
           }
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
-          <Ionicons name="download-outline" size={22} color={COLORS.NURSE_PRIMARY} />
+          <Ionicons name="download-outline" size={22} color={colors.NURSE_PRIMARY} />
         </TouchableOpacity>
       </View>
 
@@ -253,20 +259,20 @@ const CareHistoryScreen: React.FC<{ navigation: any; route: any }> = ({
           appointments={history}
           selectedMonth={selectedMonth}
           onSelectMonth={setSelectedMonth}
-          accentColor={COLORS.NURSE_PRIMARY}
-          lightColor={COLORS.NURSE_LIGHT}
+          accentColor={colors.NURSE_PRIMARY}
+          lightColor={colors.NURSE_LIGHT}
         />
       )}
 
       {/* Content */}
       {loading ? (
         <View style={styles.centerWrap}>
-          <ActivityIndicator size="large" color={COLORS.NURSE_PRIMARY} />
+          <ActivityIndicator size="large" color={colors.NURSE_PRIMARY} />
           <Text style={styles.loadingText}>Chargement de l'historique...</Text>
         </View>
       ) : filteredHistory.length === 0 ? (
         <View style={styles.centerWrap}>
-          <Ionicons name="document-text-outline" size={56} color={COLORS.BORDER} />
+          <Ionicons name="document-text-outline" size={56} color={colors.BORDER} />
           <Text style={styles.emptyTitle}>Aucun soin</Text>
           <Text style={styles.emptySubtitle}>
             {selectedMonth
@@ -277,7 +283,7 @@ const CareHistoryScreen: React.FC<{ navigation: any; route: any }> = ({
       ) : (
         <FlatList
           data={filteredHistory}
-          keyExtractor={(item) => item.id}
+          keyExtractor={item => item.id}
           renderItem={renderItem}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
@@ -314,166 +320,168 @@ const CareHistoryScreen: React.FC<{ navigation: any; route: any }> = ({
 // Styles
 // ---------------------------------------------------------------------------
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.BACKGROUND,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: SIZES.LG,
-    paddingVertical: SIZES.MD,
-    backgroundColor: COLORS.WHITE,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.BORDER,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: COLORS.BACKGROUND,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  exportBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: COLORS.NURSE_LIGHT,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerCenter: {
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: SIZES.FONT_LG,
-    fontWeight: '700',
-    color: COLORS.TEXT_PRIMARY,
-  },
-  headerSubtitle: {
-    fontSize: SIZES.FONT_XS,
-    color: COLORS.TEXT_MUTED,
-    marginTop: 2,
-  },
-  centerWrap: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: SIZES.MD,
-    paddingHorizontal: SIZES.XXL,
-  },
-  loadingText: {
-    fontSize: SIZES.FONT_SM,
-    color: COLORS.TEXT_MUTED,
-  },
-  emptyTitle: {
-    fontSize: SIZES.FONT_LG,
-    fontWeight: '600',
-    color: COLORS.TEXT_PRIMARY,
-  },
-  emptySubtitle: {
-    fontSize: SIZES.FONT_SM,
-    color: COLORS.TEXT_MUTED,
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-  listContent: {
-    padding: SIZES.LG,
-    paddingBottom: 40,
-  },
-  // Card
-  card: {
-    backgroundColor: COLORS.WHITE,
-    borderRadius: SIZES.BORDER_RADIUS_MD,
-    padding: SIZES.MD,
-    marginBottom: SIZES.MD,
-    shadowColor: COLORS.BLACK,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    marginBottom: SIZES.SM,
-  },
-  cardHeaderLeft: {
-    flex: 1,
-  },
-  careTypeBadge: {
-    backgroundColor: COLORS.NURSE_LIGHT,
-    paddingHorizontal: SIZES.SM,
-    paddingVertical: 3,
-    borderRadius: SIZES.BORDER_RADIUS_FULL,
-    alignSelf: 'flex-start',
-    marginBottom: 4,
-  },
-  careTypeText: {
-    fontSize: SIZES.FONT_XS,
-    fontWeight: '600',
-    color: COLORS.NURSE_PRIMARY,
-  },
-  cardDate: {
-    fontSize: SIZES.FONT_SM,
-    color: COLORS.TEXT_SECONDARY,
-  },
-  editBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: COLORS.NURSE_LIGHT,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  durationRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginBottom: SIZES.SM,
-  },
-  durationText: {
-    fontSize: SIZES.FONT_XS,
-    color: COLORS.TEXT_MUTED,
-  },
-  // Notes
-  noteBlock: {
-    backgroundColor: COLORS.BACKGROUND,
-    borderRadius: SIZES.BORDER_RADIUS_SM,
-    padding: SIZES.SM,
-    marginBottom: SIZES.SM,
-  },
-  noteLabel: {
-    fontSize: SIZES.FONT_XS,
-    fontWeight: '600',
-    color: COLORS.TEXT_MUTED,
-    marginBottom: 2,
-  },
-  noteText: {
-    fontSize: SIZES.FONT_SM,
-    color: COLORS.TEXT_PRIMARY,
-    lineHeight: 18,
-  },
-  noNotes: {
-    fontSize: SIZES.FONT_SM,
-    color: COLORS.TEXT_MUTED,
-    fontStyle: 'italic',
-    marginBottom: SIZES.SM,
-  },
-  visibilityRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginTop: SIZES.XS,
-  },
-  visibilityText: {
-    fontSize: SIZES.FONT_XS,
-    color: COLORS.TEXT_MUTED,
-  },
-});
+function createStyles(colors: ReturnType<typeof getColors>) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.BACKGROUND,
+    },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: SIZES.LG,
+      paddingVertical: SIZES.MD,
+      backgroundColor: colors.WHITE,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.BORDER,
+    },
+    backButton: {
+      width: 40,
+      height: 40,
+      borderRadius: 12,
+      backgroundColor: colors.BACKGROUND,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    exportBtn: {
+      width: 40,
+      height: 40,
+      borderRadius: 12,
+      backgroundColor: colors.NURSE_LIGHT,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    headerCenter: {
+      alignItems: 'center',
+    },
+    headerTitle: {
+      fontSize: SIZES.FONT_LG,
+      fontWeight: '700',
+      color: colors.TEXT_PRIMARY,
+    },
+    headerSubtitle: {
+      fontSize: SIZES.FONT_XS,
+      color: colors.TEXT_MUTED,
+      marginTop: 2,
+    },
+    centerWrap: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: SIZES.MD,
+      paddingHorizontal: SIZES.XXL,
+    },
+    loadingText: {
+      fontSize: SIZES.FONT_SM,
+      color: colors.TEXT_MUTED,
+    },
+    emptyTitle: {
+      fontSize: SIZES.FONT_LG,
+      fontWeight: '600',
+      color: colors.TEXT_PRIMARY,
+    },
+    emptySubtitle: {
+      fontSize: SIZES.FONT_SM,
+      color: colors.TEXT_MUTED,
+      textAlign: 'center',
+      lineHeight: 20,
+    },
+    listContent: {
+      padding: SIZES.LG,
+      paddingBottom: 40,
+    },
+    // Card
+    card: {
+      backgroundColor: colors.WHITE,
+      borderRadius: SIZES.BORDER_RADIUS_MD,
+      padding: SIZES.MD,
+      marginBottom: SIZES.MD,
+      shadowColor: colors.BLACK,
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.06,
+      shadowRadius: 4,
+      elevation: 2,
+    },
+    cardHeader: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      justifyContent: 'space-between',
+      marginBottom: SIZES.SM,
+    },
+    cardHeaderLeft: {
+      flex: 1,
+    },
+    careTypeBadge: {
+      backgroundColor: colors.NURSE_LIGHT,
+      paddingHorizontal: SIZES.SM,
+      paddingVertical: 3,
+      borderRadius: SIZES.BORDER_RADIUS_FULL,
+      alignSelf: 'flex-start',
+      marginBottom: 4,
+    },
+    careTypeText: {
+      fontSize: SIZES.FONT_XS,
+      fontWeight: '600',
+      color: colors.NURSE_PRIMARY,
+    },
+    cardDate: {
+      fontSize: SIZES.FONT_SM,
+      color: colors.TEXT_SECONDARY,
+    },
+    editBtn: {
+      width: 36,
+      height: 36,
+      borderRadius: 10,
+      backgroundColor: colors.NURSE_LIGHT,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    durationRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      marginBottom: SIZES.SM,
+    },
+    durationText: {
+      fontSize: SIZES.FONT_XS,
+      color: colors.TEXT_MUTED,
+    },
+    // Notes
+    noteBlock: {
+      backgroundColor: colors.BACKGROUND,
+      borderRadius: SIZES.BORDER_RADIUS_SM,
+      padding: SIZES.SM,
+      marginBottom: SIZES.SM,
+    },
+    noteLabel: {
+      fontSize: SIZES.FONT_XS,
+      fontWeight: '600',
+      color: colors.TEXT_MUTED,
+      marginBottom: 2,
+    },
+    noteText: {
+      fontSize: SIZES.FONT_SM,
+      color: colors.TEXT_PRIMARY,
+      lineHeight: 18,
+    },
+    noNotes: {
+      fontSize: SIZES.FONT_SM,
+      color: colors.TEXT_MUTED,
+      fontStyle: 'italic',
+      marginBottom: SIZES.SM,
+    },
+    visibilityRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      marginTop: SIZES.XS,
+    },
+    visibilityText: {
+      fontSize: SIZES.FONT_XS,
+      color: colors.TEXT_MUTED,
+    },
+  });
+}
 
 export default CareHistoryScreen;

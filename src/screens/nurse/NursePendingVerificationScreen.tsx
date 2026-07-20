@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -18,8 +18,9 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import * as DocumentPicker from 'expo-document-picker';
 import { File } from 'expo-file-system';
 import { useAuth } from '../../contexts/AuthContext';
+import { useTheme } from '../../contexts/ThemeContext';
 import { supabase } from '../../utils/supabase';
-import { COLORS } from '../../utils/constants';
+import { getColors } from '../../utils/constants';
 import { debugLog } from '../../utils/devConfig';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
@@ -44,11 +45,38 @@ interface DocumentState {
 
 const NursePendingVerificationScreen = () => {
   const { user, nurseProfile, logout, fetchProfile } = useAuth();
+  const { isDark } = useTheme();
+  const colors = getColors(isDark);
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   const [documents, setDocuments] = useState<Record<string, DocumentState>>({
-    cni: { uri: null, fileName: null, mimeType: null, label: "Carte d'identité", icon: 'card-outline', storageKey: 'cni', column: 'cni_path' },
-    domicile: { uri: null, fileName: null, mimeType: null, label: 'Justificatif de domicile', icon: 'home-outline', storageKey: 'domicile', column: 'justificatif_domicile_path' },
-    carte_pro: { uri: null, fileName: null, mimeType: null, label: 'Carte professionnelle (CPS)', icon: 'medal-outline', storageKey: 'carte_pro', column: 'carte_pro_path' },
+    cni: {
+      uri: null,
+      fileName: null,
+      mimeType: null,
+      label: "Carte d'identité",
+      icon: 'card-outline',
+      storageKey: 'cni',
+      column: 'cni_path',
+    },
+    domicile: {
+      uri: null,
+      fileName: null,
+      mimeType: null,
+      label: 'Justificatif de domicile',
+      icon: 'home-outline',
+      storageKey: 'domicile',
+      column: 'justificatif_domicile_path',
+    },
+    carte_pro: {
+      uri: null,
+      fileName: null,
+      mimeType: null,
+      label: 'Carte professionnelle (CPS)',
+      icon: 'medal-outline',
+      storageKey: 'carte_pro',
+      column: 'carte_pro_path',
+    },
   });
 
   const [uploading, setUploading] = useState(false);
@@ -78,7 +106,10 @@ const NursePendingVerificationScreen = () => {
       const { status: permStatus } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       console.log('[NursePendingVerificationScreen] media library permission status:', permStatus);
       if (permStatus !== 'granted') {
-        Alert.alert('Permission requise', "Autorisez l'accès à vos photos pour importer vos documents.");
+        Alert.alert(
+          'Permission requise',
+          "Autorisez l'accès à vos photos pour importer vos documents."
+        );
         return;
       }
 
@@ -86,21 +117,32 @@ const NursePendingVerificationScreen = () => {
         mediaTypes: ['images'],
         quality: 0.8,
       });
-      console.log('[NursePendingVerificationScreen] launchImageLibraryAsync result:', JSON.stringify({ canceled: result.canceled, assetsCount: result.assets?.length }));
+      console.log(
+        '[NursePendingVerificationScreen] launchImageLibraryAsync result:',
+        JSON.stringify({ canceled: result.canceled, assetsCount: result.assets?.length })
+      );
 
       if (result.canceled || !result.assets?.[0]) return;
 
-      console.log('[NursePendingVerificationScreen] manipulating image, uri:', result.assets[0].uri);
+      console.log(
+        '[NursePendingVerificationScreen] manipulating image, uri:',
+        result.assets[0].uri
+      );
       const manipulated = await ImageManipulator.manipulateAsync(
         result.assets[0].uri,
         [{ resize: { width: 1200 } }],
-        { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG },
+        { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
       );
       console.log('[NursePendingVerificationScreen] manipulated image uri:', manipulated.uri);
 
       setDocuments(prev => ({
         ...prev,
-        [docKey]: { ...prev[docKey]!, uri: manipulated.uri, fileName: null, mimeType: 'image/jpeg' },
+        [docKey]: {
+          ...prev[docKey]!,
+          uri: manipulated.uri,
+          fileName: null,
+          mimeType: 'image/jpeg',
+        },
       }));
       console.log('[NursePendingVerificationScreen] document state updated for', docKey);
     } catch (err: any) {
@@ -116,12 +158,18 @@ const NursePendingVerificationScreen = () => {
         type: ['application/pdf'],
         copyToCacheDirectory: true,
       });
-      console.log('[NursePendingVerificationScreen] getDocumentAsync result:', JSON.stringify({ canceled: result.canceled, assetsCount: result.assets?.length }));
+      console.log(
+        '[NursePendingVerificationScreen] getDocumentAsync result:',
+        JSON.stringify({ canceled: result.canceled, assetsCount: result.assets?.length })
+      );
 
       if (result.canceled || !result.assets?.[0]) return;
 
       const asset = result.assets[0];
-      console.log('[NursePendingVerificationScreen] PDF asset:', JSON.stringify({ name: asset.name, size: asset.size, uri: asset.uri }));
+      console.log(
+        '[NursePendingVerificationScreen] PDF asset:',
+        JSON.stringify({ name: asset.name, size: asset.size, uri: asset.uri })
+      );
 
       if (asset.size && asset.size > MAX_FILE_SIZE) {
         Alert.alert('Fichier trop volumineux', 'Le fichier ne doit pas dépasser 5 Mo.');
@@ -130,12 +178,17 @@ const NursePendingVerificationScreen = () => {
 
       setDocuments(prev => ({
         ...prev,
-        [docKey]: { ...prev[docKey]!, uri: asset.uri, fileName: asset.name, mimeType: 'application/pdf' },
+        [docKey]: {
+          ...prev[docKey]!,
+          uri: asset.uri,
+          fileName: asset.name,
+          mimeType: 'application/pdf',
+        },
       }));
       console.log('[NursePendingVerificationScreen] document state updated for', docKey);
     } catch (err: any) {
       console.error('[NursePendingVerificationScreen] PDF picker error:', err);
-      Alert.alert('Erreur', err?.message ?? 'Impossible d\'ouvrir le sélecteur de PDF.');
+      Alert.alert('Erreur', err?.message ?? "Impossible d'ouvrir le sélecteur de PDF.");
     }
   };
 
@@ -161,7 +214,7 @@ const NursePendingVerificationScreen = () => {
         },
         { text: 'Annuler', style: 'cancel' },
       ],
-      { cancelable: true },
+      { cancelable: true }
     );
   };
 
@@ -182,14 +235,26 @@ const NursePendingVerificationScreen = () => {
       for (const [key, doc] of Object.entries(documents)) {
         if (!doc.uri) continue;
 
-        console.log('[NursePendingVerificationScreen] uploading', key, 'mimeType:', doc.mimeType, 'uri:', doc.uri);
+        console.log(
+          '[NursePendingVerificationScreen] uploading',
+          key,
+          'mimeType:',
+          doc.mimeType,
+          'uri:',
+          doc.uri
+        );
 
         const isPdf = doc.mimeType === 'application/pdf';
         const ext = isPdf ? 'pdf' : 'jpg';
         const contentType = isPdf ? 'application/pdf' : 'image/jpeg';
         const file = new File(doc.uri);
         const arrayBuffer = await file.arrayBuffer();
-        console.log('[NursePendingVerificationScreen] arrayBuffer byteLength for', key, ':', arrayBuffer.byteLength);
+        console.log(
+          '[NursePendingVerificationScreen] arrayBuffer byteLength for',
+          key,
+          ':',
+          arrayBuffer.byteLength
+        );
         const filePath = `${user.id}/${doc.storageKey}_${Date.now()}.${ext}`;
 
         const { error: uploadError } = await supabase.storage
@@ -205,7 +270,10 @@ const NursePendingVerificationScreen = () => {
         updates[doc.column] = filePath;
       }
 
-      console.log('[NursePendingVerificationScreen] updating nurse_profiles with', JSON.stringify(updates));
+      console.log(
+        '[NursePendingVerificationScreen] updating nurse_profiles with',
+        JSON.stringify(updates)
+      );
       const { error: updateError } = await supabase
         .from('nurse_profiles')
         .update({
@@ -221,7 +289,7 @@ const NursePendingVerificationScreen = () => {
       console.log('[NursePendingVerificationScreen] handleSubmitDocuments completed successfully');
       Alert.alert(
         'Documents envoyés',
-        'Vos documents ont été transmis avec succès. Un administrateur va les examiner sous peu.',
+        'Vos documents ont été transmis avec succès. Un administrateur va les examiner sous peu.'
       );
     } catch (err: any) {
       console.error('[NursePendingVerificationScreen] upload error:', err);
@@ -261,7 +329,10 @@ const NursePendingVerificationScreen = () => {
 
       if (error) {
         debugLog('RPPS update - Supabase function error', error);
-        Alert.alert('Vérification impossible', 'Le service de vérification RPPS est indisponible. Veuillez réessayer ultérieurement.');
+        Alert.alert(
+          'Vérification impossible',
+          'Le service de vérification RPPS est indisponible. Veuillez réessayer ultérieurement.'
+        );
         return;
       }
 
@@ -279,17 +350,41 @@ const NursePendingVerificationScreen = () => {
 
         setShowEditRpps(false);
         await fetchProfile(user.id);
-        Alert.alert('Succès', 'Votre numéro RPPS a été vérifié. Veuillez maintenant soumettre vos documents.');
-      } else if (data?.status === 'not_found' || data?.status === 'not_a_nurse' || data?.status === 'inactive') {
-        debugLog('RPPS update - verification failed', { status: data.status, message: data.message, rppsNumber: trimmed });
-        Alert.alert('Vérification impossible', data.message ?? "Nous n'avons pas pu confirmer ce numéro RPPS. Vérifiez votre saisie.");
+        Alert.alert(
+          'Succès',
+          'Votre numéro RPPS a été vérifié. Veuillez maintenant soumettre vos documents.'
+        );
+      } else if (
+        data?.status === 'not_found' ||
+        data?.status === 'not_a_nurse' ||
+        data?.status === 'inactive'
+      ) {
+        debugLog('RPPS update - verification failed', {
+          status: data.status,
+          message: data.message,
+          rppsNumber: trimmed,
+        });
+        Alert.alert(
+          'Vérification impossible',
+          data.message ?? "Nous n'avons pas pu confirmer ce numéro RPPS. Vérifiez votre saisie."
+        );
       } else {
-        debugLog('RPPS update - function returned error status', { status: data?.status, message: data?.message });
-        Alert.alert('Vérification impossible', data?.message ?? "Le service de vérification RPPS est indisponible. Veuillez réessayer ultérieurement.");
+        debugLog('RPPS update - function returned error status', {
+          status: data?.status,
+          message: data?.message,
+        });
+        Alert.alert(
+          'Vérification impossible',
+          data?.message ??
+            'Le service de vérification RPPS est indisponible. Veuillez réessayer ultérieurement.'
+        );
       }
     } catch (err) {
       debugLog('RPPS update - exception', err);
-      Alert.alert('Erreur', 'Impossible de vérifier le numéro RPPS. Vérifiez votre connexion internet.');
+      Alert.alert(
+        'Erreur',
+        'Impossible de vérifier le numéro RPPS. Vérifiez votre connexion internet.'
+      );
     } finally {
       setVerifying(false);
     }
@@ -307,7 +402,7 @@ const NursePendingVerificationScreen = () => {
           <Ionicons
             name={isPendingReview ? 'time-outline' : 'document-text-outline'}
             size={48}
-            color={COLORS.NURSE_PRIMARY ?? '#2E8B57'}
+            color={colors.NURSE_PRIMARY ?? '#2E8B57'}
           />
         </View>
 
@@ -319,8 +414,8 @@ const NursePendingVerificationScreen = () => {
           {isPendingReview
             ? 'Vos documents ont été soumis et sont en cours de vérification par un administrateur. Vous serez notifiée dès que votre compte sera activé.'
             : isRejected
-            ? 'Votre demande a été rejetée. Veuillez soumettre de nouveaux documents pour que votre compte soit activé.'
-            : 'Pour accéder à SoinLokal, veuillez soumettre les documents suivants (image ou PDF, 5 Mo max) :'}
+              ? 'Votre demande a été rejetée. Veuillez soumettre de nouveaux documents pour que votre compte soit activé.'
+              : 'Pour accéder à SoinLokal, veuillez soumettre les documents suivants (image ou PDF, 5 Mo max) :'}
         </Text>
 
         {/* Rejection note */}
@@ -350,7 +445,7 @@ const NursePendingVerificationScreen = () => {
             setShowEditRpps(true);
           }}
         >
-          <Ionicons name="pencil-outline" size={16} color={COLORS.NURSE_PRIMARY ?? '#2E8B57'} />
+          <Ionicons name="pencil-outline" size={16} color={colors.NURSE_PRIMARY ?? '#2E8B57'} />
           <Text style={styles.editRppsButtonText}>Modifier mon numéro RPPS</Text>
         </TouchableOpacity>
 
@@ -370,7 +465,7 @@ const NursePendingVerificationScreen = () => {
                     <Text style={styles.docCardLabel}>{doc.label}</Text>
                     <Text style={styles.docCardStatus}>
                       {doc.uri
-                        ? doc.fileName ?? 'Document sélectionné'
+                        ? (doc.fileName ?? 'Document sélectionné')
                         : 'Appuyez pour sélectionner'}
                     </Text>
                   </View>
@@ -402,7 +497,7 @@ const NursePendingVerificationScreen = () => {
                     ) : (
                       <Image key={key} source={{ uri: doc.uri }} style={styles.previewImage} />
                     )
-                  ) : null,
+                  ) : null
                 )}
               </View>
             )}
@@ -455,7 +550,12 @@ const NursePendingVerificationScreen = () => {
             </Text>
 
             <View style={styles.modalInputContainer}>
-              <Ionicons name="card-outline" size={20} color="#94A3B8" style={styles.modalInputIcon} />
+              <Ionicons
+                name="card-outline"
+                size={20}
+                color="#94A3B8"
+                style={styles.modalInputIcon}
+              />
               <TextInput
                 style={styles.modalInput}
                 placeholder="Numéro RPPS (11 chiffres)"
@@ -469,7 +569,10 @@ const NursePendingVerificationScreen = () => {
             </View>
 
             <TouchableOpacity
-              style={[styles.modalPrimaryButton, { backgroundColor: COLORS.NURSE_PRIMARY ?? '#2E8B57' }]}
+              style={[
+                styles.modalPrimaryButton,
+                { backgroundColor: colors.NURSE_PRIMARY ?? '#2E8B57' },
+              ]}
               onPress={handleUpdateRpps}
               disabled={verifying}
               activeOpacity={0.85}
@@ -499,224 +602,230 @@ const NursePendingVerificationScreen = () => {
 // Styles
 // ---------------------------------------------------------------------------
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8F9FA' },
-  content: {
-    flexGrow: 1,
-    alignItems: 'center',
-    padding: 24,
-    paddingTop: 16,
-  },
-  iconWrapper: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
-    backgroundColor: '#E8F5EC',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 20,
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#1A1A2E',
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  subtitle: {
-    fontSize: 15,
-    color: '#64748B',
-    textAlign: 'center',
-    lineHeight: 22,
-    marginBottom: 20,
-    paddingHorizontal: 8,
-  },
-  infoBox: {
-    backgroundColor: 'white',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    width: '100%',
-    marginBottom: 12,
-  },
-  infoLabel: { fontSize: 12, color: '#94A3B8', marginBottom: 4 },
-  infoValue: { fontSize: 16, fontWeight: '600', color: '#1A1A2E' },
-  rejectionNoteBox: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 10,
-    backgroundColor: '#FEF2F2',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#FECACA',
-    padding: 14,
-    width: '100%',
-    marginBottom: 12,
-  },
-  rejectionNoteContent: { flex: 1 },
-  rejectionNoteLabel: { fontSize: 12, fontWeight: '600', color: '#E74C3C', marginBottom: 4 },
-  rejectionNoteText: { fontSize: 14, color: '#991B1B', lineHeight: 20 },
-  editRppsButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingVertical: 10,
-    marginBottom: 20,
-  },
-  editRppsButtonText: {
-    color: COLORS.NURSE_PRIMARY ?? '#2E8B57',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  docsSection: {
-    width: '100%',
-    marginBottom: 16,
-  },
-  docCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: 'white',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-    padding: 16,
-    marginBottom: 10,
-  },
-  docCardLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    flex: 1,
-  },
-  docCardText: { flex: 1 },
-  docCardLabel: { fontSize: 15, fontWeight: '600', color: '#1A1A2E' },
-  docCardStatus: { fontSize: 13, color: '#94A3B8', marginTop: 2 },
-  previewRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 12,
-    flexWrap: 'wrap',
-  },
-  previewImage: {
-    width: 80,
-    height: 80,
-    borderRadius: 8,
-    backgroundColor: '#E0E0E0',
-  },
-  previewPdf: {
-    width: 80,
-    height: 80,
-    borderRadius: 8,
-    backgroundColor: '#FEF2F2',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#FECACA',
-  },
-  previewPdfText: {
-    fontSize: 9,
-    color: '#E74C3C',
-    marginTop: 4,
-    maxWidth: 70,
-    textAlign: 'center',
-  },
-  primaryButton: {
-    flexDirection: 'row',
-    gap: 8,
-    height: 52,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: COLORS.NURSE_PRIMARY ?? '#2E8B57',
-    width: '100%',
-    marginTop: 4,
-  },
-  primaryButtonDisabled: {
-    opacity: 0.5,
-  },
-  primaryButtonText: { color: 'white', fontSize: 16, fontWeight: 'bold' },
-  successBox: {
-    flexDirection: 'row',
-    gap: 8,
-    alignItems: 'center',
-    backgroundColor: '#E8F5EC',
-    padding: 14,
-    borderRadius: 12,
-    width: '100%',
-    marginBottom: 16,
-  },
-  successText: { color: '#1A1A2E', fontSize: 14, flex: 1 },
-  secondaryButton: { paddingVertical: 12 },
-  secondaryButtonText: { color: COLORS.NURSE_PRIMARY ?? '#2E8B57', fontSize: 15, fontWeight: '600' },
-  logoutButton: { paddingVertical: 12, marginTop: 8 },
-  logoutButtonText: { color: '#94A3B8', fontSize: 14 },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-  },
-  modalContainer: {
-    backgroundColor: 'white',
-    borderRadius: 16,
-    padding: 24,
-    width: '100%',
-    maxWidth: 400,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#1A1A2E',
-    marginBottom: 8,
-  },
-  modalSubtitle: {
-    fontSize: 14,
-    color: '#64748B',
-    lineHeight: 20,
-    marginBottom: 20,
-  },
-  modalInputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F8F9FA',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-    paddingHorizontal: 16,
-    height: 52,
-    marginBottom: 20,
-  },
-  modalInputIcon: { marginRight: 12 },
-  modalInput: {
-    flex: 1,
-    fontSize: 16,
-    color: '#1A1A2E',
-  },
-  modalPrimaryButton: {
-    height: 52,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  modalPrimaryButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  modalCancelButton: {
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  modalCancelButtonText: {
-    color: '#94A3B8',
-    fontSize: 15,
-    fontWeight: '600',
-  },
-});
+function createStyles(colors: ReturnType<typeof getColors>) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: '#F8F9FA' },
+    content: {
+      flexGrow: 1,
+      alignItems: 'center',
+      padding: 24,
+      paddingTop: 16,
+    },
+    iconWrapper: {
+      width: 88,
+      height: 88,
+      borderRadius: 44,
+      backgroundColor: '#E8F5EC',
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: 20,
+    },
+    title: {
+      fontSize: 22,
+      fontWeight: 'bold',
+      color: '#1A1A2E',
+      marginBottom: 12,
+      textAlign: 'center',
+    },
+    subtitle: {
+      fontSize: 15,
+      color: '#64748B',
+      textAlign: 'center',
+      lineHeight: 22,
+      marginBottom: 20,
+      paddingHorizontal: 8,
+    },
+    infoBox: {
+      backgroundColor: 'white',
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: '#E0E0E0',
+      paddingVertical: 12,
+      paddingHorizontal: 16,
+      width: '100%',
+      marginBottom: 12,
+    },
+    infoLabel: { fontSize: 12, color: '#94A3B8', marginBottom: 4 },
+    infoValue: { fontSize: 16, fontWeight: '600', color: '#1A1A2E' },
+    rejectionNoteBox: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 10,
+      backgroundColor: '#FEF2F2',
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: '#FECACA',
+      padding: 14,
+      width: '100%',
+      marginBottom: 12,
+    },
+    rejectionNoteContent: { flex: 1 },
+    rejectionNoteLabel: { fontSize: 12, fontWeight: '600', color: '#E74C3C', marginBottom: 4 },
+    rejectionNoteText: { fontSize: 14, color: '#991B1B', lineHeight: 20 },
+    editRppsButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingVertical: 10,
+      marginBottom: 20,
+    },
+    editRppsButtonText: {
+      color: colors.NURSE_PRIMARY ?? '#2E8B57',
+      fontSize: 14,
+      fontWeight: '600',
+    },
+    docsSection: {
+      width: '100%',
+      marginBottom: 16,
+    },
+    docCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      backgroundColor: 'white',
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: '#E0E0E0',
+      padding: 16,
+      marginBottom: 10,
+    },
+    docCardLeft: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      flex: 1,
+    },
+    docCardText: { flex: 1 },
+    docCardLabel: { fontSize: 15, fontWeight: '600', color: '#1A1A2E' },
+    docCardStatus: { fontSize: 13, color: '#94A3B8', marginTop: 2 },
+    previewRow: {
+      flexDirection: 'row',
+      gap: 8,
+      marginBottom: 12,
+      flexWrap: 'wrap',
+    },
+    previewImage: {
+      width: 80,
+      height: 80,
+      borderRadius: 8,
+      backgroundColor: '#E0E0E0',
+    },
+    previewPdf: {
+      width: 80,
+      height: 80,
+      borderRadius: 8,
+      backgroundColor: '#FEF2F2',
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: '#FECACA',
+    },
+    previewPdfText: {
+      fontSize: 9,
+      color: '#E74C3C',
+      marginTop: 4,
+      maxWidth: 70,
+      textAlign: 'center',
+    },
+    primaryButton: {
+      flexDirection: 'row',
+      gap: 8,
+      height: 52,
+      borderRadius: 12,
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: colors.NURSE_PRIMARY ?? '#2E8B57',
+      width: '100%',
+      marginTop: 4,
+    },
+    primaryButtonDisabled: {
+      opacity: 0.5,
+    },
+    primaryButtonText: { color: 'white', fontSize: 16, fontWeight: 'bold' },
+    successBox: {
+      flexDirection: 'row',
+      gap: 8,
+      alignItems: 'center',
+      backgroundColor: '#E8F5EC',
+      padding: 14,
+      borderRadius: 12,
+      width: '100%',
+      marginBottom: 16,
+    },
+    successText: { color: '#1A1A2E', fontSize: 14, flex: 1 },
+    secondaryButton: { paddingVertical: 12 },
+    secondaryButtonText: {
+      color: colors.NURSE_PRIMARY ?? '#2E8B57',
+      fontSize: 15,
+      fontWeight: '600',
+    },
+    logoutButton: { paddingVertical: 12, marginTop: 8 },
+    logoutButtonText: { color: '#94A3B8', fontSize: 14 },
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.5)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: 24,
+    },
+    modalContainer: {
+      backgroundColor: 'white',
+      borderRadius: 16,
+      padding: 24,
+      width: '100%',
+      maxWidth: 400,
+    },
+    modalTitle: {
+      fontSize: 20,
+      fontWeight: 'bold',
+      color: '#1A1A2E',
+      marginBottom: 8,
+    },
+    modalSubtitle: {
+      fontSize: 14,
+      color: '#64748B',
+      lineHeight: 20,
+      marginBottom: 20,
+    },
+    modalInputContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: '#F8F9FA',
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: '#E0E0E0',
+      paddingHorizontal: 16,
+      height: 52,
+      marginBottom: 20,
+    },
+    modalInputIcon: { marginRight: 12 },
+    modalInput: {
+      flex: 1,
+      fontSize: 16,
+      color: '#1A1A2E',
+    },
+    modalPrimaryButton: {
+      height: 52,
+      borderRadius: 12,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginBottom: 12,
+    },
+    modalPrimaryButtonText: {
+      color: 'white',
+      fontSize: 16,
+      fontWeight: 'bold',
+    },
+    modalCancelButton: {
+      paddingVertical: 12,
+      alignItems: 'center',
+    },
+    modalCancelButtonText: {
+      color: '#94A3B8',
+      fontSize: 15,
+      fontWeight: '600',
+    },
+  });
+}
 
 export default NursePendingVerificationScreen;

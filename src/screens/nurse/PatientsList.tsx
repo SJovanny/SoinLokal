@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -14,8 +14,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../../contexts/AuthContext';
+import { useTheme } from '../../contexts/ThemeContext';
 import { supabase, type Profile, type PatientProfile } from '../../utils/supabase';
-import { COLORS, SIZES } from '../../utils/constants';
+import { getColors, SIZES } from '../../utils/constants';
 import Avatar from '../../components/Avatar';
 
 // ---------------------------------------------------------------------------
@@ -58,11 +59,11 @@ function calcAge(dob: string | undefined): string | null {
 // Component
 // ---------------------------------------------------------------------------
 
-const PatientsList: React.FC<{ navigation: any; route: any }> = ({
-  navigation,
-  route,
-}) => {
+const PatientsList: React.FC<{ navigation: any; route: any }> = ({ navigation, route }) => {
   const { user } = useAuth();
+  const { isDark } = useTheme();
+  const colors = getColors(isDark);
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const searchRef = useRef<TextInput>(null);
 
   // State
@@ -76,7 +77,7 @@ const PatientsList: React.FC<{ navigation: any; route: any }> = ({
   const [addingId, setAddingId] = useState<string | null>(null);
 
   // Derived set of patient IDs already added
-  const myPatientIds = new Set(myPatients.map((p) => p.patient_id));
+  const myPatientIds = new Set(myPatients.map(p => p.patient_id));
 
   // -------------------------------------------------------------------------
   // Load my patients
@@ -89,11 +90,13 @@ const PatientsList: React.FC<{ navigation: any; route: any }> = ({
       // Step 1: Fetch patient_files with basic profile info
       const { data, error } = await supabase
         .from('patient_files')
-        .select(`
+        .select(
+          `
           id,
           patient_id,
           patient:profiles!patient_id(id, first_name, last_name, email, phone, photo_url, avatar_type, avatar_seed)
-        `)
+        `
+        )
         .eq('nurse_id', user.id)
         .eq('is_active', true)
         .order('created_at', { ascending: false });
@@ -110,12 +113,18 @@ const PatientsList: React.FC<{ navigation: any; route: any }> = ({
       if (patientIds.length > 0) {
         const { data: profiles } = await supabase
           .from('patient_profiles')
-          .select('id, profile_id, dob, address, address_label, emergency_contact, medical_notes, allergies, is_managed, managed_by, created_at, updated_at')
+          .select(
+            'id, profile_id, dob, address, address_label, emergency_contact, medical_notes, allergies, is_managed, managed_by, created_at, updated_at'
+          )
           .in('profile_id', patientIds);
-        (profiles ?? []).forEach((pp: any) => { ppMap[pp.profile_id] = pp; });
+        (profiles ?? []).forEach((pp: any) => {
+          ppMap[pp.profile_id] = pp;
+        });
 
         // Fetch managed_by names (family members)
-        const managedByIds = [...new Set((profiles ?? []).map((pp: any) => pp.managed_by).filter(Boolean))];
+        const managedByIds = [
+          ...new Set((profiles ?? []).map((pp: any) => pp.managed_by).filter(Boolean)),
+        ];
         if (managedByIds.length > 0) {
           const { data: familyProfiles } = await supabase
             .from('profiles')
@@ -130,8 +139,8 @@ const PatientsList: React.FC<{ navigation: any; route: any }> = ({
       // Step 3: Merge
       const mapped: MyPatient[] = (data ?? []).map((row: any) => {
         const patient = Array.isArray(row.patient)
-          ? row.patient[0] ?? null
-          : row.patient ?? null;
+          ? (row.patient[0] ?? null)
+          : (row.patient ?? null);
         const pp = ppMap[row.patient_id] ?? null;
         return {
           id: row.id,
@@ -139,7 +148,7 @@ const PatientsList: React.FC<{ navigation: any; route: any }> = ({
           patient: {
             ...patient,
             patient_profiles: pp,
-            managed_by_name: pp?.managed_by ? managedByMap[pp.managed_by] ?? null : null,
+            managed_by_name: pp?.managed_by ? (managedByMap[pp.managed_by] ?? null) : null,
           },
         };
       });
@@ -191,9 +200,7 @@ const PatientsList: React.FC<{ navigation: any; route: any }> = ({
           .from('profiles')
           .select('id, first_name, last_name, email, phone')
           .eq('user_type', 'patient')
-          .or(
-            `first_name.ilike.%${q}%,last_name.ilike.%${q}%,email.ilike.%${q}%`
-          )
+          .or(`first_name.ilike.%${q}%,last_name.ilike.%${q}%,email.ilike.%${q}%`)
           .limit(20);
 
         if (error) {
@@ -207,9 +214,13 @@ const PatientsList: React.FC<{ navigation: any; route: any }> = ({
         if (ids.length > 0) {
           const { data: profiles } = await supabase
             .from('patient_profiles')
-            .select('id, profile_id, dob, address, address_label, emergency_contact, medical_notes, allergies, created_at, updated_at')
+            .select(
+              'id, profile_id, dob, address, address_label, emergency_contact, medical_notes, allergies, created_at, updated_at'
+            )
             .in('profile_id', ids);
-          (profiles ?? []).forEach((pp: any) => { ppMap[pp.profile_id] = pp; });
+          (profiles ?? []).forEach((pp: any) => {
+            ppMap[pp.profile_id] = pp;
+          });
         }
 
         // Step 3: Merge
@@ -309,7 +320,7 @@ const PatientsList: React.FC<{ navigation: any; route: any }> = ({
         activeOpacity={0.8}
         onPress={() => {
           // Find the patient_file id if it's in my list
-          const mine = myPatients.find((p) => p.patient_id === patient.id);
+          const mine = myPatients.find(p => p.patient_id === patient.id);
           navigation.navigate('PatientDetail', {
             patientId: patient.id,
             patientFileId: mine?.id ?? null,
@@ -327,27 +338,27 @@ const PatientsList: React.FC<{ navigation: any; route: any }> = ({
           />
         </View>
 
-          <View style={styles.cardInfo}>
-            <Text style={styles.cardName}>
-              {patient.first_name} {patient.last_name}
-            </Text>
-            {patient.managed_by_name ? (
-              <View style={styles.managedBadge}>
-                <Ionicons name="people-outline" size={12} color={COLORS.FAMILY_PRIMARY} />
-                <Text style={styles.managedBadgeText}>Géré par {patient.managed_by_name}</Text>
-              </View>
-            ) : null}
-            {isAssignedElsewhere ? (
-              <View style={styles.assignedElsewhereBadge}>
-                <Ionicons name="information-circle-outline" size={12} color={COLORS.TEXT_MUTED} />
-                <Text style={styles.assignedElsewhereBadgeText}>
-                  Déjà suivi par un autre infirmier
-                </Text>
-              </View>
-            ) : null}
-            {pp?.address ? (
+        <View style={styles.cardInfo}>
+          <Text style={styles.cardName}>
+            {patient.first_name} {patient.last_name}
+          </Text>
+          {patient.managed_by_name ? (
+            <View style={styles.managedBadge}>
+              <Ionicons name="people-outline" size={12} color={colors.FAMILY_PRIMARY} />
+              <Text style={styles.managedBadgeText}>Géré par {patient.managed_by_name}</Text>
+            </View>
+          ) : null}
+          {isAssignedElsewhere ? (
+            <View style={styles.assignedElsewhereBadge}>
+              <Ionicons name="information-circle-outline" size={12} color={colors.TEXT_MUTED} />
+              <Text style={styles.assignedElsewhereBadgeText}>
+                Déjà suivi par un autre infirmier
+              </Text>
+            </View>
+          ) : null}
+          {pp?.address ? (
             <View style={styles.cardMetaRow}>
-              <Ionicons name="location-outline" size={14} color={COLORS.TEXT_MUTED} />
+              <Ionicons name="location-outline" size={14} color={colors.TEXT_MUTED} />
               <Text style={styles.cardMeta} numberOfLines={1}>
                 {pp.address}
               </Text>
@@ -355,13 +366,13 @@ const PatientsList: React.FC<{ navigation: any; route: any }> = ({
           ) : null}
           {age ? (
             <View style={styles.cardMetaRow}>
-              <Ionicons name="calendar-outline" size={14} color={COLORS.TEXT_MUTED} />
+              <Ionicons name="calendar-outline" size={14} color={colors.TEXT_MUTED} />
               <Text style={styles.cardMeta}>{age}</Text>
             </View>
           ) : null}
           {patient.phone ? (
             <View style={styles.cardMetaRow}>
-              <Ionicons name="call-outline" size={14} color={COLORS.TEXT_MUTED} />
+              <Ionicons name="call-outline" size={14} color={colors.TEXT_MUTED} />
               <Text style={styles.cardMeta}>{patient.phone}</Text>
             </View>
           ) : null}
@@ -370,7 +381,7 @@ const PatientsList: React.FC<{ navigation: any; route: any }> = ({
         {opts?.showAddButton ? (
           isAdded ? (
             <View style={styles.addedBadge}>
-              <Ionicons name="checkmark-circle" size={18} color={COLORS.SUCCESS} />
+              <Ionicons name="checkmark-circle" size={18} color={colors.SUCCESS} />
               <Text style={styles.addedBadgeText}>Ajouté</Text>
             </View>
           ) : (
@@ -380,17 +391,17 @@ const PatientsList: React.FC<{ navigation: any; route: any }> = ({
               disabled={isAdding}
             >
               {isAdding ? (
-                <ActivityIndicator size="small" color={COLORS.WHITE} />
+                <ActivityIndicator size="small" color={colors.WHITE} />
               ) : (
                 <>
-                  <Ionicons name="person-add-outline" size={18} color={COLORS.WHITE} />
+                  <Ionicons name="person-add-outline" size={18} color={colors.WHITE} />
                   <Text style={styles.addButtonText}>Ajouter</Text>
                 </>
               )}
             </TouchableOpacity>
           )
         ) : (
-          <Ionicons name="chevron-forward" size={20} color={COLORS.TEXT_MUTED} />
+          <Ionicons name="chevron-forward" size={20} color={colors.TEXT_MUTED} />
         )}
       </TouchableOpacity>
     );
@@ -404,7 +415,7 @@ const PatientsList: React.FC<{ navigation: any; route: any }> = ({
     if (loading) {
       return (
         <View style={styles.centerWrap}>
-          <ActivityIndicator size="large" color={COLORS.NURSE_PRIMARY} />
+          <ActivityIndicator size="large" color={colors.NURSE_PRIMARY} />
         </View>
       );
     }
@@ -412,7 +423,7 @@ const PatientsList: React.FC<{ navigation: any; route: any }> = ({
     if (myPatients.length === 0) {
       return (
         <View style={styles.emptyState}>
-          <Ionicons name="people-outline" size={56} color={COLORS.BORDER} />
+          <Ionicons name="people-outline" size={56} color={colors.BORDER} />
           <Text style={styles.emptyTitle}>Aucun patient</Text>
           <Text style={styles.emptySubtitle}>
             Recherchez un patient pour l'ajouter à votre liste.
@@ -424,7 +435,7 @@ const PatientsList: React.FC<{ navigation: any; route: any }> = ({
               setTimeout(() => searchRef.current?.focus(), 200);
             }}
           >
-            <Ionicons name="search-outline" size={18} color={COLORS.WHITE} />
+            <Ionicons name="search-outline" size={18} color={colors.WHITE} />
             <Text style={styles.emptyButtonText}>Rechercher un patient</Text>
           </TouchableOpacity>
         </View>
@@ -434,7 +445,7 @@ const PatientsList: React.FC<{ navigation: any; route: any }> = ({
     return (
       <FlatList
         data={myPatients}
-        keyExtractor={(item) => item.id}
+        keyExtractor={item => item.id}
         renderItem={({ item }) => renderPatientCard(item.patient)}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
@@ -450,14 +461,14 @@ const PatientsList: React.FC<{ navigation: any; route: any }> = ({
         <Ionicons
           name="search-outline"
           size={20}
-          color={COLORS.TEXT_MUTED}
+          color={colors.TEXT_MUTED}
           style={styles.searchIcon}
         />
         <TextInput
           ref={searchRef}
           style={styles.searchInput}
           placeholder="Nom, prénom ou email..."
-          placeholderTextColor={COLORS.TEXT_MUTED}
+          placeholderTextColor={colors.TEXT_MUTED}
           value={searchQuery}
           onChangeText={setSearchQuery}
           autoCorrect={false}
@@ -468,7 +479,7 @@ const PatientsList: React.FC<{ navigation: any; route: any }> = ({
             onPress={() => setSearchQuery('')}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <Ionicons name="close-circle" size={20} color={COLORS.TEXT_MUTED} />
+            <Ionicons name="close-circle" size={20} color={colors.TEXT_MUTED} />
           </TouchableOpacity>
         )}
       </View>
@@ -476,30 +487,24 @@ const PatientsList: React.FC<{ navigation: any; route: any }> = ({
       {/* Results */}
       {searching ? (
         <View style={styles.centerWrap}>
-          <ActivityIndicator size="small" color={COLORS.NURSE_PRIMARY} />
+          <ActivityIndicator size="small" color={colors.NURSE_PRIMARY} />
         </View>
       ) : searchQuery.trim().length < 2 ? (
         <View style={styles.searchHint}>
-          <Ionicons name="search-outline" size={40} color={COLORS.BORDER} />
-          <Text style={styles.searchHintText}>
-            Tapez au moins 2 caractères pour rechercher
-          </Text>
+          <Ionicons name="search-outline" size={40} color={colors.BORDER} />
+          <Text style={styles.searchHintText}>Tapez au moins 2 caractères pour rechercher</Text>
         </View>
       ) : searchResults.length === 0 ? (
         <View style={styles.emptyState}>
-          <Ionicons name="search-outline" size={48} color={COLORS.BORDER} />
+          <Ionicons name="search-outline" size={48} color={colors.BORDER} />
           <Text style={styles.emptyTitle}>Aucun résultat</Text>
-          <Text style={styles.emptySubtitle}>
-            Aucun patient trouvé pour "{searchQuery}"
-          </Text>
+          <Text style={styles.emptySubtitle}>Aucun patient trouvé pour "{searchQuery}"</Text>
         </View>
       ) : (
         <FlatList
           data={searchResults}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) =>
-            renderPatientCard(item, { showAddButton: true })
-          }
+          keyExtractor={item => item.id}
+          renderItem={({ item }) => renderPatientCard(item, { showAddButton: true })}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
@@ -525,7 +530,7 @@ const PatientsList: React.FC<{ navigation: any; route: any }> = ({
               setTimeout(() => searchRef.current?.focus(), 200);
             }}
           >
-            <Ionicons name="person-add-outline" size={22} color={COLORS.NURSE_PRIMARY} />
+            <Ionicons name="person-add-outline" size={22} color={colors.NURSE_PRIMARY} />
           </TouchableOpacity>
         )}
       </View>
@@ -536,12 +541,7 @@ const PatientsList: React.FC<{ navigation: any; route: any }> = ({
           style={[styles.tab, activeTab === 'mes-patients' && styles.tabActive]}
           onPress={() => setActiveTab('mes-patients')}
         >
-          <Text
-            style={[
-              styles.tabText,
-              activeTab === 'mes-patients' && styles.tabTextActive,
-            ]}
-          >
+          <Text style={[styles.tabText, activeTab === 'mes-patients' && styles.tabTextActive]}>
             Mes patients ({myPatients.length})
           </Text>
         </TouchableOpacity>
@@ -552,12 +552,7 @@ const PatientsList: React.FC<{ navigation: any; route: any }> = ({
             setTimeout(() => searchRef.current?.focus(), 200);
           }}
         >
-          <Text
-            style={[
-              styles.tabText,
-              activeTab === 'recherche' && styles.tabTextActive,
-            ]}
-          >
+          <Text style={[styles.tabText, activeTab === 'recherche' && styles.tabTextActive]}>
             Recherche
           </Text>
         </TouchableOpacity>
@@ -573,246 +568,248 @@ const PatientsList: React.FC<{ navigation: any; route: any }> = ({
 // Styles
 // ---------------------------------------------------------------------------
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.BACKGROUND,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: SIZES.LG,
-    paddingVertical: SIZES.MD,
-    backgroundColor: COLORS.WHITE,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.BORDER,
-  },
-  headerTitle: {
-    fontSize: SIZES.FONT_2XL,
-    fontWeight: '700',
-    color: COLORS.TEXT_PRIMARY,
-  },
-  headerButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: COLORS.NURSE_LIGHT,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  // Tabs
-  tabs: {
-    flexDirection: 'row',
-    backgroundColor: COLORS.WHITE,
-    paddingHorizontal: SIZES.LG,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.BORDER,
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: SIZES.MD,
-    alignItems: 'center',
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
-  },
-  tabActive: {
-    borderBottomColor: COLORS.NURSE_PRIMARY,
-  },
-  tabText: {
-    fontSize: SIZES.FONT_SM,
-    fontWeight: '500',
-    color: COLORS.TEXT_MUTED,
-  },
-  tabTextActive: {
-    color: COLORS.NURSE_PRIMARY,
-    fontWeight: '600',
-  },
-  // List
-  listContent: {
-    padding: SIZES.LG,
-    paddingBottom: 40,
-  },
-  // Card
-  card: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.WHITE,
-    borderRadius: SIZES.BORDER_RADIUS_MD,
-    padding: SIZES.MD,
-    marginBottom: SIZES.SM,
-    shadowColor: COLORS.BLACK,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  cardAvatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: COLORS.NURSE_LIGHT,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: SIZES.MD,
-  },
-  cardInfo: {
-    flex: 1,
-    marginRight: SIZES.SM,
-  },
-  cardName: {
-    fontSize: SIZES.FONT_MD,
-    fontWeight: '600',
-    color: COLORS.TEXT_PRIMARY,
-    marginBottom: 4,
-  },
-  cardMetaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 2,
-  },
-  cardMeta: {
-    fontSize: SIZES.FONT_XS,
-    color: COLORS.TEXT_SECONDARY,
-    marginLeft: 6,
-    flex: 1,
-  },
-  // Managed badge
-  managedBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginTop: 4,
-    backgroundColor: COLORS.FAMILY_LIGHT,
-    paddingHorizontal: SIZES.SM,
-    paddingVertical: 2,
-    borderRadius: SIZES.BORDER_RADIUS_FULL,
-    alignSelf: 'flex-start',
-  },
-  managedBadgeText: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: COLORS.FAMILY_PRIMARY,
-  },
-  // Assigned elsewhere badge
-  assignedElsewhereBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginTop: 4,
-    backgroundColor: COLORS.BACKGROUND,
-    paddingHorizontal: SIZES.SM,
-    paddingVertical: 2,
-    borderRadius: SIZES.BORDER_RADIUS_FULL,
-    alignSelf: 'flex-start',
-  },
-  assignedElsewhereBadgeText: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: COLORS.TEXT_MUTED,
-  },
-  // Add button
-  addButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.NURSE_PRIMARY,
-    paddingHorizontal: SIZES.MD,
-    paddingVertical: SIZES.SM,
-    borderRadius: SIZES.BORDER_RADIUS_SM,
-    gap: 4,
-  },
-  addButtonText: {
-    color: COLORS.WHITE,
-    fontSize: SIZES.FONT_XS,
-    fontWeight: '600',
-  },
-  addedBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  addedBadgeText: {
-    fontSize: SIZES.FONT_XS,
-    color: COLORS.SUCCESS,
-    fontWeight: '500',
-  },
-  // Search
-  searchContainer: {
-    flex: 1,
-  },
-  searchInputWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.WHITE,
-    marginHorizontal: SIZES.LG,
-    marginTop: SIZES.MD,
-    marginBottom: SIZES.SM,
-    borderRadius: SIZES.BORDER_RADIUS_MD,
-    borderWidth: 1.5,
-    borderColor: COLORS.BORDER,
-    paddingHorizontal: SIZES.MD,
-    height: 48,
-  },
-  searchIcon: {
-    marginRight: SIZES.SM,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: SIZES.FONT_MD,
-    color: COLORS.TEXT_PRIMARY,
-    height: '100%',
-  },
-  searchHint: {
-    alignItems: 'center',
-    paddingTop: 60,
-    gap: SIZES.MD,
-  },
-  searchHintText: {
-    fontSize: SIZES.FONT_SM,
-    color: COLORS.TEXT_MUTED,
-    textAlign: 'center',
-    paddingHorizontal: 40,
-  },
-  // Empty state
-  centerWrap: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 40,
-  },
-  emptyState: {
-    alignItems: 'center',
-    paddingTop: 60,
-    paddingHorizontal: 40,
-    gap: SIZES.SM,
-  },
-  emptyTitle: {
-    fontSize: SIZES.FONT_LG,
-    fontWeight: '600',
-    color: COLORS.TEXT_PRIMARY,
-    marginTop: SIZES.SM,
-  },
-  emptySubtitle: {
-    fontSize: SIZES.FONT_SM,
-    color: COLORS.TEXT_MUTED,
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-  emptyButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.NURSE_PRIMARY,
-    paddingHorizontal: SIZES.LG,
-    paddingVertical: SIZES.MD,
-    borderRadius: SIZES.BORDER_RADIUS_MD,
-    gap: SIZES.SM,
-    marginTop: SIZES.MD,
-  },
-  emptyButtonText: {
-    color: COLORS.WHITE,
-    fontSize: SIZES.FONT_SM,
-    fontWeight: '600',
-  },
-});
+function createStyles(colors: ReturnType<typeof getColors>) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.BACKGROUND,
+    },
+    header: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingHorizontal: SIZES.LG,
+      paddingVertical: SIZES.MD,
+      backgroundColor: colors.WHITE,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.BORDER,
+    },
+    headerTitle: {
+      fontSize: SIZES.FONT_2XL,
+      fontWeight: '700',
+      color: colors.TEXT_PRIMARY,
+    },
+    headerButton: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: colors.NURSE_LIGHT,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    // Tabs
+    tabs: {
+      flexDirection: 'row',
+      backgroundColor: colors.WHITE,
+      paddingHorizontal: SIZES.LG,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.BORDER,
+    },
+    tab: {
+      flex: 1,
+      paddingVertical: SIZES.MD,
+      alignItems: 'center',
+      borderBottomWidth: 2,
+      borderBottomColor: 'transparent',
+    },
+    tabActive: {
+      borderBottomColor: colors.NURSE_PRIMARY,
+    },
+    tabText: {
+      fontSize: SIZES.FONT_SM,
+      fontWeight: '500',
+      color: colors.TEXT_MUTED,
+    },
+    tabTextActive: {
+      color: colors.NURSE_PRIMARY,
+      fontWeight: '600',
+    },
+    // List
+    listContent: {
+      padding: SIZES.LG,
+      paddingBottom: 40,
+    },
+    // Card
+    card: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.WHITE,
+      borderRadius: SIZES.BORDER_RADIUS_MD,
+      padding: SIZES.MD,
+      marginBottom: SIZES.SM,
+      shadowColor: colors.BLACK,
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.06,
+      shadowRadius: 4,
+      elevation: 2,
+    },
+    cardAvatar: {
+      width: 48,
+      height: 48,
+      borderRadius: 24,
+      backgroundColor: colors.NURSE_LIGHT,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: SIZES.MD,
+    },
+    cardInfo: {
+      flex: 1,
+      marginRight: SIZES.SM,
+    },
+    cardName: {
+      fontSize: SIZES.FONT_MD,
+      fontWeight: '600',
+      color: colors.TEXT_PRIMARY,
+      marginBottom: 4,
+    },
+    cardMetaRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginTop: 2,
+    },
+    cardMeta: {
+      fontSize: SIZES.FONT_XS,
+      color: colors.TEXT_SECONDARY,
+      marginLeft: 6,
+      flex: 1,
+    },
+    // Managed badge
+    managedBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      marginTop: 4,
+      backgroundColor: colors.FAMILY_LIGHT,
+      paddingHorizontal: SIZES.SM,
+      paddingVertical: 2,
+      borderRadius: SIZES.BORDER_RADIUS_FULL,
+      alignSelf: 'flex-start',
+    },
+    managedBadgeText: {
+      fontSize: 10,
+      fontWeight: '600',
+      color: colors.FAMILY_PRIMARY,
+    },
+    // Assigned elsewhere badge
+    assignedElsewhereBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      marginTop: 4,
+      backgroundColor: colors.BACKGROUND,
+      paddingHorizontal: SIZES.SM,
+      paddingVertical: 2,
+      borderRadius: SIZES.BORDER_RADIUS_FULL,
+      alignSelf: 'flex-start',
+    },
+    assignedElsewhereBadgeText: {
+      fontSize: 10,
+      fontWeight: '600',
+      color: colors.TEXT_MUTED,
+    },
+    // Add button
+    addButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.NURSE_PRIMARY,
+      paddingHorizontal: SIZES.MD,
+      paddingVertical: SIZES.SM,
+      borderRadius: SIZES.BORDER_RADIUS_SM,
+      gap: 4,
+    },
+    addButtonText: {
+      color: colors.WHITE,
+      fontSize: SIZES.FONT_XS,
+      fontWeight: '600',
+    },
+    addedBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+    },
+    addedBadgeText: {
+      fontSize: SIZES.FONT_XS,
+      color: colors.SUCCESS,
+      fontWeight: '500',
+    },
+    // Search
+    searchContainer: {
+      flex: 1,
+    },
+    searchInputWrap: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.WHITE,
+      marginHorizontal: SIZES.LG,
+      marginTop: SIZES.MD,
+      marginBottom: SIZES.SM,
+      borderRadius: SIZES.BORDER_RADIUS_MD,
+      borderWidth: 1.5,
+      borderColor: colors.BORDER,
+      paddingHorizontal: SIZES.MD,
+      height: 48,
+    },
+    searchIcon: {
+      marginRight: SIZES.SM,
+    },
+    searchInput: {
+      flex: 1,
+      fontSize: SIZES.FONT_MD,
+      color: colors.TEXT_PRIMARY,
+      height: '100%',
+    },
+    searchHint: {
+      alignItems: 'center',
+      paddingTop: 60,
+      gap: SIZES.MD,
+    },
+    searchHintText: {
+      fontSize: SIZES.FONT_SM,
+      color: colors.TEXT_MUTED,
+      textAlign: 'center',
+      paddingHorizontal: 40,
+    },
+    // Empty state
+    centerWrap: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: 40,
+    },
+    emptyState: {
+      alignItems: 'center',
+      paddingTop: 60,
+      paddingHorizontal: 40,
+      gap: SIZES.SM,
+    },
+    emptyTitle: {
+      fontSize: SIZES.FONT_LG,
+      fontWeight: '600',
+      color: colors.TEXT_PRIMARY,
+      marginTop: SIZES.SM,
+    },
+    emptySubtitle: {
+      fontSize: SIZES.FONT_SM,
+      color: colors.TEXT_MUTED,
+      textAlign: 'center',
+      lineHeight: 20,
+    },
+    emptyButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.NURSE_PRIMARY,
+      paddingHorizontal: SIZES.LG,
+      paddingVertical: SIZES.MD,
+      borderRadius: SIZES.BORDER_RADIUS_MD,
+      gap: SIZES.SM,
+      marginTop: SIZES.MD,
+    },
+    emptyButtonText: {
+      color: colors.WHITE,
+      fontSize: SIZES.FONT_SM,
+      fontWeight: '600',
+    },
+  });
+}
 
 export default PatientsList;

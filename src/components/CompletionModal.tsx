@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -13,7 +13,8 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SvgXml } from 'react-native-svg';
-import { COLORS, SIZES } from '../utils/constants';
+import { getColors, SIZES } from '../utils/constants';
+import { useTheme } from '../contexts/ThemeContext';
 import SignatureModal from './SignatureModal';
 
 // ---------------------------------------------------------------------------
@@ -73,6 +74,9 @@ export default function CompletionModal({
   onSave,
   saving = false,
 }: CompletionModalProps) {
+  const { isDark } = useTheme();
+  const colors = getColors(isDark);
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [carePerformed, setCarePerformed] = useState('');
   const [observations, setObservations] = useState('');
   const [remarks, setRemarks] = useState('');
@@ -116,7 +120,7 @@ export default function CompletionModal({
                   {isEditing ? 'Modifier les notes' : 'Soin terminé'}
                 </Text>
                 <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                  <Ionicons name="close" size={24} color={COLORS.TEXT_MUTED} />
+                  <Ionicons name="close" size={24} color={colors.TEXT_MUTED} />
                 </TouchableOpacity>
               </View>
 
@@ -137,7 +141,7 @@ export default function CompletionModal({
                 <TextInput
                   style={[styles.textArea, styles.textAreaSmall]}
                   placeholder="Décrivez les soins effectués..."
-                  placeholderTextColor={COLORS.TEXT_MUTED}
+                  placeholderTextColor={colors.TEXT_MUTED}
                   multiline
                   numberOfLines={3}
                   textAlignVertical="top"
@@ -149,7 +153,7 @@ export default function CompletionModal({
                 <TextInput
                   style={[styles.textArea, styles.textAreaSmall]}
                   placeholder="État du patient, réactions, observations..."
-                  placeholderTextColor={COLORS.TEXT_MUTED}
+                  placeholderTextColor={colors.TEXT_MUTED}
                   multiline
                   numberOfLines={3}
                   textAlignVertical="top"
@@ -161,7 +165,7 @@ export default function CompletionModal({
                 <TextInput
                   style={[styles.textArea, styles.textAreaSmall]}
                   placeholder="Remarques complémentaires..."
-                  placeholderTextColor={COLORS.TEXT_MUTED}
+                  placeholderTextColor={colors.TEXT_MUTED}
                   multiline
                   numberOfLines={3}
                   textAlignVertical="top"
@@ -177,7 +181,7 @@ export default function CompletionModal({
                       style={styles.modifySignatureButton}
                       onPress={() => setShowSignature(true)}
                     >
-                      <Ionicons name="create-outline" size={16} color={COLORS.NURSE_PRIMARY} />
+                      <Ionicons name="create-outline" size={16} color={colors.NURSE_PRIMARY} />
                       <Text style={styles.modifySignatureText}>Modifier</Text>
                     </TouchableOpacity>
                   </View>
@@ -186,7 +190,7 @@ export default function CompletionModal({
                     style={styles.addSignatureButton}
                     onPress={() => setShowSignature(true)}
                   >
-                    <Ionicons name="create-outline" size={20} color={COLORS.NURSE_PRIMARY} />
+                    <Ionicons name="create-outline" size={20} color={colors.NURSE_PRIMARY} />
                     <Text style={styles.addSignatureText}>Ajouter une signature</Text>
                   </TouchableOpacity>
                 )}
@@ -196,7 +200,7 @@ export default function CompletionModal({
                     <Ionicons
                       name={visibleToPatient ? 'eye-outline' : 'eye-off-outline'}
                       size={20}
-                      color={visibleToPatient ? COLORS.NURSE_PRIMARY : COLORS.TEXT_MUTED}
+                      color={visibleToPatient ? colors.NURSE_PRIMARY : colors.TEXT_MUTED}
                     />
                     <View style={styles.toggleTextBlock}>
                       <Text style={styles.toggleLabel}>Visible pour le patient</Text>
@@ -210,8 +214,8 @@ export default function CompletionModal({
                   <Switch
                     value={visibleToPatient}
                     onValueChange={setVisibleToPatient}
-                    trackColor={{ false: COLORS.BORDER, true: COLORS.NURSE_LIGHT }}
-                    thumbColor={visibleToPatient ? COLORS.NURSE_PRIMARY : '#f4f3f4'}
+                    trackColor={{ false: colors.BORDER, true: colors.NURSE_LIGHT }}
+                    thumbColor={visibleToPatient ? colors.NURSE_PRIMARY : '#f4f3f4'}
                   />
                 </View>
               </ScrollView>
@@ -255,180 +259,182 @@ export default function CompletionModal({
 // Styles
 // ---------------------------------------------------------------------------
 
-const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    justifyContent: 'center',
-    paddingHorizontal: SIZES.MD,
-  },
-  keyboardView: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-  content: {
-    backgroundColor: COLORS.WHITE,
-    borderRadius: SIZES.BORDER_RADIUS_LG,
-    maxHeight: '85%',
-    overflow: 'hidden',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: SIZES.LG,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.BORDER,
-  },
-  headerTitle: {
-    fontSize: SIZES.FONT_LG,
-    fontWeight: '700',
-    color: COLORS.TEXT_PRIMARY,
-  },
-  scrollContent: {
-    padding: SIZES.LG,
-    paddingBottom: SIZES.XL,
-  },
-  // Info card
-  infoCard: {
-    backgroundColor: COLORS.NURSE_LIGHT,
-    borderRadius: SIZES.BORDER_RADIUS_MD,
-    padding: SIZES.MD,
-    marginBottom: SIZES.LG,
-  },
-  infoName: {
-    fontSize: SIZES.FONT_MD,
-    fontWeight: '700',
-    color: COLORS.TEXT_PRIMARY,
-    marginBottom: 2,
-  },
-  infoDetail: {
-    fontSize: SIZES.FONT_SM,
-    color: COLORS.TEXT_SECONDARY,
-  },
-  // Fields
-  fieldLabel: {
-    fontSize: SIZES.FONT_SM,
-    fontWeight: '600',
-    color: COLORS.TEXT_SECONDARY,
-    marginBottom: SIZES.XS,
-    marginTop: SIZES.SM,
-  },
-  textArea: {
-    backgroundColor: COLORS.WHITE,
-    borderWidth: 1.5,
-    borderColor: COLORS.BORDER,
-    borderRadius: SIZES.BORDER_RADIUS_MD,
-    padding: SIZES.MD,
-    fontSize: SIZES.FONT_MD,
-    color: COLORS.TEXT_PRIMARY,
-  },
-  textAreaSmall: {
-    minHeight: 80,
-    marginBottom: SIZES.SM,
-  },
-  // Toggle
-  toggleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: COLORS.BACKGROUND,
-    borderRadius: SIZES.BORDER_RADIUS_MD,
-    padding: SIZES.MD,
-    marginTop: SIZES.MD,
-  },
-  toggleInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-    marginRight: SIZES.MD,
-  },
-  toggleTextBlock: {
-    marginLeft: SIZES.SM,
-    flex: 1,
-  },
-  toggleLabel: {
-    fontSize: SIZES.FONT_SM,
-    fontWeight: '600',
-    color: COLORS.TEXT_PRIMARY,
-  },
-  toggleHint: {
-    fontSize: SIZES.FONT_XS,
-    color: COLORS.TEXT_MUTED,
-    marginTop: 2,
-  },
-  // Actions
-  actions: {
-    flexDirection: 'row',
-    gap: SIZES.SM,
-    padding: SIZES.LG,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.BORDER,
-  },
-  cancelButton: {
-    flex: 1,
-    paddingVertical: SIZES.MD,
-    borderRadius: SIZES.BORDER_RADIUS_MD,
-    borderWidth: 1.5,
-    borderColor: COLORS.BORDER,
-    alignItems: 'center',
-  },
-  cancelText: {
-    fontSize: SIZES.FONT_SM,
-    fontWeight: '600',
-    color: COLORS.TEXT_SECONDARY,
-  },
-  saveButton: {
-    flex: 1,
-    paddingVertical: SIZES.MD,
-    borderRadius: SIZES.BORDER_RADIUS_MD,
-    backgroundColor: COLORS.NURSE_PRIMARY,
-    alignItems: 'center',
-  },
-  saveButtonDisabled: {
-    opacity: 0.6,
-  },
-  saveText: {
-    fontSize: SIZES.FONT_SM,
-    fontWeight: '600',
-    color: COLORS.WHITE,
-  },
-  addSignatureButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: SIZES.SM,
-    paddingVertical: SIZES.MD,
-    borderRadius: SIZES.BORDER_RADIUS_MD,
-    borderWidth: 1.5,
-    borderColor: COLORS.NURSE_PRIMARY,
-    borderStyle: 'dashed',
-    backgroundColor: COLORS.NURSE_LIGHT,
-    marginBottom: SIZES.SM,
-  },
-  addSignatureText: {
-    fontSize: SIZES.FONT_SM,
-    fontWeight: '600',
-    color: COLORS.NURSE_PRIMARY,
-  },
-  signaturePreview: {
-    backgroundColor: COLORS.WHITE,
-    borderRadius: SIZES.BORDER_RADIUS_MD,
-    borderWidth: 1.5,
-    borderColor: COLORS.BORDER,
-    padding: SIZES.SM,
-    marginBottom: SIZES.SM,
-    alignItems: 'center',
-  },
-  modifySignatureButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SIZES.XS,
-    marginTop: SIZES.XS,
-  },
-  modifySignatureText: {
-    fontSize: SIZES.FONT_XS,
-    fontWeight: '600',
-    color: COLORS.NURSE_PRIMARY,
-  },
-});
+function createStyles(colors: ReturnType<typeof getColors>) {
+  return StyleSheet.create({
+    overlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.4)',
+      justifyContent: 'center',
+      paddingHorizontal: SIZES.MD,
+    },
+    keyboardView: {
+      flex: 1,
+      justifyContent: 'center',
+    },
+    content: {
+      backgroundColor: colors.WHITE,
+      borderRadius: SIZES.BORDER_RADIUS_LG,
+      maxHeight: '85%',
+      overflow: 'hidden',
+    },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      padding: SIZES.LG,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.BORDER,
+    },
+    headerTitle: {
+      fontSize: SIZES.FONT_LG,
+      fontWeight: '700',
+      color: colors.TEXT_PRIMARY,
+    },
+    scrollContent: {
+      padding: SIZES.LG,
+      paddingBottom: SIZES.XL,
+    },
+    // Info card
+    infoCard: {
+      backgroundColor: colors.NURSE_LIGHT,
+      borderRadius: SIZES.BORDER_RADIUS_MD,
+      padding: SIZES.MD,
+      marginBottom: SIZES.LG,
+    },
+    infoName: {
+      fontSize: SIZES.FONT_MD,
+      fontWeight: '700',
+      color: colors.TEXT_PRIMARY,
+      marginBottom: 2,
+    },
+    infoDetail: {
+      fontSize: SIZES.FONT_SM,
+      color: colors.TEXT_SECONDARY,
+    },
+    // Fields
+    fieldLabel: {
+      fontSize: SIZES.FONT_SM,
+      fontWeight: '600',
+      color: colors.TEXT_SECONDARY,
+      marginBottom: SIZES.XS,
+      marginTop: SIZES.SM,
+    },
+    textArea: {
+      backgroundColor: colors.WHITE,
+      borderWidth: 1.5,
+      borderColor: colors.BORDER,
+      borderRadius: SIZES.BORDER_RADIUS_MD,
+      padding: SIZES.MD,
+      fontSize: SIZES.FONT_MD,
+      color: colors.TEXT_PRIMARY,
+    },
+    textAreaSmall: {
+      minHeight: 80,
+      marginBottom: SIZES.SM,
+    },
+    // Toggle
+    toggleRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      backgroundColor: colors.BACKGROUND,
+      borderRadius: SIZES.BORDER_RADIUS_MD,
+      padding: SIZES.MD,
+      marginTop: SIZES.MD,
+    },
+    toggleInfo: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      flex: 1,
+      marginRight: SIZES.MD,
+    },
+    toggleTextBlock: {
+      marginLeft: SIZES.SM,
+      flex: 1,
+    },
+    toggleLabel: {
+      fontSize: SIZES.FONT_SM,
+      fontWeight: '600',
+      color: colors.TEXT_PRIMARY,
+    },
+    toggleHint: {
+      fontSize: SIZES.FONT_XS,
+      color: colors.TEXT_MUTED,
+      marginTop: 2,
+    },
+    // Actions
+    actions: {
+      flexDirection: 'row',
+      gap: SIZES.SM,
+      padding: SIZES.LG,
+      borderTopWidth: 1,
+      borderTopColor: colors.BORDER,
+    },
+    cancelButton: {
+      flex: 1,
+      paddingVertical: SIZES.MD,
+      borderRadius: SIZES.BORDER_RADIUS_MD,
+      borderWidth: 1.5,
+      borderColor: colors.BORDER,
+      alignItems: 'center',
+    },
+    cancelText: {
+      fontSize: SIZES.FONT_SM,
+      fontWeight: '600',
+      color: colors.TEXT_SECONDARY,
+    },
+    saveButton: {
+      flex: 1,
+      paddingVertical: SIZES.MD,
+      borderRadius: SIZES.BORDER_RADIUS_MD,
+      backgroundColor: colors.NURSE_PRIMARY,
+      alignItems: 'center',
+    },
+    saveButtonDisabled: {
+      opacity: 0.6,
+    },
+    saveText: {
+      fontSize: SIZES.FONT_SM,
+      fontWeight: '600',
+      color: colors.WHITE,
+    },
+    addSignatureButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: SIZES.SM,
+      paddingVertical: SIZES.MD,
+      borderRadius: SIZES.BORDER_RADIUS_MD,
+      borderWidth: 1.5,
+      borderColor: colors.NURSE_PRIMARY,
+      borderStyle: 'dashed',
+      backgroundColor: colors.NURSE_LIGHT,
+      marginBottom: SIZES.SM,
+    },
+    addSignatureText: {
+      fontSize: SIZES.FONT_SM,
+      fontWeight: '600',
+      color: colors.NURSE_PRIMARY,
+    },
+    signaturePreview: {
+      backgroundColor: colors.WHITE,
+      borderRadius: SIZES.BORDER_RADIUS_MD,
+      borderWidth: 1.5,
+      borderColor: colors.BORDER,
+      padding: SIZES.SM,
+      marginBottom: SIZES.SM,
+      alignItems: 'center',
+    },
+    modifySignatureButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: SIZES.XS,
+      marginTop: SIZES.XS,
+    },
+    modifySignatureText: {
+      fontSize: SIZES.FONT_XS,
+      fontWeight: '600',
+      color: colors.NURSE_PRIMARY,
+    },
+  });
+}

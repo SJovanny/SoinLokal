@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -12,8 +12,9 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
+import { useTheme } from '../../contexts/ThemeContext';
 import { supabase } from '../../utils/supabase';
-import { COLORS, SIZES } from '../../utils/constants';
+import { getColors, SIZES } from '../../utils/constants';
 import LogoutButton from '../../components/LogoutButton';
 import Avatar from '../../components/Avatar';
 
@@ -59,11 +60,13 @@ function StatCard({
   title,
   value,
   color,
+  styles,
 }: {
   icon: React.ComponentProps<typeof Ionicons>['name'];
   title: string;
   value: number | string;
   color: string;
+  styles: ReturnType<typeof createStyles>;
 }) {
   return (
     <View style={styles.statCard}>
@@ -80,9 +83,16 @@ function StatCard({
 
 const NurseDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { userProfile, user } = useAuth();
+  const { isDark } = useTheme();
+  const colors = getColors(isDark);
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const today = getTodayISO();
 
-  const [stats, setStats] = useState<Stats>({ totalPatients: 0, todayVisits: 0, completedToday: 0 });
+  const [stats, setStats] = useState<Stats>({
+    totalPatients: 0,
+    todayVisits: 0,
+    completedToday: 0,
+  });
   const [appointments, setAppointments] = useState<TodayAppointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -147,7 +157,9 @@ const NurseDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
 
         const patientIds = (files ?? []).map((f: any) => f.patient_id);
         const fileIdToPatientId: Record<string, string> = {};
-        (files ?? []).forEach((f: any) => { fileIdToPatientId[f.id] = f.patient_id; });
+        (files ?? []).forEach((f: any) => {
+          fileIdToPatientId[f.id] = f.patient_id;
+        });
 
         if (patientIds.length > 0) {
           const { data: profiles } = await supabase
@@ -198,7 +210,7 @@ const NurseDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
 
   const renderAppointmentItem = ({ item }: { item: TodayAppointment }) => {
     const isCompleted = item.status === 'completed';
-    const statusColor = isCompleted ? COLORS.SUCCESS : COLORS.WARNING;
+    const statusColor = isCompleted ? colors.SUCCESS : colors.WARNING;
 
     return (
       <TouchableOpacity
@@ -222,8 +234,10 @@ const NurseDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
         </View>
         {item.address ? (
           <View style={styles.addressContainer}>
-            <Ionicons name="location-outline" size={16} color={COLORS.TEXT_MUTED} />
-            <Text style={styles.address} numberOfLines={1}>{item.address}</Text>
+            <Ionicons name="location-outline" size={16} color={colors.TEXT_MUTED} />
+            <Text style={styles.address} numberOfLines={1}>
+              {item.address}
+            </Text>
           </View>
         ) : null}
       </TouchableOpacity>
@@ -238,7 +252,7 @@ const NurseDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.centerWrap}>
-          <ActivityIndicator size="large" color={COLORS.NURSE_PRIMARY} />
+          <ActivityIndicator size="large" color={colors.NURSE_PRIMARY} />
         </View>
       </SafeAreaView>
     );
@@ -250,7 +264,11 @@ const NurseDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.NURSE_PRIMARY]} />
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[colors.NURSE_PRIMARY]}
+          />
         }
       >
         {/* Header */}
@@ -273,15 +291,11 @@ const NurseDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
                 firstName={userProfile?.first_name}
                 lastName={userProfile?.last_name}
                 size={36}
-                backgroundColor={COLORS.NURSE_LIGHT}
-                textColor={COLORS.NURSE_PRIMARY}
+                backgroundColor={colors.NURSE_LIGHT}
+                textColor={colors.NURSE_PRIMARY}
               />
             </TouchableOpacity>
-            <LogoutButton
-              variant="icon"
-              showText={false}
-              style={styles.logoutButtonHeader}
-            />
+            <LogoutButton variant="icon" showText={false} style={styles.logoutButtonHeader} />
           </View>
         </View>
 
@@ -291,25 +305,29 @@ const NurseDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
             icon="people-outline"
             title="Patients"
             value={stats.totalPatients}
-            color={COLORS.NURSE_PRIMARY}
+            color={colors.NURSE_PRIMARY}
+            styles={styles}
           />
           <StatCard
             icon="calendar-outline"
             title="Visites aujourd'hui"
             value={stats.todayVisits}
-            color={COLORS.PATIENT_PRIMARY}
+            color={colors.PATIENT_PRIMARY}
+            styles={styles}
           />
           <StatCard
             icon="checkmark-circle-outline"
             title="Terminées"
             value={stats.completedToday}
-            color={COLORS.SUCCESS}
+            color={colors.SUCCESS}
+            styles={styles}
           />
           <StatCard
             icon="time-outline"
             title="Restantes"
             value={stats.todayVisits - stats.completedToday}
-            color={COLORS.WARNING}
+            color={colors.WARNING}
+            styles={styles}
           />
         </View>
 
@@ -325,14 +343,14 @@ const NurseDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
               <Text style={styles.actionText}>Ma tournée</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.actionButton, { backgroundColor: COLORS.PATIENT_PRIMARY }]}
+              style={[styles.actionButton, { backgroundColor: colors.PATIENT_PRIMARY }]}
               onPress={() => navigation.navigate('Tournée', { openAddModal: true })}
             >
               <Ionicons name="add-circle-outline" size={24} color="white" />
               <Text style={styles.actionText}>Ajouter à la tournée</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.actionButton, { backgroundColor: COLORS.WARNING }]}
+              style={[styles.actionButton, { backgroundColor: colors.WARNING }]}
               onPress={() => navigation.navigate('Patients', { openSearch: true })}
             >
               <Ionicons name="person-add-outline" size={24} color="white" />
@@ -354,18 +372,18 @@ const NurseDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
             <FlatList
               data={appointments}
               renderItem={renderAppointmentItem}
-              keyExtractor={(item) => item.id}
+              keyExtractor={item => item.id}
               scrollEnabled={false}
             />
           ) : (
             <View style={styles.emptyState}>
-              <Ionicons name="calendar-outline" size={48} color={COLORS.BORDER} />
+              <Ionicons name="calendar-outline" size={48} color={colors.BORDER} />
               <Text style={styles.emptyStateText}>Aucun patient dans la tournée</Text>
               <TouchableOpacity
                 style={styles.emptyButton}
                 onPress={() => navigation.navigate('Tournée', { openAddModal: true })}
               >
-                <Ionicons name="add" size={18} color={COLORS.WHITE} />
+                <Ionicons name="add" size={18} color={colors.WHITE} />
                 <Text style={styles.emptyButtonText}>Ajouter à la tournée</Text>
               </TouchableOpacity>
             </View>
@@ -380,196 +398,198 @@ const NurseDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
 // Styles
 // ---------------------------------------------------------------------------
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.BACKGROUND,
-  },
-  centerWrap: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  scrollView: {
-    flex: 1,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: SIZES.LG,
-    backgroundColor: COLORS.WHITE,
-  },
-  headerLeft: {
-    flex: 1,
-  },
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SIZES.SM,
-  },
-  greeting: {
-    fontSize: SIZES.FONT_MD,
-    color: COLORS.TEXT_SECONDARY,
-  },
-  userName: {
-    fontSize: SIZES.FONT_XL,
-    fontWeight: '700',
-    color: COLORS.TEXT_PRIMARY,
-  },
-  profileButton: {
-    padding: SIZES.XS,
-  },
-  logoutButtonHeader: {
-    backgroundColor: 'transparent',
-    borderColor: COLORS.DANGER,
-    borderWidth: 1,
-  },
-  statsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    padding: SIZES.LG,
-    gap: SIZES.MD,
-  },
-  statCard: {
-    width: '47%',
-    backgroundColor: COLORS.WHITE,
-    padding: SIZES.MD,
-    borderRadius: SIZES.BORDER_RADIUS_MD,
-    alignItems: 'center',
-    shadowColor: COLORS.BLACK,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  statValue: {
-    fontSize: SIZES.FONT_2XL,
-    fontWeight: '700',
-    color: COLORS.TEXT_PRIMARY,
-    marginTop: SIZES.XS,
-  },
-  statTitle: {
-    fontSize: SIZES.FONT_XS,
-    color: COLORS.TEXT_MUTED,
-    textAlign: 'center',
-    marginTop: SIZES.XS,
-  },
-  section: {
-    paddingVertical: SIZES.XL,
-    paddingHorizontal: SIZES.LG,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: SIZES.MD,
-  },
-  sectionTitle: {
-    fontSize: SIZES.FONT_LG,
-    fontWeight: '700',
-    color: COLORS.TEXT_PRIMARY,
-  },
-  seeAllText: {
-    color: COLORS.NURSE_PRIMARY,
-    fontSize: SIZES.FONT_SM,
-    fontWeight: '600',
-  },
-  quickActions: {
-    flexDirection: 'row',
-    gap: SIZES.MD,
-    paddingBottom: SIZES.SM,
-  },
-  actionButton: {
-    flex: 1,
-    backgroundColor: COLORS.NURSE_PRIMARY,
-    padding: SIZES.MD,
-    borderRadius: SIZES.BORDER_RADIUS_MD,
-    alignItems: 'center',
-    gap: SIZES.XS,
-  },
-  actionText: {
-    color: COLORS.WHITE,
-    fontSize: SIZES.FONT_XS,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  appointmentCard: {
-    backgroundColor: COLORS.WHITE,
-    padding: SIZES.MD,
-    borderRadius: SIZES.BORDER_RADIUS_MD,
-    marginBottom: SIZES.SM,
-    shadowColor: COLORS.BLACK,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  completedCard: {
-    opacity: 0.7,
-    borderLeftWidth: 4,
-    borderLeftColor: COLORS.SUCCESS,
-  },
-  appointmentHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: SIZES.SM,
-  },
-  patientName: {
-    fontSize: SIZES.FONT_MD,
-    fontWeight: '700',
-    color: COLORS.TEXT_PRIMARY,
-  },
-  appointmentType: {
-    fontSize: SIZES.FONT_SM,
-    color: COLORS.TEXT_SECONDARY,
-    marginTop: 2,
-  },
-  timeContainer: {
-    alignItems: 'center',
-    gap: SIZES.XS,
-  },
-  time: {
-    fontSize: SIZES.FONT_SM,
-    fontWeight: '600',
-    color: COLORS.TEXT_PRIMARY,
-  },
-  addressContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SIZES.XS,
-  },
-  address: {
-    fontSize: SIZES.FONT_XS,
-    color: COLORS.TEXT_MUTED,
-    flex: 1,
-  },
-  emptyState: {
-    alignItems: 'center',
-    padding: 40,
-    gap: SIZES.SM,
-  },
-  emptyStateText: {
-    fontSize: SIZES.FONT_MD,
-    color: COLORS.TEXT_MUTED,
-    marginTop: SIZES.SM,
-  },
-  emptyButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.NURSE_PRIMARY,
-    paddingHorizontal: SIZES.LG,
-    paddingVertical: SIZES.MD,
-    borderRadius: SIZES.BORDER_RADIUS_MD,
-    gap: SIZES.XS,
-    marginTop: SIZES.SM,
-  },
-  emptyButtonText: {
-    color: COLORS.WHITE,
-    fontSize: SIZES.FONT_SM,
-    fontWeight: '600',
-  },
-});
+function createStyles(colors: ReturnType<typeof getColors>) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.BACKGROUND,
+    },
+    centerWrap: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    scrollView: {
+      flex: 1,
+    },
+    header: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      padding: SIZES.LG,
+      backgroundColor: colors.WHITE,
+    },
+    headerLeft: {
+      flex: 1,
+    },
+    headerRight: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: SIZES.SM,
+    },
+    greeting: {
+      fontSize: SIZES.FONT_MD,
+      color: colors.TEXT_SECONDARY,
+    },
+    userName: {
+      fontSize: SIZES.FONT_XL,
+      fontWeight: '700',
+      color: colors.TEXT_PRIMARY,
+    },
+    profileButton: {
+      padding: SIZES.XS,
+    },
+    logoutButtonHeader: {
+      backgroundColor: 'transparent',
+      borderColor: colors.DANGER,
+      borderWidth: 1,
+    },
+    statsContainer: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      padding: SIZES.LG,
+      gap: SIZES.MD,
+    },
+    statCard: {
+      width: '47%',
+      backgroundColor: colors.WHITE,
+      padding: SIZES.MD,
+      borderRadius: SIZES.BORDER_RADIUS_MD,
+      alignItems: 'center',
+      shadowColor: colors.BLACK,
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.08,
+      shadowRadius: 4,
+      elevation: 2,
+    },
+    statValue: {
+      fontSize: SIZES.FONT_2XL,
+      fontWeight: '700',
+      color: colors.TEXT_PRIMARY,
+      marginTop: SIZES.XS,
+    },
+    statTitle: {
+      fontSize: SIZES.FONT_XS,
+      color: colors.TEXT_MUTED,
+      textAlign: 'center',
+      marginTop: SIZES.XS,
+    },
+    section: {
+      paddingVertical: SIZES.XL,
+      paddingHorizontal: SIZES.LG,
+    },
+    sectionHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: SIZES.MD,
+    },
+    sectionTitle: {
+      fontSize: SIZES.FONT_LG,
+      fontWeight: '700',
+      color: colors.TEXT_PRIMARY,
+    },
+    seeAllText: {
+      color: colors.NURSE_PRIMARY,
+      fontSize: SIZES.FONT_SM,
+      fontWeight: '600',
+    },
+    quickActions: {
+      flexDirection: 'row',
+      gap: SIZES.MD,
+      paddingBottom: SIZES.SM,
+    },
+    actionButton: {
+      flex: 1,
+      backgroundColor: colors.NURSE_PRIMARY,
+      padding: SIZES.MD,
+      borderRadius: SIZES.BORDER_RADIUS_MD,
+      alignItems: 'center',
+      gap: SIZES.XS,
+    },
+    actionText: {
+      color: colors.WHITE,
+      fontSize: SIZES.FONT_XS,
+      fontWeight: '600',
+      textAlign: 'center',
+    },
+    appointmentCard: {
+      backgroundColor: colors.WHITE,
+      padding: SIZES.MD,
+      borderRadius: SIZES.BORDER_RADIUS_MD,
+      marginBottom: SIZES.SM,
+      shadowColor: colors.BLACK,
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.08,
+      shadowRadius: 4,
+      elevation: 2,
+    },
+    completedCard: {
+      opacity: 0.7,
+      borderLeftWidth: 4,
+      borderLeftColor: colors.SUCCESS,
+    },
+    appointmentHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+      marginBottom: SIZES.SM,
+    },
+    patientName: {
+      fontSize: SIZES.FONT_MD,
+      fontWeight: '700',
+      color: colors.TEXT_PRIMARY,
+    },
+    appointmentType: {
+      fontSize: SIZES.FONT_SM,
+      color: colors.TEXT_SECONDARY,
+      marginTop: 2,
+    },
+    timeContainer: {
+      alignItems: 'center',
+      gap: SIZES.XS,
+    },
+    time: {
+      fontSize: SIZES.FONT_SM,
+      fontWeight: '600',
+      color: colors.TEXT_PRIMARY,
+    },
+    addressContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: SIZES.XS,
+    },
+    address: {
+      fontSize: SIZES.FONT_XS,
+      color: colors.TEXT_MUTED,
+      flex: 1,
+    },
+    emptyState: {
+      alignItems: 'center',
+      padding: 40,
+      gap: SIZES.SM,
+    },
+    emptyStateText: {
+      fontSize: SIZES.FONT_MD,
+      color: colors.TEXT_MUTED,
+      marginTop: SIZES.SM,
+    },
+    emptyButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.NURSE_PRIMARY,
+      paddingHorizontal: SIZES.LG,
+      paddingVertical: SIZES.MD,
+      borderRadius: SIZES.BORDER_RADIUS_MD,
+      gap: SIZES.XS,
+      marginTop: SIZES.SM,
+    },
+    emptyButtonText: {
+      color: colors.WHITE,
+      fontSize: SIZES.FONT_SM,
+      fontWeight: '600',
+    },
+  });
+}
 
 export default NurseDashboard;

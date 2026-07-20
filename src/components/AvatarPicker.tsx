@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -17,7 +17,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../utils/supabase';
 import { generateRandomSeed, generateAvatarBatch } from '../utils/avatar';
 import Avatar from './Avatar';
-import { COLORS, SIZES } from '../utils/constants';
+import { getColors, SIZES } from '../utils/constants';
+import { useTheme } from '../contexts/ThemeContext';
 
 // ---------------------------------------------------------------------------
 // Props
@@ -62,6 +63,9 @@ export const AvatarPicker: React.FC<AvatarPickerProps> = ({
   photoOnly = false,
   compact = false,
 }) => {
+  const { isDark } = useTheme();
+  const colors = getColors(isDark);
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const profileId = targetProfileId ?? userId;
   const [uploading, setUploading] = useState(false);
   const [showAvatarModal, setShowAvatarModal] = useState(false);
@@ -313,11 +317,11 @@ export const AvatarPicker: React.FC<AvatarPickerProps> = ({
           />
           {uploading ? (
             <View style={[styles.badge, styles.badgeLoading]}>
-              <ActivityIndicator size="small" color={COLORS.WHITE} />
+              <ActivityIndicator size="small" color={colors.WHITE} />
             </View>
           ) : (
             <View style={styles.badge}>
-              <Ionicons name="camera" size={14} color={COLORS.WHITE} />
+              <Ionicons name="camera" size={14} color={colors.WHITE} />
             </View>
           )}
         </View>
@@ -330,7 +334,7 @@ export const AvatarPicker: React.FC<AvatarPickerProps> = ({
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Photo de profil</Text>
               <TouchableOpacity onPress={() => setShowAvatarModal(false)}>
-                <Ionicons name="close" size={24} color={COLORS.TEXT_PRIMARY} />
+                <Ionicons name="close" size={24} color={colors.TEXT_PRIMARY} />
               </TouchableOpacity>
             </View>
 
@@ -354,11 +358,11 @@ export const AvatarPicker: React.FC<AvatarPickerProps> = ({
               {/* Photo actions */}
               <Text style={styles.sectionLabel}>Photo réelle</Text>
               <TouchableOpacity style={styles.optionBtn} onPress={handlePickImage}>
-                <Ionicons name="images-outline" size={22} color={COLORS.NURSE_PRIMARY} />
+                <Ionicons name="images-outline" size={22} color={colors.NURSE_PRIMARY} />
                 <Text style={styles.optionText}>Choisir dans la galerie</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.optionBtn} onPress={handleTakePhoto}>
-                <Ionicons name="camera-outline" size={22} color={COLORS.NURSE_PRIMARY} />
+                <Ionicons name="camera-outline" size={22} color={colors.NURSE_PRIMARY} />
                 <Text style={styles.optionText}>Prendre une photo</Text>
               </TouchableOpacity>
 
@@ -401,7 +405,7 @@ export const AvatarPicker: React.FC<AvatarPickerProps> = ({
                     style={styles.refreshBtn}
                     onPress={refreshChoices}
                   >
-                    <Ionicons name="refresh" size={18} color={COLORS.NURSE_PRIMARY} />
+                    <Ionicons name="refresh" size={18} color={colors.NURSE_PRIMARY} />
                     <Text style={styles.refreshBtnText}>Rafraîchir</Text>
                   </TouchableOpacity>
 
@@ -414,7 +418,7 @@ export const AvatarPicker: React.FC<AvatarPickerProps> = ({
                     disabled={!selectedSeed || uploading}
                   >
                     {uploading ? (
-                      <ActivityIndicator size="small" color={COLORS.WHITE} />
+                      <ActivityIndicator size="small" color={colors.WHITE} />
                     ) : (
                       <Text style={styles.saveBtnText}>Valider cet avatar</Text>
                     )}
@@ -428,7 +432,7 @@ export const AvatarPicker: React.FC<AvatarPickerProps> = ({
                   style={styles.removeBtn}
                   onPress={handleRemovePhoto}
                 >
-                  <Ionicons name="trash-outline" size={18} color={COLORS.DANGER} />
+                  <Ionicons name="trash-outline" size={18} color={colors.DANGER} />
                   <Text style={styles.removeBtnText}>Supprimer la photo</Text>
                 </TouchableOpacity>
               )}
@@ -444,7 +448,8 @@ export const AvatarPicker: React.FC<AvatarPickerProps> = ({
 // Styles
 // ---------------------------------------------------------------------------
 
-const styles = StyleSheet.create({
+function createStyles(colors: ReturnType<typeof getColors>) {
+  return StyleSheet.create({
   wrapper: {
     alignItems: 'center',
   },
@@ -458,14 +463,14 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: COLORS.NURSE_PRIMARY,
+    backgroundColor: colors.NURSE_PRIMARY,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
-    borderColor: COLORS.WHITE,
+    borderColor: colors.WHITE,
   },
   badgeLoading: {
-    backgroundColor: COLORS.TEXT_MUTED,
+    backgroundColor: colors.TEXT_MUTED,
   },
   // Modal
   modalOverlay: {
@@ -474,7 +479,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: COLORS.WHITE,
+    backgroundColor: colors.WHITE,
     borderTopLeftRadius: SIZES.BORDER_RADIUS_LG,
     borderTopRightRadius: SIZES.BORDER_RADIUS_LG,
     minHeight: '60%',
@@ -487,12 +492,12 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     padding: SIZES.LG,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.BORDER,
+    borderBottomColor: colors.BORDER,
   },
   modalTitle: {
     fontSize: SIZES.FONT_LG,
     fontWeight: '700',
-    color: COLORS.TEXT_PRIMARY,
+    color: colors.TEXT_PRIMARY,
   },
   modalScroll: {
     flex: 1,
@@ -508,12 +513,12 @@ const styles = StyleSheet.create({
   sectionLabel: {
     fontSize: SIZES.FONT_SM,
     fontWeight: '700',
-    color: COLORS.TEXT_PRIMARY,
+    color: colors.TEXT_PRIMARY,
     marginBottom: SIZES.SM,
   },
   helperText: {
     fontSize: SIZES.FONT_XS,
-    color: COLORS.TEXT_MUTED,
+    color: colors.TEXT_MUTED,
     marginBottom: SIZES.MD,
     lineHeight: 18,
   },
@@ -523,13 +528,13 @@ const styles = StyleSheet.create({
     gap: SIZES.MD,
     paddingVertical: SIZES.MD,
     paddingHorizontal: SIZES.MD,
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
     borderRadius: SIZES.BORDER_RADIUS_MD,
     marginBottom: SIZES.SM,
   },
   optionText: {
     fontSize: SIZES.FONT_MD,
-    color: COLORS.TEXT_PRIMARY,
+    color: colors.TEXT_PRIMARY,
     fontWeight: '500',
   },
   avatarGrid: {
@@ -545,15 +550,15 @@ const styles = StyleSheet.create({
     borderRadius: SIZES.BORDER_RADIUS_MD,
     borderWidth: 2,
     borderColor: 'transparent',
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
   },
   avatarGridItemSelected: {
-    borderColor: COLORS.NURSE_PRIMARY,
-    backgroundColor: COLORS.NURSE_LIGHT,
-    shadowColor: COLORS.NURSE_PRIMARY,
+    borderColor: colors.NURSE_PRIMARY,
+    backgroundColor: colors.NURSE_LIGHT,
+    shadowColor: colors.NURSE_PRIMARY,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 4,
@@ -568,16 +573,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: SIZES.MD,
     borderRadius: SIZES.BORDER_RADIUS_SM,
     borderWidth: 1,
-    borderColor: COLORS.NURSE_PRIMARY,
+    borderColor: colors.NURSE_PRIMARY,
     marginTop: SIZES.SM,
   },
   refreshBtnText: {
     fontSize: SIZES.FONT_SM,
-    color: COLORS.NURSE_PRIMARY,
+    color: colors.NURSE_PRIMARY,
     fontWeight: '600',
   },
   saveBtn: {
-    backgroundColor: COLORS.NURSE_PRIMARY,
+    backgroundColor: colors.NURSE_PRIMARY,
     height: SIZES.BUTTON_HEIGHT,
     borderRadius: SIZES.BORDER_RADIUS_MD,
     alignItems: 'center',
@@ -585,7 +590,7 @@ const styles = StyleSheet.create({
     marginTop: SIZES.MD,
   },
   saveBtnText: {
-    color: COLORS.WHITE,
+    color: colors.WHITE,
     fontSize: SIZES.FONT_MD,
     fontWeight: '700',
   },
@@ -598,13 +603,14 @@ const styles = StyleSheet.create({
     paddingVertical: SIZES.MD,
     borderRadius: SIZES.BORDER_RADIUS_MD,
     borderWidth: 1,
-    borderColor: COLORS.DANGER,
+    borderColor: colors.DANGER,
   },
   removeBtnText: {
     fontSize: SIZES.FONT_SM,
-    color: COLORS.DANGER,
+    color: colors.DANGER,
     fontWeight: '600',
   },
 });
+}
 
 export default AvatarPicker;

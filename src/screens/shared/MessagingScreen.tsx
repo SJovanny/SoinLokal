@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -13,9 +13,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../../contexts/AuthContext';
 import { useMessageCount } from '../../contexts/MessageCountContext';
+import { useTheme } from '../../contexts/ThemeContext';
 import { supabase } from '../../utils/supabase';
 import { resolveAccessibleFileIds } from '../../utils/messagingAccess';
-import { COLORS, SIZES, getThemeColor } from '../../utils/constants';
+import { getColors, SIZES, getThemeColor } from '../../utils/constants';
 import Avatar from '../../components/Avatar';
 
 interface Conversation {
@@ -35,6 +36,9 @@ interface Conversation {
 const MessagingScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { user, userProfile, familyLinks } = useAuth();
   const { refreshUnreadCount } = useMessageCount();
+  const { isDark } = useTheme();
+  const colors = getColors(isDark);
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -211,10 +215,10 @@ const MessagingScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           lastName={item.participantName.split(' ').slice(1).join(' ')}
           size={52}
           backgroundColor={themeColor}
-          textColor={COLORS.WHITE}
+          textColor={colors.WHITE}
         />
         {item.unreadCount > 0 && (
-          <View style={[styles.unreadBadge, { backgroundColor: COLORS.DANGER }]}>
+          <View style={[styles.unreadBadge, { backgroundColor: colors.DANGER }]}>
             <Text style={styles.unreadText}>{item.unreadCount > 9 ? '9+' : item.unreadCount}</Text>
           </View>
         )}
@@ -260,7 +264,7 @@ const MessagingScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           <Text style={styles.headerTitle}>Messages</Text>
         </View>
         <View style={styles.centerWrap}>
-          <Ionicons name="cloud-offline-outline" size={64} color={COLORS.TEXT_MUTED} />
+          <Ionicons name="cloud-offline-outline" size={64} color={colors.TEXT_MUTED} />
           <Text style={styles.emptyTitle}>{error}</Text>
           <TouchableOpacity style={[styles.retryButton, { borderColor: themeColor }]} onPress={onRefresh}>
             <Ionicons name="refresh-outline" size={18} color={themeColor} />
@@ -279,7 +283,7 @@ const MessagingScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
 
       {conversations.length === 0 ? (
         <View style={styles.centerWrap}>
-          <Ionicons name="chatbubbles-outline" size={64} color={COLORS.BORDER} />
+          <Ionicons name="chatbubbles-outline" size={64} color={colors.BORDER} />
           <Text style={styles.emptyTitle}>Aucune conversation</Text>
           <Text style={styles.emptySubtitle}>Vos messages apparaîtront ici</Text>
         </View>
@@ -297,132 +301,134 @@ const MessagingScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.BACKGROUND,
-  },
-  centerWrap: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: SIZES.XXL,
-    gap: SIZES.MD,
-  },
-  header: {
-    padding: SIZES.LG,
-    backgroundColor: COLORS.WHITE,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.BORDER,
-  },
-  headerTitle: {
-    fontSize: SIZES.FONT_XL,
-    fontWeight: '700',
-    color: COLORS.TEXT_PRIMARY,
-  },
-  conversationItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: SIZES.MD,
-    backgroundColor: COLORS.WHITE,
-  },
-  avatarContainer: {
-    position: 'relative',
-    marginRight: SIZES.MD,
-  },
-  avatar: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarText: {
-    fontSize: SIZES.FONT_LG,
-    fontWeight: '700',
-    color: COLORS.WHITE,
-  },
-  unreadBadge: {
-    position: 'absolute',
-    top: -2,
-    right: -4,
-    minWidth: 20,
-    height: 20,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 5,
-  },
-  unreadText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: COLORS.WHITE,
-  },
-  conversationContent: {
-    flex: 1,
-  },
-  conversationHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 2,
-  },
-  participantName: {
-    fontSize: SIZES.FONT_MD,
-    fontWeight: '600',
-    color: COLORS.TEXT_PRIMARY,
-    flex: 1,
-    marginRight: SIZES.SM,
-  },
-  participantNameBold: {
-    fontWeight: '800',
-  },
-  messageTime: {
-    fontSize: SIZES.FONT_XS,
-    color: COLORS.TEXT_MUTED,
-  },
-  participantSubtitle: {
-    fontSize: SIZES.FONT_XS,
-    color: COLORS.TEXT_SECONDARY,
-    marginBottom: 2,
-  },
-  lastMessage: {
-    fontSize: SIZES.FONT_SM,
-    color: COLORS.TEXT_MUTED,
-  },
-  lastMessageUnread: {
-    color: COLORS.TEXT_PRIMARY,
-    fontWeight: '600',
-  },
-  separator: {
-    height: 1,
-    backgroundColor: COLORS.BORDER,
-    marginLeft: 84,
-  },
-  emptyTitle: {
-    fontSize: SIZES.FONT_LG,
-    fontWeight: '600',
-    color: COLORS.TEXT_PRIMARY,
-  },
-  emptySubtitle: {
-    fontSize: SIZES.FONT_SM,
-    color: COLORS.TEXT_MUTED,
-    textAlign: 'center',
-  },
-  retryButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SIZES.SM,
-    paddingHorizontal: SIZES.LG,
-    paddingVertical: SIZES.MD,
-    borderRadius: SIZES.BORDER_RADIUS_MD,
-    borderWidth: 1,
-    marginTop: SIZES.SM,
-  },
-  retryText: {
-    fontSize: SIZES.FONT_MD,
-    fontWeight: '600',
-  },
-});
+function createStyles(colors: ReturnType<typeof getColors>) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.BACKGROUND,
+    },
+    centerWrap: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: SIZES.XXL,
+      gap: SIZES.MD,
+    },
+    header: {
+      padding: SIZES.LG,
+      backgroundColor: colors.WHITE,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.BORDER,
+    },
+    headerTitle: {
+      fontSize: SIZES.FONT_XL,
+      fontWeight: '700',
+      color: colors.TEXT_PRIMARY,
+    },
+    conversationItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      padding: SIZES.MD,
+      backgroundColor: colors.WHITE,
+    },
+    avatarContainer: {
+      position: 'relative',
+      marginRight: SIZES.MD,
+    },
+    avatar: {
+      width: 52,
+      height: 52,
+      borderRadius: 26,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    avatarText: {
+      fontSize: SIZES.FONT_LG,
+      fontWeight: '700',
+      color: colors.WHITE,
+    },
+    unreadBadge: {
+      position: 'absolute',
+      top: -2,
+      right: -4,
+      minWidth: 20,
+      height: 20,
+      borderRadius: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 5,
+    },
+    unreadText: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: colors.WHITE,
+    },
+    conversationContent: {
+      flex: 1,
+    },
+    conversationHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 2,
+    },
+    participantName: {
+      fontSize: SIZES.FONT_MD,
+      fontWeight: '600',
+      color: colors.TEXT_PRIMARY,
+      flex: 1,
+      marginRight: SIZES.SM,
+    },
+    participantNameBold: {
+      fontWeight: '800',
+    },
+    messageTime: {
+      fontSize: SIZES.FONT_XS,
+      color: colors.TEXT_MUTED,
+    },
+    participantSubtitle: {
+      fontSize: SIZES.FONT_XS,
+      color: colors.TEXT_SECONDARY,
+      marginBottom: 2,
+    },
+    lastMessage: {
+      fontSize: SIZES.FONT_SM,
+      color: colors.TEXT_MUTED,
+    },
+    lastMessageUnread: {
+      color: colors.TEXT_PRIMARY,
+      fontWeight: '600',
+    },
+    separator: {
+      height: 1,
+      backgroundColor: colors.BORDER,
+      marginLeft: 84,
+    },
+    emptyTitle: {
+      fontSize: SIZES.FONT_LG,
+      fontWeight: '600',
+      color: colors.TEXT_PRIMARY,
+    },
+    emptySubtitle: {
+      fontSize: SIZES.FONT_SM,
+      color: colors.TEXT_MUTED,
+      textAlign: 'center',
+    },
+    retryButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: SIZES.SM,
+      paddingHorizontal: SIZES.LG,
+      paddingVertical: SIZES.MD,
+      borderRadius: SIZES.BORDER_RADIUS_MD,
+      borderWidth: 1,
+      marginTop: SIZES.SM,
+    },
+    retryText: {
+      fontSize: SIZES.FONT_MD,
+      fontWeight: '600',
+    },
+  });
+}
 
 export default MessagingScreen;

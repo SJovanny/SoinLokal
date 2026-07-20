@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -14,8 +14,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { useMessageCount } from '../../contexts/MessageCountContext';
+import { useTheme } from '../../contexts/ThemeContext';
 import { supabase, type Message } from '../../utils/supabase';
-import { COLORS, SIZES, getThemeColor } from '../../utils/constants';
+import { getColors, SIZES, getThemeColor } from '../../utils/constants';
 
 interface MessageGroup {
   type: 'message' | 'date';
@@ -34,6 +35,9 @@ const ChatScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, rou
   const hasGuardian: boolean = route.params.hasGuardian ?? false;
   const { user, userProfile } = useAuth();
   const { refreshUnreadCount } = useMessageCount();
+  const { isDark } = useTheme();
+  const colors = getColors(isDark);
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const themeColor = getThemeColor(userProfile?.user_type ?? 'patient');
   const effectiveAuthorId = managedPatientId || user?.id;
 
@@ -270,7 +274,7 @@ const ChatScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, rou
               </Text>
             )}
             {participantId && (
-              <Ionicons name="chevron-forward" size={12} color={COLORS.TEXT_MUTED} style={styles.headerChevron} />
+              <Ionicons name="chevron-forward" size={12} color={colors.TEXT_MUTED} style={styles.headerChevron} />
             )}
           </TouchableOpacity>
           <View style={styles.headerPlaceholder} />
@@ -300,7 +304,7 @@ const ChatScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, rou
             </Text>
           )}
           {participantId && (
-            <Ionicons name="chevron-forward" size={12} color={COLORS.TEXT_MUTED} style={styles.headerChevron} />
+            <Ionicons name="chevron-forward" size={12} color={colors.TEXT_MUTED} style={styles.headerChevron} />
           )}
         </TouchableOpacity>
         <View style={styles.headerPlaceholder} />
@@ -328,20 +332,20 @@ const ChatScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, rou
           }}
         />
 
-        <View style={[styles.inputBar, { borderTopColor: COLORS.BORDER }]}>
+        <View style={[styles.inputBar, { borderTopColor: colors.BORDER }]}>
           <TextInput
             style={styles.textInput}
             value={inputText}
             onChangeText={setInputText}
             placeholder="Écrivez un message..."
-            placeholderTextColor={COLORS.TEXT_MUTED}
+            placeholderTextColor={colors.TEXT_MUTED}
             multiline
             maxLength={1000}
           />
           <TouchableOpacity
             style={[
               styles.sendButton,
-              { backgroundColor: inputText.trim() ? themeColor : COLORS.BORDER },
+              { backgroundColor: inputText.trim() ? themeColor : colors.BORDER },
             ]}
             onPress={sendMessage}
             disabled={!inputText.trim() || sending}
@@ -350,7 +354,7 @@ const ChatScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, rou
             <Ionicons
               name={sending ? 'hourglass-outline' : 'send'}
               size={20}
-              color={COLORS.WHITE}
+              color={colors.WHITE}
             />
           </TouchableOpacity>
         </View>
@@ -359,145 +363,147 @@ const ChatScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, rou
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.BACKGROUND,
-  },
-  centerWrap: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: SIZES.SM,
-    paddingVertical: SIZES.MD,
-    backgroundColor: COLORS.WHITE,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.BORDER,
-  },
-  backButton: {
-    padding: SIZES.SM,
-  },
-  headerCenter: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  headerName: {
-    fontSize: SIZES.FONT_MD,
-    fontWeight: '700',
-    color: COLORS.TEXT_PRIMARY,
-  },
-  headerSubtitle: {
-    fontSize: SIZES.FONT_XS,
-    color: COLORS.TEXT_MUTED,
-    marginTop: 2,
-  },
-  headerPlaceholder: {
-    width: 44,
-  },
-  headerChevron: {
-    marginLeft: 4,
-  },
-  keyboardView: {
-    flex: 1,
-  },
-  messageList: {
-    flex: 1,
-  },
-  messageListContent: {
-    paddingHorizontal: SIZES.MD,
-    paddingVertical: SIZES.SM,
-    flexGrow: 1,
-    justifyContent: 'flex-end',
-  },
-  dateSeparator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: SIZES.MD,
-  },
-  dateLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: COLORS.BORDER,
-  },
-  dateText: {
-    fontSize: SIZES.FONT_XS,
-    color: COLORS.TEXT_MUTED,
-    marginHorizontal: SIZES.MD,
-    fontWeight: '600',
-  },
-  messageRow: {
-    flexDirection: 'row',
-    marginBottom: SIZES.XS,
-  },
-  messageRowRight: {
-    justifyContent: 'flex-end',
-  },
-  messageRowLeft: {
-    justifyContent: 'flex-start',
-  },
-  messageBubble: {
-    maxWidth: '75%',
-    paddingHorizontal: SIZES.MD,
-    paddingVertical: SIZES.SM,
-    borderRadius: SIZES.BORDER_RADIUS_MD,
-  },
-  myBubble: {
-    borderBottomRightRadius: SIZES.XS,
-  },
-  otherBubble: {
-    backgroundColor: COLORS.WHITE,
-    borderBottomLeftRadius: SIZES.XS,
-  },
-  messageText: {
-    fontSize: SIZES.FONT_MD,
-    color: COLORS.TEXT_PRIMARY,
-    lineHeight: 22,
-  },
-  myMessageText: {
-    color: COLORS.WHITE,
-  },
-  messageFooter: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    marginTop: 2,
-  },
-  messageTime: {
-    fontSize: 11,
-    color: COLORS.TEXT_MUTED,
-  },
-  myMessageTime: {
-    color: 'rgba(255,255,255,0.7)',
-  },
-  inputBar: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    paddingHorizontal: SIZES.MD,
-    paddingVertical: SIZES.SM,
-    backgroundColor: COLORS.WHITE,
-    borderTopWidth: 1,
-  },
-  textInput: {
-    flex: 1,
-    backgroundColor: COLORS.BACKGROUND,
-    borderRadius: SIZES.BORDER_RADIUS_FULL,
-    paddingHorizontal: SIZES.MD,
-    paddingVertical: SIZES.SM,
-    fontSize: SIZES.FONT_MD,
-    color: COLORS.TEXT_PRIMARY,
-    maxHeight: 100,
-  },
-  sendButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: SIZES.SM,
-  },
-});
+function createStyles(colors: ReturnType<typeof getColors>) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.BACKGROUND,
+    },
+    centerWrap: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: SIZES.SM,
+      paddingVertical: SIZES.MD,
+      backgroundColor: colors.WHITE,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.BORDER,
+    },
+    backButton: {
+      padding: SIZES.SM,
+    },
+    headerCenter: {
+      flex: 1,
+      alignItems: 'center',
+    },
+    headerName: {
+      fontSize: SIZES.FONT_MD,
+      fontWeight: '700',
+      color: colors.TEXT_PRIMARY,
+    },
+    headerSubtitle: {
+      fontSize: SIZES.FONT_XS,
+      color: colors.TEXT_MUTED,
+      marginTop: 2,
+    },
+    headerPlaceholder: {
+      width: 44,
+    },
+    headerChevron: {
+      marginLeft: 4,
+    },
+    keyboardView: {
+      flex: 1,
+    },
+    messageList: {
+      flex: 1,
+    },
+    messageListContent: {
+      paddingHorizontal: SIZES.MD,
+      paddingVertical: SIZES.SM,
+      flexGrow: 1,
+      justifyContent: 'flex-end',
+    },
+    dateSeparator: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: SIZES.MD,
+    },
+    dateLine: {
+      flex: 1,
+      height: 1,
+      backgroundColor: colors.BORDER,
+    },
+    dateText: {
+      fontSize: SIZES.FONT_XS,
+      color: colors.TEXT_MUTED,
+      marginHorizontal: SIZES.MD,
+      fontWeight: '600',
+    },
+    messageRow: {
+      flexDirection: 'row',
+      marginBottom: SIZES.XS,
+    },
+    messageRowRight: {
+      justifyContent: 'flex-end',
+    },
+    messageRowLeft: {
+      justifyContent: 'flex-start',
+    },
+    messageBubble: {
+      maxWidth: '75%',
+      paddingHorizontal: SIZES.MD,
+      paddingVertical: SIZES.SM,
+      borderRadius: SIZES.BORDER_RADIUS_MD,
+    },
+    myBubble: {
+      borderBottomRightRadius: SIZES.XS,
+    },
+    otherBubble: {
+      backgroundColor: colors.WHITE,
+      borderBottomLeftRadius: SIZES.XS,
+    },
+    messageText: {
+      fontSize: SIZES.FONT_MD,
+      color: colors.TEXT_PRIMARY,
+      lineHeight: 22,
+    },
+    myMessageText: {
+      color: colors.WHITE,
+    },
+    messageFooter: {
+      flexDirection: 'row',
+      justifyContent: 'flex-end',
+      marginTop: 2,
+    },
+    messageTime: {
+      fontSize: 11,
+      color: colors.TEXT_MUTED,
+    },
+    myMessageTime: {
+      color: 'rgba(255,255,255,0.7)',
+    },
+    inputBar: {
+      flexDirection: 'row',
+      alignItems: 'flex-end',
+      paddingHorizontal: SIZES.MD,
+      paddingVertical: SIZES.SM,
+      backgroundColor: colors.WHITE,
+      borderTopWidth: 1,
+    },
+    textInput: {
+      flex: 1,
+      backgroundColor: colors.BACKGROUND,
+      borderRadius: SIZES.BORDER_RADIUS_FULL,
+      paddingHorizontal: SIZES.MD,
+      paddingVertical: SIZES.SM,
+      fontSize: SIZES.FONT_MD,
+      color: colors.TEXT_PRIMARY,
+      maxHeight: 100,
+    },
+    sendButton: {
+      width: 42,
+      height: 42,
+      borderRadius: 21,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginLeft: SIZES.SM,
+    },
+  });
+}
 
 export default ChatScreen;

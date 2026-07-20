@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -13,8 +13,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../../contexts/AuthContext';
-import { supabase, type Profile, type PatientProfile, type Appointment } from '../../utils/supabase';
-import { COLORS, SIZES } from '../../utils/constants';
+import { useTheme } from '../../contexts/ThemeContext';
+import {
+  supabase,
+  type Profile,
+  type PatientProfile,
+  type Appointment,
+} from '../../utils/supabase';
+import { getColors, SIZES } from '../../utils/constants';
 import { openNavigation } from '../../utils/navigation';
 import Avatar from '../../components/Avatar';
 
@@ -58,12 +64,12 @@ function calcAge(dob: string | undefined): string {
 // Component
 // ---------------------------------------------------------------------------
 
-const PatientDetail: React.FC<{ navigation: any; route: any }> = ({
-  navigation,
-  route,
-}) => {
+const PatientDetail: React.FC<{ navigation: any; route: any }> = ({ navigation, route }) => {
   const { patientId, patientFileId } = route.params;
   const { user } = useAuth();
+  const { isDark } = useTheme();
+  const colors = getColors(isDark);
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [data, setData] = useState<PatientData | null>(null);
   const [loading, setLoading] = useState(true);
   const [careHistory, setCareHistory] = useState<Appointment[]>([]);
@@ -212,7 +218,7 @@ const PatientDetail: React.FC<{ navigation: any; route: any }> = ({
             }
           },
         },
-      ],
+      ]
     );
   };
 
@@ -224,7 +230,7 @@ const PatientDetail: React.FC<{ navigation: any; route: any }> = ({
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.centerWrap}>
-          <ActivityIndicator size="large" color={COLORS.NURSE_PRIMARY} />
+          <ActivityIndicator size="large" color={colors.NURSE_PRIMARY} />
         </View>
       </SafeAreaView>
     );
@@ -234,7 +240,7 @@ const PatientDetail: React.FC<{ navigation: any; route: any }> = ({
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.centerWrap}>
-          <Ionicons name="alert-circle-outline" size={48} color={COLORS.DANGER} />
+          <Ionicons name="alert-circle-outline" size={48} color={colors.DANGER} />
           <Text style={styles.errorText}>Patient introuvable</Text>
         </View>
       </SafeAreaView>
@@ -261,7 +267,7 @@ const PatientDetail: React.FC<{ navigation: any; route: any }> = ({
     if (pp?.gps_lat != null && pp?.gps_lng != null) {
       openNavigation(pp.gps_lat, pp.gps_lng);
     } else {
-      Alert.alert('Information', 'Adresse non géolocalisée. Impossible d\'ouvrir l\'itinéraire.');
+      Alert.alert('Information', "Adresse non géolocalisée. Impossible d'ouvrir l'itinéraire.");
     }
   };
 
@@ -278,7 +284,7 @@ const PatientDetail: React.FC<{ navigation: any; route: any }> = ({
           onPress={() => navigation.goBack()}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
-          <Ionicons name="chevron-back" size={24} color={COLORS.TEXT_PRIMARY} />
+          <Ionicons name="chevron-back" size={24} color={colors.TEXT_PRIMARY} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Fiche patient</Text>
         <View style={{ width: 40 }} />
@@ -304,7 +310,7 @@ const PatientDetail: React.FC<{ navigation: any; route: any }> = ({
           </Text>
           {profile.verified && (
             <View style={styles.verifiedBadge}>
-              <Ionicons name="checkmark-circle" size={14} color={COLORS.SUCCESS} />
+              <Ionicons name="checkmark-circle" size={14} color={colors.SUCCESS} />
               <Text style={styles.verifiedText}>Vérifié</Text>
             </View>
           )}
@@ -313,20 +319,51 @@ const PatientDetail: React.FC<{ navigation: any; route: any }> = ({
         {/* Contact */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Contact</Text>
-          <InfoRow icon="mail-outline" label="Email" value={profile.email ?? '—'} />
-          <InfoRow icon="call-outline" label="Téléphone" value={profile.phone ?? '—'} />
+          <InfoRow
+            colors={colors}
+            styles={styles}
+            icon="mail-outline"
+            label="Email"
+            value={profile.email ?? '—'}
+          />
+          <InfoRow
+            colors={colors}
+            styles={styles}
+            icon="call-outline"
+            label="Téléphone"
+            value={profile.phone ?? '—'}
+          />
         </View>
 
         {/* Proche / Tuteur */}
         {managedByName && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Proche / Tuteur</Text>
-            <InfoRow icon="people-outline" label="Nom" value={managedByName} iconColor={COLORS.FAMILY_PRIMARY} />
+            <InfoRow
+              colors={colors}
+              styles={styles}
+              icon="people-outline"
+              label="Nom"
+              value={managedByName}
+              iconColor={colors.FAMILY_PRIMARY}
+            />
             {managedByPhone && (
-              <InfoRow icon="call-outline" label="Téléphone" value={managedByPhone} />
+              <InfoRow
+                colors={colors}
+                styles={styles}
+                icon="call-outline"
+                label="Téléphone"
+                value={managedByPhone}
+              />
             )}
             {managedByEmail && (
-              <InfoRow icon="mail-outline" label="Email" value={managedByEmail} />
+              <InfoRow
+                colors={colors}
+                styles={styles}
+                icon="mail-outline"
+                label="Email"
+                value={managedByEmail}
+              />
             )}
           </View>
         )}
@@ -335,23 +372,31 @@ const PatientDetail: React.FC<{ navigation: any; route: any }> = ({
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Informations personnelles</Text>
           <InfoRow
+            colors={colors}
+            styles={styles}
             icon="calendar-outline"
             label="Date de naissance"
             value={pp?.dob ? `${formatDate(pp.dob)}${age ? ` (${age})` : ''}` : '—'}
           />
           <InfoRow
+            colors={colors}
+            styles={styles}
             icon="home-outline"
             label="Adresse"
             value={pp?.address ?? '—'}
           />
           {pp?.address_label ? (
             <InfoRow
+              colors={colors}
+              styles={styles}
               icon="navigate-outline"
               label="Repère"
               value={pp.address_label}
             />
           ) : null}
           <InfoRow
+            colors={colors}
+            styles={styles}
             icon="call-outline"
             label="Contact d'urgence"
             value={pp?.emergency_contact ?? '—'}
@@ -362,11 +407,15 @@ const PatientDetail: React.FC<{ navigation: any; route: any }> = ({
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Informations médicales</Text>
           <InfoRow
+            colors={colors}
+            styles={styles}
             icon="document-text-outline"
             label="Notes"
             value={pp?.medical_notes ?? 'Aucune note'}
           />
           <InfoRow
+            colors={colors}
+            styles={styles}
             icon="warning-outline"
             label="Allergies"
             value={
@@ -375,13 +424,13 @@ const PatientDetail: React.FC<{ navigation: any; route: any }> = ({
                 : 'Aucune allergie connue'
             }
             iconColor={
-              pp?.allergies && pp.allergies.length > 0
-                ? COLORS.WARNING
-                : COLORS.TEXT_MUTED
+              pp?.allergies && pp.allergies.length > 0 ? colors.WARNING : colors.TEXT_MUTED
             }
           />
           {pp?.access_code ? (
             <InfoRow
+              colors={colors}
+              styles={styles}
               icon="keypad-outline"
               label="Code d'accès"
               value={pp.access_code}
@@ -408,28 +457,34 @@ const PatientDetail: React.FC<{ navigation: any; route: any }> = ({
           </View>
 
           {loadingHistory ? (
-            <ActivityIndicator size="small" color={COLORS.NURSE_PRIMARY} style={{ paddingVertical: SIZES.MD }} />
+            <ActivityIndicator
+              size="small"
+              color={colors.NURSE_PRIMARY}
+              style={{ paddingVertical: SIZES.MD }}
+            />
           ) : careHistory.length === 0 ? (
             <View style={styles.emptyHistory}>
-              <Ionicons name="document-text-outline" size={32} color={COLORS.BORDER} />
+              <Ionicons name="document-text-outline" size={32} color={colors.BORDER} />
               <Text style={styles.emptyHistoryText}>Aucun soin enregistré</Text>
             </View>
           ) : (
-            careHistory.map((apt) => <CareHistoryCard key={apt.id} appointment={apt} />)
+            careHistory.map(apt => (
+              <CareHistoryCard colors={colors} styles={styles} key={apt.id} appointment={apt} />
+            ))
           )}
         </View>
 
         {/* Actions */}
         <View style={styles.actionsRow}>
           <TouchableOpacity style={styles.actionButton} onPress={handleCall}>
-            <Ionicons name="call" size={20} color={COLORS.WHITE} />
+            <Ionicons name="call" size={20} color={colors.WHITE} />
             <Text style={styles.actionText}>Appeler</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: COLORS.INFO }]}
+            style={[styles.actionButton, { backgroundColor: colors.INFO }]}
             onPress={handleItinerary}
           >
-            <Ionicons name="navigate" size={20} color={COLORS.WHITE} />
+            <Ionicons name="navigate" size={20} color={colors.WHITE} />
             <Text style={styles.actionText}>Itinéraire</Text>
           </TouchableOpacity>
         </View>
@@ -442,10 +497,10 @@ const PatientDetail: React.FC<{ navigation: any; route: any }> = ({
             disabled={removing}
           >
             {removing ? (
-              <ActivityIndicator size="small" color={COLORS.DANGER} />
+              <ActivityIndicator size="small" color={colors.DANGER} />
             ) : (
               <>
-                <Ionicons name="trash-outline" size={18} color={COLORS.DANGER} />
+                <Ionicons name="trash-outline" size={18} color={colors.DANGER} />
                 <Text style={styles.removeButtonText}>Retirer de ma liste</Text>
               </>
             )}
@@ -464,16 +519,25 @@ function InfoRow({
   icon,
   label,
   value,
-  iconColor = COLORS.TEXT_MUTED,
+  colors,
+  styles,
+  iconColor,
 }: {
   icon: React.ComponentProps<typeof Ionicons>['name'];
   label: string;
   value: string;
+  colors: ReturnType<typeof getColors>;
+  styles: ReturnType<typeof createStyles>;
   iconColor?: string;
 }) {
   return (
     <View style={styles.infoRow}>
-      <Ionicons name={icon} size={20} color={iconColor} style={styles.infoIcon} />
+      <Ionicons
+        name={icon}
+        size={20}
+        color={iconColor ?? colors.TEXT_MUTED}
+        style={styles.infoIcon}
+      />
       <View style={styles.infoTextBlock}>
         <Text style={styles.infoLabel}>{label}</Text>
         <Text style={styles.infoValue}>{value}</Text>
@@ -487,7 +551,14 @@ function formatCareDate(dateStr: string): string {
   return d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
-function CareHistoryCard({ appointment }: { appointment: Appointment }) {
+function CareHistoryCard({
+  appointment,
+  styles,
+}: {
+  appointment: Appointment;
+  colors: ReturnType<typeof getColors>;
+  styles: ReturnType<typeof createStyles>;
+}) {
   return (
     <View style={styles.careCard}>
       <View style={styles.careCardHeader}>
@@ -512,229 +583,231 @@ function CareHistoryCard({ appointment }: { appointment: Appointment }) {
 // Styles
 // ---------------------------------------------------------------------------
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.BACKGROUND,
-  },
-  centerWrap: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: SIZES.MD,
-  },
-  errorText: {
-    fontSize: SIZES.FONT_MD,
-    color: COLORS.TEXT_SECONDARY,
-  },
-  // Header
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: SIZES.LG,
-    paddingVertical: SIZES.MD,
-    backgroundColor: COLORS.WHITE,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.BORDER,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: COLORS.BACKGROUND,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerTitle: {
-    fontSize: SIZES.FONT_LG,
-    fontWeight: '700',
-    color: COLORS.TEXT_PRIMARY,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    padding: SIZES.LG,
-    paddingBottom: 40,
-  },
-  // Profile header
-  profileHeader: {
-    alignItems: 'center',
-    marginBottom: SIZES.XL,
-    paddingTop: SIZES.MD,
-  },
-  avatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: COLORS.NURSE_LIGHT,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: SIZES.MD,
-  },
-  avatarText: {
-    fontSize: SIZES.FONT_XL,
-    fontWeight: '700',
-    color: COLORS.NURSE_PRIMARY,
-  },
-  profileName: {
-    fontSize: SIZES.FONT_2XL,
-    fontWeight: '700',
-    color: COLORS.TEXT_PRIMARY,
-  },
-  verifiedBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginTop: 4,
-  },
-  verifiedText: {
-    fontSize: SIZES.FONT_XS,
-    color: COLORS.SUCCESS,
-    fontWeight: '500',
-  },
-  // Sections
-  section: {
-    backgroundColor: COLORS.WHITE,
-    borderRadius: SIZES.BORDER_RADIUS_MD,
-    padding: SIZES.MD,
-    marginBottom: SIZES.MD,
-    shadowColor: COLORS.BLACK,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 1,
-  },
-  sectionTitle: {
-    fontSize: SIZES.FONT_SM,
-    fontWeight: '700',
-    color: COLORS.TEXT_MUTED,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: SIZES.SM,
-    paddingBottom: SIZES.SM,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.BORDER,
-  },
-  sectionHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: SIZES.SM,
-    paddingBottom: SIZES.SM,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.BORDER,
-  },
-  seeAllText: {
-    fontSize: SIZES.FONT_SM,
-    fontWeight: '600',
-    color: COLORS.NURSE_PRIMARY,
-  },
-  emptyHistory: {
-    alignItems: 'center',
-    paddingVertical: SIZES.LG,
-    gap: SIZES.SM,
-  },
-  emptyHistoryText: {
-    fontSize: SIZES.FONT_SM,
-    color: COLORS.TEXT_MUTED,
-  },
-  careCard: {
-    backgroundColor: COLORS.BACKGROUND,
-    borderRadius: SIZES.BORDER_RADIUS_SM,
-    padding: SIZES.SM,
-    marginBottom: SIZES.SM,
-  },
-  careCardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 4,
-  },
-  careTypeBadge: {
-    backgroundColor: COLORS.NURSE_LIGHT,
-    paddingHorizontal: SIZES.SM,
-    paddingVertical: 2,
-    borderRadius: SIZES.BORDER_RADIUS_FULL,
-  },
-  careTypeText: {
-    fontSize: SIZES.FONT_XS,
-    fontWeight: '600',
-    color: COLORS.NURSE_PRIMARY,
-  },
-  careDate: {
-    fontSize: SIZES.FONT_XS,
-    color: COLORS.TEXT_MUTED,
-  },
-  careNote: {
-    fontSize: SIZES.FONT_SM,
-    color: COLORS.TEXT_SECONDARY,
-    lineHeight: 18,
-  },
-  // Info row
-  infoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: SIZES.SM,
-  },
-  infoIcon: {
-    marginRight: SIZES.MD,
-    width: 24,
-    textAlign: 'center',
-  },
-  infoTextBlock: {
-    flex: 1,
-  },
-  infoLabel: {
-    fontSize: SIZES.FONT_XS,
-    color: COLORS.TEXT_MUTED,
-    marginBottom: 2,
-  },
-  infoValue: {
-    fontSize: SIZES.FONT_MD,
-    color: COLORS.TEXT_PRIMARY,
-    fontWeight: '500',
-  },
-  // Actions
-  actionsRow: {
-    flexDirection: 'row',
-    gap: SIZES.MD,
-    marginTop: SIZES.SM,
-  },
-  actionButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: COLORS.NURSE_PRIMARY,
-    paddingVertical: SIZES.MD,
-    borderRadius: SIZES.BORDER_RADIUS_MD,
-    gap: SIZES.SM,
-  },
-  actionText: {
-    color: COLORS.WHITE,
-    fontSize: SIZES.FONT_SM,
-    fontWeight: '600',
-  },
-  // Remove button
-  removeButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: SIZES.SM,
-    marginTop: SIZES.MD,
-    paddingVertical: SIZES.MD,
-    borderRadius: SIZES.BORDER_RADIUS_MD,
-    borderWidth: 1.5,
-    borderColor: COLORS.DANGER,
-    backgroundColor: COLORS.WHITE,
-  },
-  removeButtonText: {
-    fontSize: SIZES.FONT_SM,
-    fontWeight: '600',
-    color: COLORS.DANGER,
-  },
-});
+function createStyles(colors: ReturnType<typeof getColors>) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.BACKGROUND,
+    },
+    centerWrap: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: SIZES.MD,
+    },
+    errorText: {
+      fontSize: SIZES.FONT_MD,
+      color: colors.TEXT_SECONDARY,
+    },
+    // Header
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: SIZES.LG,
+      paddingVertical: SIZES.MD,
+      backgroundColor: colors.WHITE,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.BORDER,
+    },
+    backButton: {
+      width: 40,
+      height: 40,
+      borderRadius: 12,
+      backgroundColor: colors.BACKGROUND,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    headerTitle: {
+      fontSize: SIZES.FONT_LG,
+      fontWeight: '700',
+      color: colors.TEXT_PRIMARY,
+    },
+    scrollView: {
+      flex: 1,
+    },
+    scrollContent: {
+      padding: SIZES.LG,
+      paddingBottom: 40,
+    },
+    // Profile header
+    profileHeader: {
+      alignItems: 'center',
+      marginBottom: SIZES.XL,
+      paddingTop: SIZES.MD,
+    },
+    avatar: {
+      width: 80,
+      height: 80,
+      borderRadius: 40,
+      backgroundColor: colors.NURSE_LIGHT,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: SIZES.MD,
+    },
+    avatarText: {
+      fontSize: SIZES.FONT_XL,
+      fontWeight: '700',
+      color: colors.NURSE_PRIMARY,
+    },
+    profileName: {
+      fontSize: SIZES.FONT_2XL,
+      fontWeight: '700',
+      color: colors.TEXT_PRIMARY,
+    },
+    verifiedBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      marginTop: 4,
+    },
+    verifiedText: {
+      fontSize: SIZES.FONT_XS,
+      color: colors.SUCCESS,
+      fontWeight: '500',
+    },
+    // Sections
+    section: {
+      backgroundColor: colors.WHITE,
+      borderRadius: SIZES.BORDER_RADIUS_MD,
+      padding: SIZES.MD,
+      marginBottom: SIZES.MD,
+      shadowColor: colors.BLACK,
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.05,
+      shadowRadius: 4,
+      elevation: 1,
+    },
+    sectionTitle: {
+      fontSize: SIZES.FONT_SM,
+      fontWeight: '700',
+      color: colors.TEXT_MUTED,
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+      marginBottom: SIZES.SM,
+      paddingBottom: SIZES.SM,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.BORDER,
+    },
+    sectionHeaderRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: SIZES.SM,
+      paddingBottom: SIZES.SM,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.BORDER,
+    },
+    seeAllText: {
+      fontSize: SIZES.FONT_SM,
+      fontWeight: '600',
+      color: colors.NURSE_PRIMARY,
+    },
+    emptyHistory: {
+      alignItems: 'center',
+      paddingVertical: SIZES.LG,
+      gap: SIZES.SM,
+    },
+    emptyHistoryText: {
+      fontSize: SIZES.FONT_SM,
+      color: colors.TEXT_MUTED,
+    },
+    careCard: {
+      backgroundColor: colors.BACKGROUND,
+      borderRadius: SIZES.BORDER_RADIUS_SM,
+      padding: SIZES.SM,
+      marginBottom: SIZES.SM,
+    },
+    careCardHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 4,
+    },
+    careTypeBadge: {
+      backgroundColor: colors.NURSE_LIGHT,
+      paddingHorizontal: SIZES.SM,
+      paddingVertical: 2,
+      borderRadius: SIZES.BORDER_RADIUS_FULL,
+    },
+    careTypeText: {
+      fontSize: SIZES.FONT_XS,
+      fontWeight: '600',
+      color: colors.NURSE_PRIMARY,
+    },
+    careDate: {
+      fontSize: SIZES.FONT_XS,
+      color: colors.TEXT_MUTED,
+    },
+    careNote: {
+      fontSize: SIZES.FONT_SM,
+      color: colors.TEXT_SECONDARY,
+      lineHeight: 18,
+    },
+    // Info row
+    infoRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: SIZES.SM,
+    },
+    infoIcon: {
+      marginRight: SIZES.MD,
+      width: 24,
+      textAlign: 'center',
+    },
+    infoTextBlock: {
+      flex: 1,
+    },
+    infoLabel: {
+      fontSize: SIZES.FONT_XS,
+      color: colors.TEXT_MUTED,
+      marginBottom: 2,
+    },
+    infoValue: {
+      fontSize: SIZES.FONT_MD,
+      color: colors.TEXT_PRIMARY,
+      fontWeight: '500',
+    },
+    // Actions
+    actionsRow: {
+      flexDirection: 'row',
+      gap: SIZES.MD,
+      marginTop: SIZES.SM,
+    },
+    actionButton: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.NURSE_PRIMARY,
+      paddingVertical: SIZES.MD,
+      borderRadius: SIZES.BORDER_RADIUS_MD,
+      gap: SIZES.SM,
+    },
+    actionText: {
+      color: colors.WHITE,
+      fontSize: SIZES.FONT_SM,
+      fontWeight: '600',
+    },
+    // Remove button
+    removeButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: SIZES.SM,
+      marginTop: SIZES.MD,
+      paddingVertical: SIZES.MD,
+      borderRadius: SIZES.BORDER_RADIUS_MD,
+      borderWidth: 1.5,
+      borderColor: colors.DANGER,
+      backgroundColor: colors.WHITE,
+    },
+    removeButtonText: {
+      fontSize: SIZES.FONT_SM,
+      fontWeight: '600',
+      color: colors.DANGER,
+    },
+  });
+}
 
 export default PatientDetail;

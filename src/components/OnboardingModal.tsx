@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -11,7 +11,8 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import MapView, { Marker } from 'react-native-maps';
-import { COLORS, SIZES, getThemeColor } from '../utils/constants';
+import { getColors, SIZES, getThemeColor } from '../utils/constants';
+import { useTheme } from '../contexts/ThemeContext';
 import {
   NURSE_SLIDES,
   PATIENT_SLIDES,
@@ -47,7 +48,7 @@ const PREVIEW_WIDTH = CARD_WIDTH - SLIDE_PADDING * 2;
 // Mock Preview Components
 // ---------------------------------------------------------------------------
 
-function WelcomePreview({ themeColor }: { themeColor: string }) {
+function WelcomePreview({ themeColor, pv }: { themeColor: string; pv: ReturnType<typeof createPvStyles> }) {
   return (
     <View style={[pv.container, { alignItems: 'center', justifyContent: 'center' }]}>
       <View style={[pv.welcomeCircle, { backgroundColor: themeColor + '12' }]}>
@@ -61,14 +62,14 @@ function WelcomePreview({ themeColor }: { themeColor: string }) {
   );
 }
 
-function NurseDashboardPreview() {
+function NurseDashboardPreview({ colors, pv }: { colors: ReturnType<typeof getColors>; pv: ReturnType<typeof createPvStyles> }) {
   const m = NURSE_MOCK;
   return (
     <View style={pv.container}>
       <View style={pv.statsRow}>
-        <PvStat icon="people-outline" value={String(m.stats.patients)} label="Patients" color={COLORS.NURSE_PRIMARY} />
-        <PvStat icon="calendar-outline" value={String(m.stats.visitesToday)} label="Visites" color={COLORS.PATIENT_PRIMARY} />
-        <PvStat icon="checkmark-circle-outline" value={String(m.stats.terminees)} label="Terminées" color={COLORS.SUCCESS} />
+        <PvStat icon="people-outline" value={String(m.stats.patients)} label="Patients" color={colors.NURSE_PRIMARY} pv={pv} />
+        <PvStat icon="calendar-outline" value={String(m.stats.visitesToday)} label="Visites" color={colors.PATIENT_PRIMARY} pv={pv} />
+        <PvStat icon="checkmark-circle-outline" value={String(m.stats.terminees)} label="Terminées" color={colors.SUCCESS} pv={pv} />
       </View>
       {m.appointments.slice(0, 3).map((a, i) => (
         <View key={i} style={[pv.apptRow, a.status === 'completed' && pv.completedRow]}>
@@ -83,7 +84,7 @@ function NurseDashboardPreview() {
   );
 }
 
-function NursePatientsPreview() {
+function NursePatientsPreview({ colors, pv }: { colors: ReturnType<typeof getColors>; pv: ReturnType<typeof createPvStyles> }) {
   const patients = ['Marie Beaumont', 'Joseph Fanfan', 'Lucie Saint-Cyr', 'André Moreau'];
   return (
     <View style={pv.container}>
@@ -96,14 +97,14 @@ function NursePatientsPreview() {
             <Text style={pv.name}>{name}</Text>
             <Text style={pv.sub}>Dossier actif</Text>
           </View>
-          <Ionicons name="chevron-forward" size={16} color={COLORS.TEXT_MUTED} />
+          <Ionicons name="chevron-forward" size={16} color={colors.TEXT_MUTED} />
         </View>
       ))}
     </View>
   );
 }
 
-function TourneePreview() {
+function TourneePreview({ colors, pv }: { colors: ReturnType<typeof getColors>; pv: ReturnType<typeof createPvStyles> }) {
   const centerLat = TOURNEE_MOCK.reduce((sum, s) => sum + s.lat, 0) / TOURNEE_MOCK.length;
   const centerLng = TOURNEE_MOCK.reduce((sum, s) => sum + s.lng, 0) / TOURNEE_MOCK.length;
 
@@ -146,7 +147,7 @@ function TourneePreview() {
         {TOURNEE_MOCK.map((stop, i) => (
           <View key={i} style={pv.stopRow}>
             <View style={[pv.stopNum, i === 0 && pv.stopNumActive]}>
-              <Text style={[pv.stopNumTxt, i === 0 && { color: COLORS.WHITE }]}>{i + 1}</Text>
+              <Text style={[pv.stopNumTxt, i === 0 && { color: colors.WHITE }]}>{i + 1}</Text>
             </View>
             <Text style={pv.stopName}>{stop.name}</Text>
             <Text style={pv.stopTime}>{stop.time}</Text>
@@ -157,7 +158,7 @@ function TourneePreview() {
   );
 }
 
-function MessagesPreview({ userType }: { userType: 'nurse' | 'patient' | 'family' }) {
+function MessagesPreview({ userType, pv }: { userType: 'nurse' | 'patient' | 'family'; pv: ReturnType<typeof createPvStyles> }) {
   const convos = userType === 'nurse' ? NURSE_MOCK.conversations
     : userType === 'patient' ? PATIENT_MOCK.conversations
     : FAMILY_MOCK.conversations;
@@ -186,33 +187,33 @@ function MessagesPreview({ userType }: { userType: 'nurse' | 'patient' | 'family
   );
 }
 
-function ProfilePreview() {
+function ProfilePreview({ colors, pv }: { colors: ReturnType<typeof getColors>; pv: ReturnType<typeof createPvStyles> }) {
   return (
     <View style={pv.container}>
       <View style={pv.profCard}>
         <View style={pv.profAvatar}>
-          <Ionicons name="person" size={28} color={COLORS.NURSE_PRIMARY} />
+          <Ionicons name="person" size={28} color={colors.NURSE_PRIMARY} />
         </View>
         <Text style={pv.profName}>Marie Laurent</Text>
         <Text style={pv.profRole}>Infirmière libérale</Text>
       </View>
       <View style={pv.profSec}>
-        <PvInfo icon="call-outline" label="Téléphone" value="0696 12 34 56" />
-        <PvInfo icon="medical-outline" label="Spécialités" value="Soins généraux" />
-        <PvInfo icon="map-outline" label="Zone" value="Fort-de-France" />
+        <PvInfo icon="call-outline" label="Téléphone" value="0696 12 34 56" pv={pv} colors={colors} />
+        <PvInfo icon="medical-outline" label="Spécialités" value="Soins généraux" pv={pv} colors={colors} />
+        <PvInfo icon="map-outline" label="Zone" value="Fort-de-France" pv={pv} colors={colors} />
       </View>
     </View>
   );
 }
 
-function PatientDashboardPreview() {
+function PatientDashboardPreview({ colors, pv }: { colors: ReturnType<typeof getColors>; pv: ReturnType<typeof createPvStyles> }) {
   const m = PATIENT_MOCK;
   return (
     <View style={pv.container}>
       <View style={pv.statsRow}>
-        <PvStat icon="calendar-outline" value={String(m.stats.prochainsRDV)} label="RDV" color={COLORS.PATIENT_PRIMARY} />
-        <PvStat icon="heart-outline" value={String(m.stats.soinsRecus)} label="Soins" color={COLORS.SUCCESS} />
-        <PvStat icon="chatbubble-outline" value={String(m.stats.messages)} label="Messages" color={COLORS.WARNING} />
+        <PvStat icon="calendar-outline" value={String(m.stats.prochainsRDV)} label="RDV" color={colors.PATIENT_PRIMARY} pv={pv} />
+        <PvStat icon="heart-outline" value={String(m.stats.soinsRecus)} label="Soins" color={colors.SUCCESS} pv={pv} />
+        <PvStat icon="chatbubble-outline" value={String(m.stats.messages)} label="Messages" color={colors.WARNING} pv={pv} />
       </View>
       {m.appointments.slice(0, 2).map((a, i) => (
         <View key={i} style={pv.apptRow}>
@@ -230,7 +231,7 @@ function PatientDashboardPreview() {
   );
 }
 
-function SuiviPreview() {
+function SuiviPreview({ pv }: { pv: ReturnType<typeof createPvStyles> }) {
   const m = FAMILY_MOCK;
   return (
     <View style={pv.container}>
@@ -256,20 +257,20 @@ function SuiviPreview() {
   );
 }
 
-function getPreview(type: string, userType: string, themeColor: string) {
+function getPreview(type: string, userType: string, themeColor: string, colors: ReturnType<typeof getColors>, pv: ReturnType<typeof createPvStyles>) {
   switch (type) {
-    case 'welcome':   return <WelcomePreview themeColor={themeColor} />;
-    case 'dashboard': return userType === 'nurse' ? <NurseDashboardPreview /> : <PatientDashboardPreview />;
-    case 'patients':  return <NursePatientsPreview />;
-    case 'tournee':   return <TourneePreview />;
-    case 'messages':  return <MessagesPreview userType={userType as any} />;
-    case 'profile':   return <ProfilePreview />;
-    case 'suivi':     return <SuiviPreview />;
+    case 'welcome':   return <WelcomePreview themeColor={themeColor} pv={pv} />;
+    case 'dashboard': return userType === 'nurse' ? <NurseDashboardPreview colors={colors} pv={pv} /> : <PatientDashboardPreview colors={colors} pv={pv} />;
+    case 'patients':  return <NursePatientsPreview colors={colors} pv={pv} />;
+    case 'tournee':   return <TourneePreview colors={colors} pv={pv} />;
+    case 'messages':  return <MessagesPreview userType={userType as any} pv={pv} />;
+    case 'profile':   return <ProfilePreview colors={colors} pv={pv} />;
+    case 'suivi':     return <SuiviPreview pv={pv} />;
     default:          return null;
   }
 }
 
-function PvStat({ icon, value, label, color }: { icon: string; value: string; label: string; color: string }) {
+function PvStat({ icon, value, label, color, pv }: { icon: string; value: string; label: string; color: string; pv: ReturnType<typeof createPvStyles> }) {
   return (
     <View style={pv.stat}>
       <Ionicons name={icon as any} size={18} color={color} />
@@ -279,10 +280,10 @@ function PvStat({ icon, value, label, color }: { icon: string; value: string; la
   );
 }
 
-function PvInfo({ icon, label, value }: { icon: string; label: string; value: string }) {
+function PvInfo({ icon, label, value, pv, colors }: { icon: string; label: string; value: string; pv: ReturnType<typeof createPvStyles>; colors: ReturnType<typeof getColors> }) {
   return (
     <View style={pv.info}>
-      <Ionicons name={icon as any} size={16} color={COLORS.TEXT_MUTED} />
+      <Ionicons name={icon as any} size={16} color={colors.TEXT_MUTED} />
       <View style={{ marginLeft: 8, flex: 1 }}>
         <Text style={pv.infoLbl}>{label}</Text>
         <Text style={pv.infoVal}>{value}</Text>
@@ -301,12 +302,18 @@ function AnimatedSlide({
   activeIndex,
   userType,
   themeColor,
+  colors,
+  st,
+  pv,
 }: {
   slide: OnboardingSlide;
   index: number;
   activeIndex: number;
   userType: string;
   themeColor: string;
+  colors: ReturnType<typeof getColors>;
+  st: ReturnType<typeof createStStyles>;
+  pv: ReturnType<typeof createPvStyles>;
 }) {
   const iconScale = useRef(new RNAnimated.Value(0)).current;
   const titleOp = useRef(new RNAnimated.Value(0)).current;
@@ -362,7 +369,7 @@ function AnimatedSlide({
       </RNAnimated.Text>
 
       <RNAnimated.View style={[st.preview, { opacity: previewOp, transform: [{ scale: previewScale }] }]}>
-        {getPreview(slide.previewType, userType, themeColor)}
+        {getPreview(slide.previewType, userType, themeColor, colors, pv)}
       </RNAnimated.View>
     </View>
   );
@@ -372,14 +379,14 @@ function AnimatedSlide({
 // Dot
 // ---------------------------------------------------------------------------
 
-function Dot({ active, themeColor }: { active: boolean; themeColor: string }) {
+function Dot({ active, themeColor, colors, dt }: { active: boolean; themeColor: string; colors: ReturnType<typeof getColors>; dt: ReturnType<typeof createDtStyles> }) {
   const w = useRef(new RNAnimated.Value(active ? 24 : 8)).current;
 
   useEffect(() => {
     RNAnimated.spring(w, { toValue: active ? 24 : 8, tension: 120, friction: 10, useNativeDriver: false }).start();
   }, [active]);
 
-  return <RNAnimated.View style={[dt.dot, { width: w, backgroundColor: active ? themeColor : COLORS.BORDER }]} />;
+  return <RNAnimated.View style={[dt.dot, { width: w, backgroundColor: active ? themeColor : colors.BORDER }]} />;
 }
 
 // ---------------------------------------------------------------------------
@@ -387,6 +394,12 @@ function Dot({ active, themeColor }: { active: boolean; themeColor: string }) {
 // ---------------------------------------------------------------------------
 
 export default function OnboardingModal({ visible, userType, onClose }: OnboardingModalProps) {
+  const { isDark } = useTheme();
+  const colors = getColors(isDark);
+  const mo = useMemo(() => createMoStyles(colors), [colors]);
+  const st = useMemo(() => createStStyles(colors), [colors]);
+  const dt = useMemo(() => createDtStyles(colors), [colors]);
+  const pv = useMemo(() => createPvStyles(colors), [colors]);
   const [activeIndex, setActiveIndex] = useState(0);
   const scrollRef = useRef<ScrollView>(null);
   const themeColor = getThemeColor(userType);
@@ -481,6 +494,9 @@ export default function OnboardingModal({ visible, userType, onClose }: Onboardi
                   activeIndex={activeIndex}
                   userType={userType}
                   themeColor={themeColor}
+                  colors={colors}
+                  st={st}
+                  pv={pv}
                 />
               </View>
             ))}
@@ -489,7 +505,7 @@ export default function OnboardingModal({ visible, userType, onClose }: Onboardi
           {/* Dots */}
           <View style={mo.dots}>
             {slides.map((_, i) => (
-              <Dot key={i} active={i === activeIndex} themeColor={themeColor} />
+              <Dot key={i} active={i === activeIndex} themeColor={themeColor} colors={colors} dt={dt} />
             ))}
           </View>
 
@@ -497,7 +513,7 @@ export default function OnboardingModal({ visible, userType, onClose }: Onboardi
           <View style={mo.nav}>
             {activeIndex > 0 ? (
               <TouchableOpacity style={mo.navBtn} onPress={handlePrev} activeOpacity={0.7}>
-                <Ionicons name="chevron-back" size={20} color={COLORS.TEXT_SECONDARY} />
+                <Ionicons name="chevron-back" size={20} color={colors.TEXT_SECONDARY} />
                 <Text style={mo.navTxt}>Précédent</Text>
               </TouchableOpacity>
             ) : (
@@ -511,7 +527,7 @@ export default function OnboardingModal({ visible, userType, onClose }: Onboardi
                 activeOpacity={0.8}
               >
                 <Text style={mo.nextTxt}>{isLast ? 'Commencer !' : 'Suivant'}</Text>
-                {!isLast && <Ionicons name="chevron-forward" size={18} color={COLORS.WHITE} />}
+                {!isLast && <Ionicons name="chevron-forward" size={18} color={colors.WHITE} />}
               </TouchableOpacity>
             </RNAnimated.View>
           </View>
@@ -525,7 +541,8 @@ export default function OnboardingModal({ visible, userType, onClose }: Onboardi
 // Styles
 // ---------------------------------------------------------------------------
 
-const mo = StyleSheet.create({
+function createMoStyles(colors: ReturnType<typeof getColors>) {
+  return StyleSheet.create({
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.6)',
@@ -535,7 +552,7 @@ const mo = StyleSheet.create({
   card: {
     width: CARD_WIDTH,
     maxHeight: SCREEN_HEIGHT - 100,
-    backgroundColor: COLORS.WHITE,
+    backgroundColor: colors.WHITE,
     borderRadius: SIZES.BORDER_RADIUS_LG,
     overflow: 'hidden',
     paddingTop: SIZES.XL,
@@ -575,7 +592,7 @@ const mo = StyleSheet.create({
   },
   navTxt: {
     fontSize: SIZES.FONT_SM,
-    color: COLORS.TEXT_SECONDARY,
+    color: colors.TEXT_SECONDARY,
     fontWeight: '500',
   },
   next: {
@@ -589,11 +606,14 @@ const mo = StyleSheet.create({
   nextTxt: {
     fontSize: SIZES.FONT_MD,
     fontWeight: '700',
-    color: COLORS.WHITE,
+    color: colors.WHITE,
   },
 });
 
-const st = StyleSheet.create({
+}
+
+function createStStyles(colors: ReturnType<typeof getColors>) {
+  return StyleSheet.create({
   slide: {
     alignItems: 'center',
     paddingHorizontal: SLIDE_PADDING,
@@ -610,13 +630,13 @@ const st = StyleSheet.create({
   title: {
     fontSize: SIZES.FONT_XL,
     fontWeight: '700',
-    color: COLORS.TEXT_PRIMARY,
+    color: colors.TEXT_PRIMARY,
     textAlign: 'center',
     marginBottom: SIZES.SM,
   },
   desc: {
     fontSize: SIZES.FONT_SM,
-    color: COLORS.TEXT_SECONDARY,
+    color: colors.TEXT_SECONDARY,
     textAlign: 'center',
     lineHeight: 20,
     marginBottom: SIZES.LG,
@@ -624,16 +644,19 @@ const st = StyleSheet.create({
   },
   preview: {
     width: PREVIEW_WIDTH,
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: colors.BACKGROUND,
     borderRadius: SIZES.BORDER_RADIUS_MD,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: COLORS.BORDER,
+    borderColor: colors.BORDER,
     alignSelf: 'center',
   },
 });
 
-const dt = StyleSheet.create({
+}
+
+function createDtStyles(colors: ReturnType<typeof getColors>) {
+  return StyleSheet.create({
   dot: {
     height: 8,
     borderRadius: 4,
@@ -644,7 +667,10 @@ const dt = StyleSheet.create({
 // Preview styles
 // ---------------------------------------------------------------------------
 
-const pv = StyleSheet.create({
+}
+
+function createPvStyles(colors: ReturnType<typeof getColors>) {
+  return StyleSheet.create({
   container: {
     padding: SIZES.MD,
     minHeight: 220,
@@ -673,7 +699,7 @@ const pv = StyleSheet.create({
   },
   welcomeSub: {
     fontSize: SIZES.FONT_SM,
-    color: COLORS.TEXT_MUTED,
+    color: colors.TEXT_MUTED,
     fontStyle: 'italic',
   },
   // Stats
@@ -681,32 +707,32 @@ const pv = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-around',
     marginBottom: SIZES.MD,
-    backgroundColor: COLORS.WHITE,
+    backgroundColor: colors.WHITE,
     borderRadius: SIZES.BORDER_RADIUS_SM,
     padding: SIZES.SM,
   },
   stat: { alignItems: 'center', gap: 2 },
   statVal: { fontSize: SIZES.FONT_LG, fontWeight: '700' },
-  statLbl: { fontSize: 10, color: COLORS.TEXT_MUTED },
+  statLbl: { fontSize: 10, color: colors.TEXT_MUTED },
   // Appointments
   apptRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.WHITE,
+    backgroundColor: colors.WHITE,
     borderRadius: SIZES.BORDER_RADIUS_SM,
     padding: SIZES.SM,
     gap: SIZES.SM,
     marginBottom: 6,
   },
-  completedRow: { opacity: 0.6, borderLeftWidth: 3, borderLeftColor: COLORS.SUCCESS },
-  name: { fontSize: SIZES.FONT_SM, fontWeight: '600', color: COLORS.TEXT_PRIMARY },
-  sub: { fontSize: SIZES.FONT_XS, color: COLORS.TEXT_MUTED },
-  time: { fontSize: SIZES.FONT_SM, fontWeight: '600', color: COLORS.TEXT_PRIMARY },
+  completedRow: { opacity: 0.6, borderLeftWidth: 3, borderLeftColor: colors.SUCCESS },
+  name: { fontSize: SIZES.FONT_SM, fontWeight: '600', color: colors.TEXT_PRIMARY },
+  sub: { fontSize: SIZES.FONT_XS, color: colors.TEXT_MUTED },
+  time: { fontSize: SIZES.FONT_SM, fontWeight: '600', color: colors.TEXT_PRIMARY },
   // Patients
   patientRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.WHITE,
+    backgroundColor: colors.WHITE,
     borderRadius: SIZES.BORDER_RADIUS_SM,
     padding: SIZES.SM,
     gap: SIZES.SM,
@@ -714,10 +740,10 @@ const pv = StyleSheet.create({
   },
   avatar: {
     width: 32, height: 32, borderRadius: 16,
-    backgroundColor: COLORS.NURSE_LIGHT,
+    backgroundColor: colors.NURSE_LIGHT,
     alignItems: 'center', justifyContent: 'center',
   },
-  avatarTxt: { fontSize: SIZES.FONT_SM, fontWeight: '700', color: COLORS.NURSE_PRIMARY },
+  avatarTxt: { fontSize: SIZES.FONT_SM, fontWeight: '700', color: colors.NURSE_PRIMARY },
   // Map / Tournée
   mapArea: {
     height: 140,
@@ -732,12 +758,12 @@ const pv = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: COLORS.NURSE_PRIMARY,
+    backgroundColor: colors.NURSE_PRIMARY,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
-    borderColor: COLORS.WHITE,
-    shadowColor: COLORS.BLACK,
+    borderColor: colors.WHITE,
+    shadowColor: colors.BLACK,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 3,
@@ -746,7 +772,7 @@ const pv = StyleSheet.create({
   markerText: {
     fontSize: 11,
     fontWeight: '800',
-    color: COLORS.WHITE,
+    color: colors.WHITE,
   },
   stopList: {
     gap: 4,
@@ -762,73 +788,74 @@ const pv = StyleSheet.create({
     width: 20,
     height: 20,
     borderRadius: 10,
-    backgroundColor: COLORS.BORDER,
+    backgroundColor: colors.BORDER,
     alignItems: 'center',
     justifyContent: 'center',
   },
   stopNumActive: {
-    backgroundColor: COLORS.DANGER,
+    backgroundColor: colors.DANGER,
   },
   stopNumTxt: {
     fontSize: 10,
     fontWeight: '700',
-    color: COLORS.TEXT_MUTED,
+    color: colors.TEXT_MUTED,
   },
   stopName: {
     flex: 1,
     fontSize: SIZES.FONT_XS,
-    color: COLORS.TEXT_PRIMARY,
+    color: colors.TEXT_PRIMARY,
     fontWeight: '500',
   },
   stopTime: {
     fontSize: SIZES.FONT_XS,
-    color: COLORS.TEXT_MUTED,
+    color: colors.TEXT_MUTED,
   },
   // Conversations
   convo: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: COLORS.WHITE, borderRadius: SIZES.BORDER_RADIUS_SM,
+    backgroundColor: colors.WHITE, borderRadius: SIZES.BORDER_RADIUS_SM,
     padding: SIZES.SM, gap: SIZES.SM, marginBottom: 6,
   },
   convoTop: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2,
   },
-  msg: { fontSize: SIZES.FONT_XS, color: COLORS.TEXT_SECONDARY },
+  msg: { fontSize: SIZES.FONT_XS, color: colors.TEXT_SECONDARY },
   badge: {
     width: 20, height: 20, borderRadius: 10,
-    backgroundColor: COLORS.DANGER,
+    backgroundColor: colors.DANGER,
     alignItems: 'center', justifyContent: 'center',
   },
-  badgeTxt: { fontSize: 10, fontWeight: '700', color: COLORS.WHITE },
+  badgeTxt: { fontSize: 10, fontWeight: '700', color: colors.WHITE },
   // Profile
   profCard: {
-    backgroundColor: COLORS.WHITE, borderRadius: SIZES.BORDER_RADIUS_SM,
+    backgroundColor: colors.WHITE, borderRadius: SIZES.BORDER_RADIUS_SM,
     padding: SIZES.MD, alignItems: 'center', marginBottom: SIZES.SM,
   },
   profAvatar: {
     width: 48, height: 48, borderRadius: 24,
-    backgroundColor: COLORS.NURSE_LIGHT,
+    backgroundColor: colors.NURSE_LIGHT,
     alignItems: 'center', justifyContent: 'center', marginBottom: SIZES.XS,
   },
-  profName: { fontSize: SIZES.FONT_MD, fontWeight: '700', color: COLORS.TEXT_PRIMARY },
-  profRole: { fontSize: SIZES.FONT_XS, color: COLORS.NURSE_PRIMARY, fontWeight: '600' },
+  profName: { fontSize: SIZES.FONT_MD, fontWeight: '700', color: colors.TEXT_PRIMARY },
+  profRole: { fontSize: SIZES.FONT_XS, color: colors.NURSE_PRIMARY, fontWeight: '600' },
   profSec: {
-    backgroundColor: COLORS.WHITE, borderRadius: SIZES.BORDER_RADIUS_SM,
+    backgroundColor: colors.WHITE, borderRadius: SIZES.BORDER_RADIUS_SM,
     padding: SIZES.SM, gap: SIZES.SM,
   },
   info: { flexDirection: 'row', alignItems: 'center' },
-  infoLbl: { fontSize: 10, color: COLORS.TEXT_MUTED },
-  infoVal: { fontSize: SIZES.FONT_XS, color: COLORS.TEXT_PRIMARY, fontWeight: '500' },
+  infoLbl: { fontSize: 10, color: colors.TEXT_MUTED },
+  infoVal: { fontSize: SIZES.FONT_XS, color: colors.TEXT_PRIMARY, fontWeight: '500' },
   // Suivi
   suiviTop: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: COLORS.WHITE, borderRadius: SIZES.BORDER_RADIUS_SM,
+    backgroundColor: colors.WHITE, borderRadius: SIZES.BORDER_RADIUS_SM,
     padding: SIZES.SM, gap: SIZES.SM, marginBottom: SIZES.SM,
   },
   avatarLg: {
     width: 40, height: 40, borderRadius: 20,
-    backgroundColor: COLORS.FAMILY_LIGHT,
+    backgroundColor: colors.FAMILY_LIGHT,
     alignItems: 'center', justifyContent: 'center',
   },
-  avatarTxtLg: { fontSize: SIZES.FONT_MD, fontWeight: '700', color: COLORS.FAMILY_PRIMARY },
+  avatarTxtLg: { fontSize: SIZES.FONT_MD, fontWeight: '700', color: colors.FAMILY_PRIMARY },
 });
+}
