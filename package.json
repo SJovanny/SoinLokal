@@ -10,6 +10,7 @@
     "build:android": "eas build --platform android",
     "build:ios": "eas build --platform ios",
     "typecheck": "tsc --noEmit",
+    "lint": "eslint . --ext .ts,.tsx --max-warnings 0",
     "seed": "npx tsx scripts/seed.ts",
     "regeocode": "npx tsx scripts/regeocode-patients.ts",
     "create-admin": "npx tsx scripts/create-admin.ts"
@@ -60,6 +61,8 @@
     "@types/react": "~19.1.10",
     "babel-preset-expo": "^54.0.10",
     "dotenv": "^17.4.2",
+    "eslint": "^9",
+    "eslint-config-expo": "^8",
     "tsx": "^4.22.4",
     "typescript": "~5.9.2"
   },

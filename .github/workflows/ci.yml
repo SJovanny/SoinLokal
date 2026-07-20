@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+      - develop
+  workflow_dispatch:
+
+jobs:
+  typecheck:
+    name: TypeCheck (Main App)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+
+  admin-web-build:
+    name: Build (Admin Web)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: admin-web/package-lock.json
+      - name: Install dependencies
+        working-directory: admin-web
+        run: npm ci
+      - name: Build
+        working-directory: admin-web
+        run: npm run build
+
+  # ---------------------------------------------------------------------------
+  # Lint job — uncomment once eslint is fully configured and verified.
+  # A minimal .eslintrc.json already exists at the project root.
+  # Run `npm install` (or `npm ci`) to install eslint + eslint-config-expo,
+  # then test locally with `npm run lint` before enabling this job.
+  # ---------------------------------------------------------------------------
+  # lint:
+  #   name: Lint
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: actions/setup-node@v4
+  #       with:
+  #         node-version: 20
+  #         cache: npm
+  #     - run: npm ci
+  #     - run: npm run lint
