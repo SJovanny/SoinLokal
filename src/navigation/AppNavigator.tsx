@@ -4,9 +4,10 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS } from '../utils/constants';
+import { getColors } from '../utils/constants';
 
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
 import { useMessageCount } from '../contexts/MessageCountContext';
 import SplashScreen from '../components/SplashScreen';
 import OnboardingModal from '../components/OnboardingModal';
@@ -50,6 +51,8 @@ const Tab = createBottomTabNavigator();
 // Navigation pour les infirmières
 const NurseTabNavigator = () => {
   const { unreadCount } = useMessageCount();
+  const { isDark } = useTheme();
+  const colors = getColors(isDark);
   return (
   <Tab.Navigator
     screenOptions={({ route }) => ({
@@ -118,7 +121,7 @@ const NurseTabNavigator = () => {
         title: 'Messages',
         headerShown: false,
         tabBarBadge: unreadCount > 0 ? unreadCount : undefined,
-        tabBarBadgeStyle: { backgroundColor: COLORS.DANGER },
+        tabBarBadgeStyle: { backgroundColor: colors.DANGER },
       }}
     />
     <Tab.Screen
@@ -136,6 +139,8 @@ const NurseTabNavigator = () => {
 // Navigation pour les patients
 const PatientTabNavigator = () => {
   const { unreadCount } = useMessageCount();
+  const { isDark } = useTheme();
+  const colors = getColors(isDark);
   return (
   <Tab.Navigator
     screenOptions={({ route }) => ({
@@ -193,7 +198,7 @@ const PatientTabNavigator = () => {
         title: 'Messages',
         headerShown: false,
         tabBarBadge: unreadCount > 0 ? unreadCount : undefined,
-        tabBarBadgeStyle: { backgroundColor: COLORS.DANGER },
+        tabBarBadgeStyle: { backgroundColor: colors.DANGER },
       }}
     />
     <Tab.Screen
@@ -211,6 +216,8 @@ const PatientTabNavigator = () => {
 // Navigation pour les familles
 const FamilyTabNavigator = () => {
   const { unreadCount } = useMessageCount();
+  const { isDark } = useTheme();
+  const colors = getColors(isDark);
   return (
   <Tab.Navigator
     screenOptions={({ route }) => ({
@@ -268,7 +275,7 @@ const FamilyTabNavigator = () => {
         title: 'Messages',
         headerShown: false,
         tabBarBadge: unreadCount > 0 ? unreadCount : undefined,
-        tabBarBadgeStyle: { backgroundColor: COLORS.DANGER },
+        tabBarBadgeStyle: { backgroundColor: colors.DANGER },
       }}
     />
     <Tab.Screen
