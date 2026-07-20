@@ -8,6 +8,7 @@ import { AuthProvider } from './src/contexts/AuthContext';
 import { MessageCountProvider } from './src/contexts/MessageCountContext';
 import AppNavigator from './src/navigation/AppNavigator';
 import CustomSplashScreen from './src/components/SplashScreen';
+import ErrorBoundary from './src/components/ErrorBoundary';
 
 // Hide the native splash screen immediately so our custom one takes over
 SplashScreen.hideAsync();
@@ -25,14 +26,16 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
-      <TamaguiProvider config={config} defaultTheme="light">
-        <AuthProvider>
-          <MessageCountProvider>
-            <AppNavigator />
-          </MessageCountProvider>
-          <StatusBar style="auto" />
-        </AuthProvider>
-      </TamaguiProvider>
+      <ErrorBoundary>
+        <TamaguiProvider config={config} defaultTheme="light">
+          <AuthProvider>
+            <MessageCountProvider>
+              <AppNavigator />
+            </MessageCountProvider>
+            <StatusBar style="auto" />
+          </AuthProvider>
+        </TamaguiProvider>
+      </ErrorBoundary>
     </SafeAreaProvider>
   );
 }
