@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useCallback } from 'react';
+import React, { useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -11,13 +11,17 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Polygon, Defs, LinearGradient as SvgLinearGradient, Stop } from 'react-native-svg';
 import { useIsFocused } from '@react-navigation/native';
-import { COLORS } from '../../utils/constants';
+import { getColors } from '../../utils/constants';
+import { useTheme } from '../../contexts/ThemeContext';
 import DoctorIllustration from '../../../assets/Doctors-bro.svg';
 import WheelchairIllustration from '../../../assets/Hospital wheelchair-rafiki.svg';
 
 const { width, height } = Dimensions.get('window');
 
 const UserTypeScreen = ({ navigation }: { navigation: any }) => {
+  const { isDark } = useTheme();
+  const colors = getColors(isDark);
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const tileOpacity = useRef(new Animated.Value(0)).current;
   const nurseSlideX = useRef(new Animated.Value(-40)).current;
   const nurseOpacity = useRef(new Animated.Value(0)).current;
@@ -133,13 +137,13 @@ const UserTypeScreen = ({ navigation }: { navigation: any }) => {
         <Svg width={width} height={height}>
           <Defs>
             <SvgLinearGradient id="nurseTile" x1="0" y1="0" x2="1" y2="1">
-              <Stop offset="0" stopColor={COLORS.NURSE_DARK} />
-              <Stop offset="0.6" stopColor={COLORS.NURSE_PRIMARY} />
+              <Stop offset="0" stopColor={colors.NURSE_DARK} />
+              <Stop offset="0.6" stopColor={colors.NURSE_PRIMARY} />
               <Stop offset="1" stopColor="#3CB371" />
             </SvgLinearGradient>
             <SvgLinearGradient id="patientTile" x1="0" y1="0" x2="1" y2="1">
-              <Stop offset="0" stopColor={COLORS.PATIENT_DARK} />
-              <Stop offset="0.6" stopColor={COLORS.PATIENT_PRIMARY} />
+              <Stop offset="0" stopColor={colors.PATIENT_DARK} />
+              <Stop offset="0.6" stopColor={colors.PATIENT_PRIMARY} />
               <Stop offset="1" stopColor="#64B5F6" />
             </SvgLinearGradient>
           </Defs>
@@ -260,10 +264,11 @@ const UserTypeScreen = ({ navigation }: { navigation: any }) => {
   );
 };
 
-const styles = StyleSheet.create({
+function createStyles(colors: ReturnType<typeof getColors>) {
+  return StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.NURSE_DARK,
+    backgroundColor: colors.NURSE_DARK,
   },
   contentWrapper: {
     flex: 1,
@@ -334,6 +339,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     letterSpacing: 0.6,
   },
-});
+  });
+}
 
 export default UserTypeScreen;

@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -16,8 +16,9 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
+import { useTheme } from '../../contexts/ThemeContext';
 import { supabase } from '../../utils/supabase';
-import { getThemeColor, COLORS } from '../../utils/constants';
+import { getThemeColor, getColors } from '../../utils/constants';
 import { validateEmail, handleAuthError } from '../../utils/helpers';
 import { debugLog } from '../../utils/devConfig';
 
@@ -38,6 +39,9 @@ En cochant la case ci-dessous, vous reconnaissez avoir lu, compris et accepté l
 const RegisterScreen = ({ navigation, route }: { navigation: any; route: any }) => {
   const { userType: initialUserType } = route.params || { userType: 'nurse' };
   const { register } = useAuth();
+  const { isDark } = useTheme();
+  const colors = getColors(isDark);
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   const [userType, setUserType] = useState<'patient' | 'family' | 'nurse'>(initialUserType);
 
@@ -383,7 +387,7 @@ const RegisterScreen = ({ navigation, route }: { navigation: any; route: any }) 
               <TouchableOpacity
                 style={[
                   styles.roleToggleBtn,
-                  userType === 'patient' && { backgroundColor: COLORS.PATIENT_LIGHT, borderColor: COLORS.PATIENT_PRIMARY },
+                  userType === 'patient' && { backgroundColor: colors.PATIENT_LIGHT, borderColor: colors.PATIENT_PRIMARY },
                 ]}
                 onPress={() => setUserType('patient')}
                 activeOpacity={0.7}
@@ -391,17 +395,17 @@ const RegisterScreen = ({ navigation, route }: { navigation: any; route: any }) 
                 <Ionicons
                   name="person-outline"
                   size={16}
-                  color={userType === 'patient' ? COLORS.PATIENT_PRIMARY : COLORS.TEXT_MUTED}
+                  color={userType === 'patient' ? colors.PATIENT_PRIMARY : colors.TEXT_MUTED}
                 />
                 <Text style={[
                   styles.roleToggleText,
-                  userType === 'patient' && { color: COLORS.PATIENT_PRIMARY, fontWeight: '600' },
+                  userType === 'patient' && { color: colors.PATIENT_PRIMARY, fontWeight: '600' },
                 ]}>Patient</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[
                   styles.roleToggleBtn,
-                  userType === 'family' && { backgroundColor: COLORS.FAMILY_LIGHT, borderColor: COLORS.FAMILY_PRIMARY },
+                  userType === 'family' && { backgroundColor: colors.FAMILY_LIGHT, borderColor: colors.FAMILY_PRIMARY },
                 ]}
                 onPress={() => setUserType('family')}
                 activeOpacity={0.7}
@@ -409,11 +413,11 @@ const RegisterScreen = ({ navigation, route }: { navigation: any; route: any }) 
                 <Ionicons
                   name="people-outline"
                   size={16}
-                  color={userType === 'family' ? COLORS.FAMILY_PRIMARY : COLORS.TEXT_MUTED}
+                  color={userType === 'family' ? colors.FAMILY_PRIMARY : colors.TEXT_MUTED}
                 />
                 <Text style={[
                   styles.roleToggleText,
-                  userType === 'family' && { color: COLORS.FAMILY_PRIMARY, fontWeight: '600' },
+                  userType === 'family' && { color: colors.FAMILY_PRIMARY, fontWeight: '600' },
                 ]}>Proche / Famille</Text>
               </TouchableOpacity>
             </View>
@@ -447,7 +451,7 @@ const RegisterScreen = ({ navigation, route }: { navigation: any; route: any }) 
 
             {userType === 'family' && (
               <View style={styles.familyHint}>
-                <Ionicons name="information-circle-outline" size={18} color={COLORS.FAMILY_PRIMARY} />
+                <Ionicons name="information-circle-outline" size={18} color={colors.FAMILY_PRIMARY} />
                 <Text style={styles.familyHintText}>
                   En tant que proche, vous pourrez suivre les soins et rendez-vous de votre aidé, et communiquer avec l'équipe soignante.
                 </Text>
@@ -541,10 +545,11 @@ const RegisterScreen = ({ navigation, route }: { navigation: any; route: any }) 
   );
 };
 
-const styles = StyleSheet.create({
+function createStyles(colors: ReturnType<typeof getColors>) {
+  return StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8F9FA',
+    backgroundColor: colors.BACKGROUND,
   },
   scrollView: {
     flex: 1,
@@ -690,14 +695,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 10,
-    backgroundColor: COLORS.FAMILY_LIGHT,
+    backgroundColor: colors.FAMILY_LIGHT,
     padding: 16,
     borderRadius: 12,
   },
   familyHintText: {
     flex: 1,
     fontSize: 14,
-    color: COLORS.FAMILY_DARK,
+    color: colors.FAMILY_DARK,
     lineHeight: 20,
   },
   legalBox: {
@@ -737,6 +742,7 @@ const styles = StyleSheet.create({
   checkboxLabelDisabled: {
     color: '#CBD5E1',
   },
-});
+  });
+}
 
 export default RegisterScreen;

@@ -1,12 +1,16 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
-import { COLORS } from '../../utils/constants';
+import { useTheme } from '../../contexts/ThemeContext';
+import { getColors } from '../../utils/constants';
 
 const AdminWebOnlyScreen = () => {
   const { logout } = useAuth();
+  const { isDark } = useTheme();
+  const colors = getColors(isDark);
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   const handleLogout = async () => {
     try {
@@ -20,7 +24,7 @@ const AdminWebOnlyScreen = () => {
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
         <View style={styles.iconWrapper}>
-          <Ionicons name="desktop-outline" size={48} color={COLORS.NURSE_PRIMARY ?? '#2E8B57'} />
+          <Ionicons name="desktop-outline" size={48} color={colors.NURSE_PRIMARY ?? '#2E8B57'} />
         </View>
 
         <Text style={styles.title}>Espace Administrateur</Text>
@@ -38,8 +42,9 @@ const AdminWebOnlyScreen = () => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8F9FA' },
+function createStyles(colors: ReturnType<typeof getColors>) {
+  return StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.BACKGROUND },
   content: {
     flex: 1,
     alignItems: 'center',
@@ -50,7 +55,7 @@ const styles = StyleSheet.create({
     width: 88,
     height: 88,
     borderRadius: 44,
-    backgroundColor: '#E8F5EC',
+    backgroundColor: colors.NURSE_LIGHT,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 20,
@@ -58,13 +63,13 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 22,
     fontWeight: 'bold',
-    color: '#1A1A2E',
+    color: colors.TEXT_PRIMARY,
     marginBottom: 12,
     textAlign: 'center',
   },
   subtitle: {
     fontSize: 15,
-    color: '#64748B',
+    color: colors.TEXT_SECONDARY,
     textAlign: 'center',
     lineHeight: 22,
     marginBottom: 32,
@@ -83,6 +88,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
   },
-});
+  });
+}
 
 export default AdminWebOnlyScreen;
