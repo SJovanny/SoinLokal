@@ -12,7 +12,9 @@ import {
   Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { SvgXml } from 'react-native-svg';
 import { COLORS, SIZES } from '../utils/constants';
+import SignatureModal from './SignatureModal';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -23,6 +25,7 @@ export interface CareNotesData {
   observations: string;
   remarks: string;
   visible_to_patient: boolean;
+  signature?: string;
 }
 
 interface CompletionModalProps {
@@ -74,6 +77,8 @@ export default function CompletionModal({
   const [observations, setObservations] = useState('');
   const [remarks, setRemarks] = useState('');
   const [visibleToPatient, setVisibleToPatient] = useState(false);
+  const [signature, setSignature] = useState('');
+  const [showSignature, setShowSignature] = useState(false);
 
   useEffect(() => {
     if (visible) {
@@ -81,6 +86,7 @@ export default function CompletionModal({
       setObservations(existingData?.observations ?? '');
       setRemarks(existingData?.remarks ?? '');
       setVisibleToPatient(existingData?.visible_to_patient ?? false);
+      setSignature(existingData?.signature ?? '');
     }
   }, [visible, existingData]);
 
@@ -90,131 +96,158 @@ export default function CompletionModal({
       observations: observations.trim(),
       remarks: remarks.trim(),
       visible_to_patient: visibleToPatient,
+      signature: signature || undefined,
     });
   };
 
   const isEditing = !!existingData?.care_performed || !!existingData?.observations || !!existingData?.remarks;
 
   return (
-    <Modal visible={visible} animationType="fade" transparent>
-      <View style={styles.overlay}>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.keyboardView}
-        >
-          <View style={styles.content}>
-            {/* Header */}
-            <View style={styles.header}>
-              <Text style={styles.headerTitle}>
-                {isEditing ? 'Modifier les notes' : 'Soin terminé'}
-              </Text>
-              <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <Ionicons name="close" size={24} color={COLORS.TEXT_MUTED} />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-              contentContainerStyle={styles.scrollContent}
-            >
-              {/* Appointment info */}
-              <View style={styles.infoCard}>
-                <Text style={styles.infoName}>{patientName}</Text>
-                <Text style={styles.infoDetail}>
-                  {careType} · {formatDate(date)}
-                  {time ? ` · ${formatTime(time)}` : ''}
+    <>
+      <Modal visible={visible} animationType="fade" transparent>
+        <View style={styles.overlay}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={styles.keyboardView}
+          >
+            <View style={styles.content}>
+              <View style={styles.header}>
+                <Text style={styles.headerTitle}>
+                  {isEditing ? 'Modifier les notes' : 'Soin terminé'}
                 </Text>
+                <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Ionicons name="close" size={24} color={COLORS.TEXT_MUTED} />
+                </TouchableOpacity>
               </View>
 
-              {/* Soins réalisés */}
-              <Text style={styles.fieldLabel}>Soins réalisés</Text>
-              <TextInput
-                style={[styles.textArea, styles.textAreaSmall]}
-                placeholder="Décrivez les soins effectués..."
-                placeholderTextColor={COLORS.TEXT_MUTED}
-                multiline
-                numberOfLines={3}
-                textAlignVertical="top"
-                value={carePerformed}
-                onChangeText={setCarePerformed}
-              />
-
-              {/* Observations */}
-              <Text style={styles.fieldLabel}>Observations</Text>
-              <TextInput
-                style={[styles.textArea, styles.textAreaSmall]}
-                placeholder="État du patient, réactions, observations..."
-                placeholderTextColor={COLORS.TEXT_MUTED}
-                multiline
-                numberOfLines={3}
-                textAlignVertical="top"
-                value={observations}
-                onChangeText={setObservations}
-              />
-
-              {/* Remarques */}
-              <Text style={styles.fieldLabel}>Remarques</Text>
-              <TextInput
-                style={[styles.textArea, styles.textAreaSmall]}
-                placeholder="Remarques complémentaires..."
-                placeholderTextColor={COLORS.TEXT_MUTED}
-                multiline
-                numberOfLines={3}
-                textAlignVertical="top"
-                value={remarks}
-                onChangeText={setRemarks}
-              />
-
-              {/* Visibility toggle */}
-              <View style={styles.toggleRow}>
-                <View style={styles.toggleInfo}>
-                  <Ionicons
-                    name={visibleToPatient ? 'eye-outline' : 'eye-off-outline'}
-                    size={20}
-                    color={visibleToPatient ? COLORS.NURSE_PRIMARY : COLORS.TEXT_MUTED}
-                  />
-                  <View style={styles.toggleTextBlock}>
-                    <Text style={styles.toggleLabel}>Visible pour le patient</Text>
-                    <Text style={styles.toggleHint}>
-                      {visibleToPatient
-                        ? 'Le patient verra ces notes dans son historique'
-                        : 'Seul vous pouvez voir ces notes'}
-                    </Text>
-                  </View>
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                contentContainerStyle={styles.scrollContent}
+              >
+                <View style={styles.infoCard}>
+                  <Text style={styles.infoName}>{patientName}</Text>
+                  <Text style={styles.infoDetail}>
+                    {careType} · {formatDate(date)}
+                    {time ? ` · ${formatTime(time)}` : ''}
+                  </Text>
                 </View>
-                <Switch
-                  value={visibleToPatient}
-                  onValueChange={setVisibleToPatient}
-                  trackColor={{ false: COLORS.BORDER, true: COLORS.NURSE_LIGHT }}
-                  thumbColor={visibleToPatient ? COLORS.NURSE_PRIMARY : '#f4f3f4'}
-                />
-              </View>
-            </ScrollView>
 
-            {/* Actions */}
-            <View style={styles.actions}>
-              <TouchableOpacity
-                style={styles.cancelButton}
-                onPress={onClose}
-                disabled={saving}
-              >
-                <Text style={styles.cancelText}>Annuler</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.saveButton, saving && styles.saveButtonDisabled]}
-                onPress={handleSave}
-                disabled={saving}
-              >
-                <Text style={styles.saveText}>
-                  {saving ? 'Enregistrement...' : 'Valider'}
-                </Text>
-              </TouchableOpacity>
+                <Text style={styles.fieldLabel}>Soins réalisés</Text>
+                <TextInput
+                  style={[styles.textArea, styles.textAreaSmall]}
+                  placeholder="Décrivez les soins effectués..."
+                  placeholderTextColor={COLORS.TEXT_MUTED}
+                  multiline
+                  numberOfLines={3}
+                  textAlignVertical="top"
+                  value={carePerformed}
+                  onChangeText={setCarePerformed}
+                />
+
+                <Text style={styles.fieldLabel}>Observations</Text>
+                <TextInput
+                  style={[styles.textArea, styles.textAreaSmall]}
+                  placeholder="État du patient, réactions, observations..."
+                  placeholderTextColor={COLORS.TEXT_MUTED}
+                  multiline
+                  numberOfLines={3}
+                  textAlignVertical="top"
+                  value={observations}
+                  onChangeText={setObservations}
+                />
+
+                <Text style={styles.fieldLabel}>Remarques</Text>
+                <TextInput
+                  style={[styles.textArea, styles.textAreaSmall]}
+                  placeholder="Remarques complémentaires..."
+                  placeholderTextColor={COLORS.TEXT_MUTED}
+                  multiline
+                  numberOfLines={3}
+                  textAlignVertical="top"
+                  value={remarks}
+                  onChangeText={setRemarks}
+                />
+
+                <Text style={styles.fieldLabel}>Signature</Text>
+                {signature ? (
+                  <View style={styles.signaturePreview}>
+                    <SvgXml xml={signature} width={200} height={90} />
+                    <TouchableOpacity
+                      style={styles.modifySignatureButton}
+                      onPress={() => setShowSignature(true)}
+                    >
+                      <Ionicons name="create-outline" size={16} color={COLORS.NURSE_PRIMARY} />
+                      <Text style={styles.modifySignatureText}>Modifier</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <TouchableOpacity
+                    style={styles.addSignatureButton}
+                    onPress={() => setShowSignature(true)}
+                  >
+                    <Ionicons name="create-outline" size={20} color={COLORS.NURSE_PRIMARY} />
+                    <Text style={styles.addSignatureText}>Ajouter une signature</Text>
+                  </TouchableOpacity>
+                )}
+
+                <View style={styles.toggleRow}>
+                  <View style={styles.toggleInfo}>
+                    <Ionicons
+                      name={visibleToPatient ? 'eye-outline' : 'eye-off-outline'}
+                      size={20}
+                      color={visibleToPatient ? COLORS.NURSE_PRIMARY : COLORS.TEXT_MUTED}
+                    />
+                    <View style={styles.toggleTextBlock}>
+                      <Text style={styles.toggleLabel}>Visible pour le patient</Text>
+                      <Text style={styles.toggleHint}>
+                        {visibleToPatient
+                          ? 'Le patient verra ces notes dans son historique'
+                          : 'Seul vous pouvez voir ces notes'}
+                      </Text>
+                    </View>
+                  </View>
+                  <Switch
+                    value={visibleToPatient}
+                    onValueChange={setVisibleToPatient}
+                    trackColor={{ false: COLORS.BORDER, true: COLORS.NURSE_LIGHT }}
+                    thumbColor={visibleToPatient ? COLORS.NURSE_PRIMARY : '#f4f3f4'}
+                  />
+                </View>
+              </ScrollView>
+
+              <View style={styles.actions}>
+                <TouchableOpacity
+                  style={styles.cancelButton}
+                  onPress={onClose}
+                  disabled={saving}
+                >
+                  <Text style={styles.cancelText}>Annuler</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.saveButton, saving && styles.saveButtonDisabled]}
+                  onPress={handleSave}
+                  disabled={saving}
+                >
+                  <Text style={styles.saveText}>
+                    {saving ? 'Enregistrement...' : 'Valider'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
-        </KeyboardAvoidingView>
-      </View>
-    </Modal>
+          </KeyboardAvoidingView>
+        </View>
+      </Modal>
+
+      <SignatureModal
+        visible={showSignature}
+        onClose={() => setShowSignature(false)}
+        onSave={(svg) => {
+          setSignature(svg);
+          setShowSignature(false);
+        }}
+      />
+    </>
   );
 }
 
@@ -359,5 +392,43 @@ const styles = StyleSheet.create({
     fontSize: SIZES.FONT_SM,
     fontWeight: '600',
     color: COLORS.WHITE,
+  },
+  addSignatureButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SIZES.SM,
+    paddingVertical: SIZES.MD,
+    borderRadius: SIZES.BORDER_RADIUS_MD,
+    borderWidth: 1.5,
+    borderColor: COLORS.NURSE_PRIMARY,
+    borderStyle: 'dashed',
+    backgroundColor: COLORS.NURSE_LIGHT,
+    marginBottom: SIZES.SM,
+  },
+  addSignatureText: {
+    fontSize: SIZES.FONT_SM,
+    fontWeight: '600',
+    color: COLORS.NURSE_PRIMARY,
+  },
+  signaturePreview: {
+    backgroundColor: COLORS.WHITE,
+    borderRadius: SIZES.BORDER_RADIUS_MD,
+    borderWidth: 1.5,
+    borderColor: COLORS.BORDER,
+    padding: SIZES.SM,
+    marginBottom: SIZES.SM,
+    alignItems: 'center',
+  },
+  modifySignatureButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SIZES.XS,
+    marginTop: SIZES.XS,
+  },
+  modifySignatureText: {
+    fontSize: SIZES.FONT_XS,
+    fontWeight: '600',
+    color: COLORS.NURSE_PRIMARY,
   },
 });

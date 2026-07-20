@@ -138,6 +138,7 @@ export interface Appointment {
   observations?:       string;
   remarks?:            string;
   visible_to_patient:  boolean;
+  signature_data?:     string;
   created_at:          string;
   updated_at:          string;
   nurse?:              { id: string; first_name: string; last_name: string };
