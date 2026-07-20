@@ -10,10 +10,12 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../contexts/AuthContext';
 import { getThemeColor } from '../../utils/constants';
 
 const LoginScreen = ({ navigation, route }: { navigation: any; route: any }) => {
+  const { t } = useTranslation();
   const { userType } = route.params || { userType: 'nurse' };
   const { login, logout } = useAuth();
 
@@ -28,7 +30,7 @@ const LoginScreen = ({ navigation, route }: { navigation: any; route: any }) => 
 
   const handleLogin = async () => {
     if (!email || !password) {
-      Alert.alert('Erreur', 'Veuillez remplir tous les champs');
+      Alert.alert(t('common.error'), t('auth.fillAllFields'));
       return;
     }
 
@@ -53,16 +55,16 @@ const LoginScreen = ({ navigation, route }: { navigation: any; route: any }) => 
           // role-mismatch alert below.
         }
         Alert.alert(
-          'Erreur de connexion',
+          t('auth.roleMismatch'),
           actualUserType === 'nurse'
-            ? "Ce compte est un compte Infirmier. Veuillez utiliser l'accès Infirmier pour vous connecter."
-            : "Ce compte est un compte Patient/Famille. Veuillez utiliser l'accès Patient/Famille pour vous connecter."
+            ? t('auth.nurseAccountRequired')
+            : t('auth.patientAccountRequired')
         );
         return;
       }
       // La navigation se fera automatiquement via AuthContext
     } catch (error: any) {
-      Alert.alert('Erreur de connexion', error.message);
+      Alert.alert(t('auth.roleMismatch'), error.message);
     } finally {
       setLoading(false);
     }
@@ -87,8 +89,8 @@ const LoginScreen = ({ navigation, route }: { navigation: any; route: any }) => 
             size={40}
             color={themeColor}
           />
-          <Text style={[styles.title, { color: themeColor }]}>Connexion</Text>
-          <Text style={styles.subtitle}>Bienvenue sur SoinLokal</Text>
+          <Text style={[styles.title, { color: themeColor }]}>{t('auth.loginTitle')}</Text>
+          <Text style={styles.subtitle}>{t('auth.welcome')}</Text>
         </View>
 
         {/* Form */}
@@ -108,7 +110,7 @@ const LoginScreen = ({ navigation, route }: { navigation: any; route: any }) => 
             />
             <TextInput
               style={styles.input}
-              placeholder="Adresse email"
+              placeholder={t('auth.emailPlaceholder')}
               placeholderTextColor="#94A3B8"
               value={email}
               onChangeText={setEmail}
@@ -135,7 +137,7 @@ const LoginScreen = ({ navigation, route }: { navigation: any; route: any }) => 
             />
             <TextInput
               style={styles.input}
-              placeholder="Mot de passe"
+              placeholder={t('auth.passwordPlaceholder')}
               placeholderTextColor="#94A3B8"
               value={password}
               onChangeText={setPassword}
@@ -167,7 +169,7 @@ const LoginScreen = ({ navigation, route }: { navigation: any; route: any }) => 
             {loading ? (
               <ActivityIndicator color="white" />
             ) : (
-              <Text style={styles.primaryButtonText}>Se connecter</Text>
+              <Text style={styles.primaryButtonText}>{t('auth.login')}</Text>
             )}
           </TouchableOpacity>
 
@@ -177,19 +179,19 @@ const LoginScreen = ({ navigation, route }: { navigation: any; route: any }) => 
             onPress={() => navigation.navigate('ForgotPassword', { userType })}
           >
             <Text style={[styles.forgotPasswordText, { color: themeColor }]}>
-              Mot de passe oublié ?
+              {t('auth.forgotPassword')}
             </Text>
           </TouchableOpacity>
         </View>
 
         {/* Footer */}
         <View style={styles.footer}>
-          <Text style={styles.footerText}>Pas encore de compte ?</Text>
+          <Text style={styles.footerText}>{t('auth.noAccount')}</Text>
           <TouchableOpacity
             onPress={() => navigation.navigate('Register', { userType })}
             hitSlop={{ top: 8, bottom: 8, left: 4, right: 8 }}
           >
-            <Text style={[styles.footerLink, { color: themeColor }]}>S'inscrire</Text>
+            <Text style={[styles.footerLink, { color: themeColor }]}>{t('auth.signUp')}</Text>
           </TouchableOpacity>
         </View>
       </View>
