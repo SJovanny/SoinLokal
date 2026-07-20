@@ -30,6 +30,7 @@ import NursePendingVerificationScreen from '../screens/nurse/NursePendingVerific
 import PatientDashboard from '../screens/patient/PatientDashboard';
 import PatientCareHistory from '../screens/patient/PatientCareHistory';
 import PatientProfile from '../screens/patient/PatientProfile';
+import ExportDataScreen from '../screens/patient/ExportDataScreen';
 import MessagingScreen from '../screens/shared/MessagingScreen';
 import ChatScreen from '../screens/shared/ChatScreen';
 
@@ -385,6 +386,7 @@ const AppNavigator = () => {
               )}
               <Stack.Screen name="PatientDetail" component={PatientDetail} />
               <Stack.Screen name="CareHistory" component={CareHistoryScreen} />
+              <Stack.Screen name="ExportData" component={ExportDataScreen} />
               <Stack.Screen name="AddManagedPatient" component={AddManagedPatient} />
               <Stack.Screen name="NurseProfileView" component={NurseProfileView} />
               <Stack.Screen name="ChatScreen" component={ChatScreen} />
