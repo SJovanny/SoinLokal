@@ -75,6 +75,21 @@ export type SizeKey = keyof typeof SIZES;
 // ---------------------------------------------------------------------------
 
 export const DARK_OVERRIDES = {
+  NURSE_PRIMARY:   '#4CAF7D',
+  NURSE_LIGHT:     '#1B3A2C',
+  NURSE_DARK:      '#2E8B57',
+  PATIENT_PRIMARY: '#6BA3E8',
+  PATIENT_LIGHT:   '#1A2B3D',
+  PATIENT_DARK:    '#4A90E2',
+  FAMILY_PRIMARY:  '#9575FF',
+  FAMILY_LIGHT:    '#2A1F3D',
+  FAMILY_DARK:     '#7C4DFF',
+
+  SUCCESS: '#66BB6A',
+  WARNING: '#FFA726',
+  DANGER:  '#EF5350',
+  INFO:    '#42A5F5',
+
   BACKGROUND:     '#0F0F1A',
   SURFACE:        '#1A1A2E',
   WHITE:          '#1A1A2E',
