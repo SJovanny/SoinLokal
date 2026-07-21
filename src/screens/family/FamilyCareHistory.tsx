@@ -44,7 +44,7 @@ const FamilyCareHistory: React.FC = () => {
   const colors = getColors(isDark);
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [patientName, setPatientName] = useState<string | null>(null);
-  const [patientFileId, setPatientFileId] = useState<string | null>(null);
+  const [patientId, setPatientId] = useState<string | null>(null);
   const [history, setHistory] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
@@ -54,7 +54,7 @@ const FamilyCareHistory: React.FC = () => {
     : history;
 
   // -------------------------------------------------------------------------
-  // Fetch the single linked patient (via family_links or managed_by)
+  // Fetch the linked patient's ID (via family_links or managed_by)
   // -------------------------------------------------------------------------
 
   const fetchPatient = useCallback(async () => {
@@ -78,7 +78,7 @@ const FamilyCareHistory: React.FC = () => {
 
         if (profile) {
           setPatientName(`${profile.first_name} ${profile.last_name}`);
-          setPatientFileId(file.id);
+          setPatientId(file.patient_id);
           return;
         }
       }
@@ -103,31 +103,35 @@ const FamilyCareHistory: React.FC = () => {
         setPatientName(`${profile.first_name} ${profile.last_name}`);
       }
 
-      const { data: file } = await supabase
-        .from('patient_files')
-        .select('id')
-        .eq('patient_id', managedProfile.profile_id)
-        .single();
-
-      if (file) {
-        setPatientFileId(file.id);
-      }
+      setPatientId(managedProfile.profile_id);
     }
   }, [user, familyLinks]);
 
   // -------------------------------------------------------------------------
-  // Fetch care history
+  // Fetch care history (all nurses)
   // -------------------------------------------------------------------------
 
   const fetchHistory = useCallback(async () => {
-    if (!patientFileId) return;
+    if (!patientId) return;
     setLoading(true);
 
     try {
+      const { data: files } = await supabase
+        .from('patient_files')
+        .select('id')
+        .eq('patient_id', patientId);
+
+      const fileIds = (files ?? []).map((f: any) => f.id);
+
+      if (fileIds.length === 0) {
+        setHistory([]);
+        return;
+      }
+
       const { data, error } = await supabase
         .from('appointments')
         .select('*, nurse:profiles!nurse_id(id, first_name, last_name)')
-        .eq('patient_file_id', patientFileId)
+        .in('patient_file_id', fileIds)
         .eq('status', 'completed')
         .eq('visible_to_patient', true)
         .order('date', { ascending: false })
@@ -146,19 +150,19 @@ const FamilyCareHistory: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [patientFileId]);
+  }, [patientId]);
 
   useEffect(() => {
     fetchPatient();
   }, [fetchPatient]);
 
   useEffect(() => {
-    if (patientFileId) {
+    if (patientId) {
       fetchHistory();
     } else {
       setLoading(false);
     }
-  }, [patientFileId, fetchHistory]);
+  }, [patientId, fetchHistory]);
 
   // -------------------------------------------------------------------------
   // Render item

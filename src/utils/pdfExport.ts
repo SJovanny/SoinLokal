@@ -254,7 +254,6 @@ export async function exportCareHistoryToPDF(options: ExportOptions): Promise<vo
       html,
       width: 842,
       height: 595,
-      padding: { top: 20, right: 20, bottom: 20, left: 20 },
     });
 
     const canShare = await Sharing.isAvailableAsync();
@@ -572,7 +571,6 @@ export async function exportPatientDossierToPDF(options: PatientDossierOptions):
       html,
       width: 595,
       height: 842,
-      padding: { top: 16, right: 16, bottom: 16, left: 16 },
     });
 
     const canShare = await Sharing.isAvailableAsync();

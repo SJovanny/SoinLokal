@@ -28,12 +28,12 @@
       "package": "com.soinlokal.app",
       "versionCode": 1,
       "permissions": [
-        "ACCESS_FINE_LOCATION",
-        "ACCESS_COARSE_LOCATION",
-        "CAMERA",
-        "READ_EXTERNAL_STORAGE",
-        "WRITE_EXTERNAL_STORAGE",
-        "RECORD_AUDIO"
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "web": {
@@ -60,6 +60,12 @@
       "web"
     ],
     "description": "SoinLokal est l'application de référence pour les soins à domicile en Martinique. Conçue pour les infirmières libérales et leurs patients, elle optimise les tournées, simplifie la communication et améliore le suivi médical.",
-    "githubUrl": "https://github.com/soinlokal/app"
+    "githubUrl": "https://github.com/soinlokal/app",
+    "extra": {
+      "eas": {
+        "projectId": "45103bd0-956b-4901-9859-a3858665b074"
+      }
+    },
+    "owner": "maltet"
   }
 }

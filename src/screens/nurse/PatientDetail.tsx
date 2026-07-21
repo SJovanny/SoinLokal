@@ -141,22 +141,22 @@ const PatientDetail: React.FC<{ navigation: any; route: any }> = ({ navigation, 
     if (!patientId || !user) return;
     setLoadingHistory(true);
     try {
-      const { data: file } = await supabase
+      const { data: files } = await supabase
         .from('patient_files')
         .select('id')
-        .eq('patient_id', patientId)
-        .eq('nurse_id', user.id)
-        .single();
+        .eq('patient_id', patientId);
 
-      if (!file) {
+      const fileIds = (files ?? []).map((f: any) => f.id);
+
+      if (fileIds.length === 0) {
         setCareHistory([]);
         return;
       }
 
       const { data: history, error } = await supabase
         .from('appointments')
-        .select('*')
-        .eq('patient_file_id', file.id)
+        .select('*, nurse:profiles!nurse_id(id, first_name, last_name)')
+        .in('patient_file_id', fileIds)
         .eq('status', 'completed')
         .order('date', { ascending: false })
         .order('time', { ascending: false })
@@ -554,11 +554,13 @@ function formatCareDate(dateStr: string): string {
 function CareHistoryCard({
   appointment,
   styles,
+  colors,
 }: {
   appointment: Appointment;
   colors: ReturnType<typeof getColors>;
   styles: ReturnType<typeof createStyles>;
 }) {
+  const nurse = (appointment as any).nurse;
   return (
     <View style={styles.careCard}>
       <View style={styles.careCardHeader}>
@@ -570,6 +572,11 @@ function CareHistoryCard({
           {appointment.time ? ` · ${appointment.time.substring(0, 5)}` : ''}
         </Text>
       </View>
+      {nurse && (
+        <Text style={styles.careNurse}>
+          {nurse.first_name} {nurse.last_name}
+        </Text>
+      )}
       {appointment.care_performed ? (
         <Text style={styles.careNote} numberOfLines={2}>
           {appointment.care_performed}
@@ -738,6 +745,12 @@ function createStyles(colors: ReturnType<typeof getColors>) {
     careDate: {
       fontSize: SIZES.FONT_XS,
       color: colors.TEXT_MUTED,
+    },
+    careNurse: {
+      fontSize: SIZES.FONT_XS,
+      fontWeight: '600',
+      color: colors.TEXT_SECONDARY,
+      marginBottom: 2,
     },
     careNote: {
       fontSize: SIZES.FONT_SM,

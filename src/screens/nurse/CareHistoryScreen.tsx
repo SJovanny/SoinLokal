@@ -63,22 +63,22 @@ const CareHistoryScreen: React.FC<{ navigation: any; route: any }> = ({ navigati
     if (!user) return;
     setLoading(true);
     try {
-      const { data: file } = await supabase
+      const { data: files } = await supabase
         .from('patient_files')
         .select('id')
-        .eq('patient_id', patientId)
-        .eq('nurse_id', user.id)
-        .single();
+        .eq('patient_id', patientId);
 
-      if (!file) {
+      const fileIds = (files ?? []).map((f: any) => f.id);
+
+      if (fileIds.length === 0) {
         setHistory([]);
         return;
       }
 
       const { data, error } = await supabase
         .from('appointments')
-        .select('*')
-        .eq('patient_file_id', file.id)
+        .select('*, nurse:profiles!nurse_id(id, first_name, last_name)')
+        .in('patient_file_id', fileIds)
         .eq('status', 'completed')
         .order('date', { ascending: false })
         .order('time', { ascending: false });
@@ -147,35 +147,50 @@ const CareHistoryScreen: React.FC<{ navigation: any; route: any }> = ({ navigati
   // Render item
   // -------------------------------------------------------------------------
 
-  const renderItem = ({ item }: { item: Appointment }) => (
-    <View style={styles.card}>
-      <View style={styles.cardHeader}>
-        <View style={styles.cardHeaderLeft}>
-          <View style={styles.careTypeBadge}>
-            <Text style={styles.careTypeText}>{item.care_type}</Text>
-          </View>
-          <Text style={styles.cardDate}>
-            {formatDate(item.date)}
-            {item.time ? ` · ${formatTime(item.time)}` : ''}
-          </Text>
-        </View>
-        <TouchableOpacity
-          style={styles.editBtn}
-          onPress={() => {
-            setEditingAppointment(item);
-            setEditModalVisible(true);
-          }}
-        >
-          <Ionicons name="create-outline" size={18} color={colors.NURSE_PRIMARY} />
-        </TouchableOpacity>
-      </View>
+  const renderItem = ({ item }: { item: Appointment }) => {
+    const isOwn = item.nurse_id === user?.id;
 
-      {item.duration_min ? (
-        <View style={styles.durationRow}>
-          <Ionicons name="time-outline" size={14} color={colors.TEXT_MUTED} />
-          <Text style={styles.durationText}>{item.duration_min} min</Text>
+    return (
+      <View style={styles.card}>
+        <View style={styles.cardHeader}>
+          <View style={styles.cardHeaderLeft}>
+            <View style={styles.careTypeBadge}>
+              <Text style={styles.careTypeText}>{item.care_type}</Text>
+            </View>
+            <Text style={styles.cardDate}>
+              {formatDate(item.date)}
+              {item.time ? ` · ${formatTime(item.time)}` : ''}
+            </Text>
+          </View>
+          {isOwn && (
+            <TouchableOpacity
+              style={styles.editBtn}
+              onPress={() => {
+                setEditingAppointment(item);
+                setEditModalVisible(true);
+              }}
+            >
+              <Ionicons name="create-outline" size={18} color={colors.NURSE_PRIMARY} />
+            </TouchableOpacity>
+          )}
         </View>
-      ) : null}
+
+        {item.nurse && (
+          <View style={styles.nurseRow}>
+            <Ionicons name="person-outline" size={14} color={colors.TEXT_MUTED} />
+            <Text style={styles.nurseName}>
+              {item.nurse.first_name} {item.nurse.last_name}
+              {!isOwn ? '' : ' (vous)'}
+            </Text>
+          </View>
+        )}
+
+        {item.duration_min ? (
+          <View style={styles.durationRow}>
+            <Ionicons name="time-outline" size={14} color={colors.TEXT_MUTED} />
+            <Text style={styles.durationText}>{item.duration_min} min</Text>
+          </View>
+        ) : null}
 
       {item.care_performed ? (
         <View style={styles.noteBlock}>
@@ -211,23 +226,24 @@ const CareHistoryScreen: React.FC<{ navigation: any; route: any }> = ({ navigati
         </View>
       ) : null}
 
-      <View style={styles.visibilityRow}>
-        <Ionicons
-          name={item.visible_to_patient ? 'eye-outline' : 'eye-off-outline'}
-          size={14}
-          color={item.visible_to_patient ? colors.NURSE_PRIMARY : colors.TEXT_MUTED}
-        />
-        <Text
-          style={[
-            styles.visibilityText,
-            item.visible_to_patient && { color: colors.NURSE_PRIMARY },
-          ]}
-        >
-          {item.visible_to_patient ? 'Visible par le patient' : 'Masqué pour le patient'}
-        </Text>
+        <View style={styles.visibilityRow}>
+          <Ionicons
+            name={item.visible_to_patient ? 'eye-outline' : 'eye-off-outline'}
+            size={14}
+            color={item.visible_to_patient ? colors.NURSE_PRIMARY : colors.TEXT_MUTED}
+          />
+          <Text
+            style={[
+              styles.visibilityText,
+              item.visible_to_patient && { color: colors.NURSE_PRIMARY },
+            ]}
+          >
+            {item.visible_to_patient ? 'Visible par le patient' : 'Masqué pour le patient'}
+          </Text>
+        </View>
       </View>
-    </View>
-  );
+    );
+  };
 
   // -------------------------------------------------------------------------
   // Main render
@@ -439,6 +455,17 @@ function createStyles(colors: ReturnType<typeof getColors>) {
     },
     cardDate: {
       fontSize: SIZES.FONT_SM,
+      color: colors.TEXT_SECONDARY,
+    },
+    nurseRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      marginBottom: SIZES.SM,
+    },
+    nurseName: {
+      fontSize: SIZES.FONT_SM,
+      fontWeight: '600',
       color: colors.TEXT_SECONDARY,
     },
     editBtn: {

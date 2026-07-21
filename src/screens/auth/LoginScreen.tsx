@@ -64,7 +64,10 @@ const LoginScreen = ({ navigation, route }: { navigation: any; route: any }) => 
       }
       // La navigation se fera automatiquement via AuthContext
     } catch (error: any) {
-      Alert.alert(t('auth.roleMismatch'), error.message);
+      // Technical/unexpected errors (network, RLS, etc.) - NOT a role
+      // mismatch, so don't use the "roleMismatch" title which could mislead
+      // the user into thinking they used the wrong login portal.
+      Alert.alert(t('common.error'), error.message);
     } finally {
       setLoading(false);
     }

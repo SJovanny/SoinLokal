@@ -13,8 +13,12 @@ import Svg, { Polygon, Defs, LinearGradient as SvgLinearGradient, Stop } from 'r
 import { useIsFocused } from '@react-navigation/native';
 import { getColors } from '../../utils/constants';
 import { useTheme } from '../../contexts/ThemeContext';
-import DoctorIllustration from '../../../assets/Doctors-bro.svg';
-import WheelchairIllustration from '../../../assets/Hospital wheelchair-rafiki.svg';
+import DoctorIllustrationRaw from '../../../assets/Doctors-bro.svg';
+import WheelchairIllustrationRaw from '../../../assets/Hospital-wheelchair-rafiki.svg';
+import type { SvgProps } from 'react-native-svg';
+
+const DoctorIllustration = DoctorIllustrationRaw as unknown as React.FC<SvgProps>;
+const WheelchairIllustration = WheelchairIllustrationRaw as unknown as React.FC<SvgProps>;
 
 const { width, height } = Dimensions.get('window');
 

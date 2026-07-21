@@ -190,11 +190,21 @@ export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element
       // has a chance to redirect based on onAuthStateChange.
       let userType: string | null = null;
       if (data.user) {
-        const { data: profile } = await supabase
+        const { data: profile, error: profileError } = await supabase
           .from('profiles')
           .select('user_type')
           .eq('id', data.user.id)
           .single<{ user_type: string }>();
+
+        if (profileError) {
+          // Do NOT silently treat a technical/RLS error (e.g. 42P17 infinite
+          // recursion) as "no user_type found" -> that used to make the
+          // caller (LoginScreen) wrongly display "wrong account type" for a
+          // valid account. Surface the real error instead.
+          debugLog('Error fetching user_type during login', profileError.message);
+          throw new Error(profileError.message);
+        }
+
         userType = profile?.user_type ?? null;
       }
 
