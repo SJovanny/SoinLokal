@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { SvgXml } from 'react-native-svg';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { supabase, type Appointment } from '../../utils/supabase';
@@ -110,6 +111,7 @@ const CareHistoryScreen: React.FC<{ navigation: any; route: any }> = ({ navigati
           observations: data.observations || null,
           remarks: data.remarks || null,
           visible_to_patient: data.visible_to_patient,
+          signature_data: data.signature || null,
         })
         .eq('id', editingAppointment.id)
         .eq('nurse_id', user.id);
@@ -198,6 +200,15 @@ const CareHistoryScreen: React.FC<{ navigation: any; route: any }> = ({ navigati
 
       {!item.care_performed && !item.observations && !item.remarks ? (
         <Text style={styles.noNotes}>Aucune note renseignée</Text>
+      ) : null}
+
+      {item.signature_data ? (
+        <View style={styles.signatureBlock}>
+          <Text style={styles.signatureLabel}>Signature de l'infirmier(ère)</Text>
+          <View style={styles.signaturePreview}>
+            <SvgXml xml={item.signature_data} width={150} height={70} />
+          </View>
+        </View>
       ) : null}
 
       <View style={styles.visibilityRow}>
@@ -303,6 +314,7 @@ const CareHistoryScreen: React.FC<{ navigation: any; route: any }> = ({ navigati
             observations: editingAppointment.observations ?? undefined,
             remarks: editingAppointment.remarks ?? undefined,
             visible_to_patient: editingAppointment.visible_to_patient,
+            signature: editingAppointment.signature_data ?? undefined,
           }}
           onClose={() => {
             setEditModalVisible(false);
@@ -470,6 +482,23 @@ function createStyles(colors: ReturnType<typeof getColors>) {
       color: colors.TEXT_MUTED,
       fontStyle: 'italic',
       marginBottom: SIZES.SM,
+    },
+    signatureBlock: {
+      marginBottom: SIZES.SM,
+    },
+    signatureLabel: {
+      fontSize: SIZES.FONT_XS,
+      fontWeight: '600',
+      color: colors.TEXT_MUTED,
+      marginBottom: SIZES.XS,
+    },
+    signaturePreview: {
+      backgroundColor: colors.WHITE,
+      borderRadius: SIZES.BORDER_RADIUS_MD,
+      borderWidth: 1,
+      borderColor: colors.BORDER,
+      padding: SIZES.SM,
+      alignItems: 'center',
     },
     visibilityRow: {
       flexDirection: 'row',

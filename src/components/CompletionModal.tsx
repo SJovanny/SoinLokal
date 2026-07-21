@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,12 +10,14 @@ import {
   Switch,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SvgXml } from 'react-native-svg';
 import { getColors, SIZES } from '../utils/constants';
 import { useTheme } from '../contexts/ThemeContext';
-import SignatureModal from './SignatureModal';
+import SignaturePad, { type SignaturePadRef } from './SignaturePad';
+import { serializeSignatureToSVG, type StrokeData } from '../utils/signatureStorage';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -82,7 +84,9 @@ export default function CompletionModal({
   const [remarks, setRemarks] = useState('');
   const [visibleToPatient, setVisibleToPatient] = useState(false);
   const [signature, setSignature] = useState('');
-  const [showSignature, setShowSignature] = useState(false);
+  const [showSignaturePad, setShowSignaturePad] = useState(false);
+  const padRef = useRef<SignaturePadRef>(null);
+  const [hasDrawn, setHasDrawn] = useState(false);
 
   useEffect(() => {
     if (visible) {
@@ -91,10 +95,16 @@ export default function CompletionModal({
       setRemarks(existingData?.remarks ?? '');
       setVisibleToPatient(existingData?.visible_to_patient ?? false);
       setSignature(existingData?.signature ?? '');
+      setShowSignaturePad(false);
+      setHasDrawn(false);
     }
   }, [visible, existingData]);
 
   const handleSave = () => {
+    if (!signature) {
+      Alert.alert('Signature requise', 'La signature est obligatoire pour valider le soin.');
+      return;
+    }
     onSave({
       care_performed: carePerformed.trim(),
       observations: observations.trim(),
@@ -104,26 +114,73 @@ export default function CompletionModal({
     });
   };
 
+  const handleConfirmSignature = () => {
+    const strokes: StrokeData[] = padRef.current?.getSignatureData() ?? [];
+    if (strokes.length === 0) return;
+    const svg = serializeSignatureToSVG(strokes);
+    setSignature(svg);
+    setShowSignaturePad(false);
+  };
+
+  const handleClearSignature = () => {
+    padRef.current?.clear();
+    setHasDrawn(false);
+  };
+
   const isEditing = !!existingData?.care_performed || !!existingData?.observations || !!existingData?.remarks;
 
   return (
-    <>
-      <Modal visible={visible} animationType="fade" transparent>
-        <View style={styles.overlay}>
-          <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            style={styles.keyboardView}
-          >
-            <View style={styles.content}>
-              <View style={styles.header}>
-                <Text style={styles.headerTitle}>
-                  {isEditing ? 'Modifier les notes' : 'Soin terminé'}
-                </Text>
-                <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                  <Ionicons name="close" size={24} color={colors.TEXT_MUTED} />
-                </TouchableOpacity>
-              </View>
+    <Modal visible={visible} animationType="fade" transparent>
+      <View style={styles.overlay}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.keyboardView}
+        >
+          <View style={styles.content}>
+            <View style={styles.header}>
+              <Text style={styles.headerTitle}>
+                {isEditing ? 'Modifier les notes' : 'Soin terminé'}
+              </Text>
+              <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Ionicons name="close" size={24} color={colors.TEXT_MUTED} />
+              </TouchableOpacity>
+            </View>
 
+            {showSignaturePad ? (
+              <View style={styles.signaturePadContainer}>
+                <Text style={styles.signaturePadTitle}>Signez dans le cadre ci-dessous</Text>
+                <View style={styles.padCard}>
+                  <SignaturePad
+                    ref={padRef}
+                    onSignatureChange={setHasDrawn}
+                    height={220}
+                  />
+                </View>
+                <View style={styles.signaturePadActions}>
+                  <TouchableOpacity
+                    style={styles.signatureClearBtn}
+                    onPress={handleClearSignature}
+                  >
+                    <Ionicons name="trash-outline" size={18} color={colors.TEXT_SECONDARY} />
+                    <Text style={styles.signatureClearText}>Effacer</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.signatureCancelBtn}
+                    onPress={() => setShowSignaturePad(false)}
+                  >
+                    <Text style={styles.signatureCancelText}>Annuler</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.signatureConfirmBtn, !hasDrawn && styles.signatureConfirmBtnDisabled]}
+                    onPress={handleConfirmSignature}
+                    disabled={!hasDrawn}
+                  >
+                    <Ionicons name="checkmark-circle" size={18} color={colors.WHITE} />
+                    <Text style={styles.signatureConfirmText}>Confirmer</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : (
               <ScrollView
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
@@ -173,13 +230,13 @@ export default function CompletionModal({
                   onChangeText={setRemarks}
                 />
 
-                <Text style={styles.fieldLabel}>Signature</Text>
+                <Text style={styles.fieldLabel}>Signature *</Text>
                 {signature ? (
                   <View style={styles.signaturePreview}>
                     <SvgXml xml={signature} width={200} height={90} />
                     <TouchableOpacity
                       style={styles.modifySignatureButton}
-                      onPress={() => setShowSignature(true)}
+                      onPress={() => setShowSignaturePad(true)}
                     >
                       <Ionicons name="create-outline" size={16} color={colors.NURSE_PRIMARY} />
                       <Text style={styles.modifySignatureText}>Modifier</Text>
@@ -188,7 +245,7 @@ export default function CompletionModal({
                 ) : (
                   <TouchableOpacity
                     style={styles.addSignatureButton}
-                    onPress={() => setShowSignature(true)}
+                    onPress={() => setShowSignaturePad(true)}
                   >
                     <Ionicons name="create-outline" size={20} color={colors.NURSE_PRIMARY} />
                     <Text style={styles.addSignatureText}>Ajouter une signature</Text>
@@ -219,7 +276,9 @@ export default function CompletionModal({
                   />
                 </View>
               </ScrollView>
+            )}
 
+            {!showSignaturePad && (
               <View style={styles.actions}>
                 <TouchableOpacity
                   style={styles.cancelButton}
@@ -229,29 +288,20 @@ export default function CompletionModal({
                   <Text style={styles.cancelText}>Annuler</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.saveButton, saving && styles.saveButtonDisabled]}
+                  style={[styles.saveButton, (saving || !signature) && styles.saveButtonDisabled]}
                   onPress={handleSave}
-                  disabled={saving}
+                  disabled={saving || !signature}
                 >
                   <Text style={styles.saveText}>
                     {saving ? 'Enregistrement...' : 'Valider'}
                   </Text>
                 </TouchableOpacity>
               </View>
-            </View>
-          </KeyboardAvoidingView>
-        </View>
-      </Modal>
-
-      <SignatureModal
-        visible={showSignature}
-        onClose={() => setShowSignature(false)}
-        onSave={(svg) => {
-          setSignature(svg);
-          setShowSignature(false);
-        }}
-      />
-    </>
+            )}
+          </View>
+        </KeyboardAvoidingView>
+      </View>
+    </Modal>
   );
 }
 
@@ -331,6 +381,81 @@ function createStyles(colors: ReturnType<typeof getColors>) {
     textAreaSmall: {
       minHeight: 80,
       marginBottom: SIZES.SM,
+    },
+    // Signature pad (inline)
+    signaturePadContainer: {
+      padding: SIZES.LG,
+    },
+    signaturePadTitle: {
+      fontSize: SIZES.FONT_SM,
+      color: colors.TEXT_SECONDARY,
+      textAlign: 'center',
+      marginBottom: SIZES.MD,
+    },
+    padCard: {
+      backgroundColor: colors.WHITE,
+      borderRadius: SIZES.BORDER_RADIUS_LG,
+      padding: SIZES.MD,
+      borderWidth: 1,
+      borderColor: colors.BORDER,
+      elevation: 2,
+      shadowColor: colors.BLACK,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.08,
+      shadowRadius: 8,
+    },
+    signaturePadActions: {
+      flexDirection: 'row',
+      gap: SIZES.SM,
+      marginTop: SIZES.LG,
+    },
+    signatureClearBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: SIZES.XS,
+      paddingVertical: SIZES.MD,
+      paddingHorizontal: SIZES.LG,
+      borderRadius: SIZES.BORDER_RADIUS_MD,
+      borderWidth: 1.5,
+      borderColor: colors.BORDER,
+    },
+    signatureClearText: {
+      fontSize: SIZES.FONT_SM,
+      fontWeight: '600',
+      color: colors.TEXT_SECONDARY,
+    },
+    signatureCancelBtn: {
+      paddingVertical: SIZES.MD,
+      paddingHorizontal: SIZES.LG,
+      borderRadius: SIZES.BORDER_RADIUS_MD,
+      borderWidth: 1.5,
+      borderColor: colors.BORDER,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    signatureCancelText: {
+      fontSize: SIZES.FONT_SM,
+      fontWeight: '600',
+      color: colors.TEXT_SECONDARY,
+    },
+    signatureConfirmBtn: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: SIZES.XS,
+      paddingVertical: SIZES.MD,
+      borderRadius: SIZES.BORDER_RADIUS_MD,
+      backgroundColor: colors.NURSE_PRIMARY,
+    },
+    signatureConfirmBtnDisabled: {
+      opacity: 0.5,
+    },
+    signatureConfirmText: {
+      fontSize: SIZES.FONT_SM,
+      fontWeight: '600',
+      color: colors.WHITE,
     },
     // Toggle
     toggleRow: {

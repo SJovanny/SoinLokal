@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { SvgXml } from 'react-native-svg';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase, type Appointment } from '../../utils/supabase';
 import { getColors, SIZES } from '../../utils/constants';
@@ -213,6 +214,15 @@ const FamilyCareHistory: React.FC = () => {
       {!item.care_performed && !item.observations && !item.remarks ? (
         <Text style={styles.noNotes}>Soin réalisé — aucune note détaillée</Text>
       ) : null}
+
+      {item.signature_data ? (
+        <View style={styles.signatureBlock}>
+          <Text style={styles.signatureLabel}>Signature de l'infirmier(ère)</Text>
+          <View style={styles.signaturePreview}>
+            <SvgXml xml={item.signature_data} width={150} height={70} />
+          </View>
+        </View>
+      ) : null}
     </View>
   );
 
@@ -406,6 +416,23 @@ function createStyles(colors: ReturnType<typeof getColors>) {
     fontSize: SIZES.FONT_SM,
     color: colors.TEXT_MUTED,
     fontStyle: 'italic',
+  },
+  signatureBlock: {
+    marginTop: SIZES.XS,
+  },
+  signatureLabel: {
+    fontSize: SIZES.FONT_XS,
+    fontWeight: '600',
+    color: colors.TEXT_MUTED,
+    marginBottom: SIZES.XS,
+  },
+  signaturePreview: {
+    backgroundColor: colors.WHITE,
+    borderRadius: SIZES.BORDER_RADIUS_MD,
+    borderWidth: 1,
+    borderColor: colors.BORDER,
+    padding: SIZES.SM,
+    alignItems: 'center',
   },
   });
 }

@@ -54,6 +54,10 @@ function buildHTML(
         ? `${(a as any).nurse.first_name} ${(a as any).nurse.last_name}`
         : null;
 
+      const signatureCell = a.signature_data
+        ? `<td class="sig-cell">${a.signature_data.replace(/viewBox="[^"]*"/, 'viewBox="0 0 350 250"').replace(/width="[^"]*"/, 'width="100"').replace(/height="[^"]*"/, 'height="60"')}</td>`
+        : '<td class="sig-cell">—</td>';
+
       return `
       <tr>
         <td>${fmtDate(a.date)}</td>
@@ -64,6 +68,7 @@ function buildHTML(
         <td>${esc(a.care_performed)}</td>
         <td>${esc(a.observations)}</td>
         <td>${esc(a.remarks)}</td>
+        ${signatureCell}
       </tr>`;
     })
     .join('\n');
@@ -153,6 +158,15 @@ function buildHTML(
       border-radius: 10px;
       white-space: nowrap;
     }
+    .sig-cell {
+      text-align: center;
+      vertical-align: middle;
+      min-width: 100px;
+    }
+    .sig-cell svg {
+      max-width: 100px;
+      max-height: 50px;
+    }
     .footer {
       margin-top: 20px;
       padding-top: 10px;
@@ -194,6 +208,7 @@ function buildHTML(
         <th>Soins réalisés</th>
         <th>Observations</th>
         <th>Remarques</th>
+        <th>Signature</th>
       </tr>
     </thead>
     <tbody>
@@ -301,6 +316,10 @@ function buildDossierHTML(options: PatientDossierOptions): string {
         cancelled: 'Annulé',
       };
 
+      const signatureCell = a.signature_data
+        ? `<td class="sig-cell">${a.signature_data.replace(/viewBox="[^"]*"/, 'viewBox="0 0 350 250"').replace(/width="[^"]*"/, 'width="80"').replace(/height="[^"]*"/, 'height="50"')}</td>`
+        : '<td class="sig-cell">—</td>';
+
       return `
       <tr>
         <td>${fmtDate(a.date)}</td>
@@ -310,6 +329,7 @@ function buildDossierHTML(options: PatientDossierOptions): string {
         <td><span class="status status-${a.status}">${statusLabel[a.status] ?? a.status}</span></td>
         <td>${esc(a.care_performed)}</td>
         <td>${esc(a.observations)}</td>
+        ${signatureCell}
       </tr>`;
     })
     .join('\n');
@@ -456,6 +476,15 @@ function buildDossierHTML(options: PatientDossierOptions): string {
       color: #666;
       margin-bottom: 10px;
     }
+    .sig-cell {
+      text-align: center;
+      vertical-align: middle;
+      min-width: 80px;
+    }
+    .sig-cell svg {
+      max-width: 80px;
+      max-height: 40px;
+    }
   </style>
 </head>
 <body>
@@ -513,6 +542,7 @@ function buildDossierHTML(options: PatientDossierOptions): string {
         <th>Statut</th>
         <th>Soins réalisés</th>
         <th>Observations</th>
+        <th>Signature</th>
       </tr>
     </thead>
     <tbody>

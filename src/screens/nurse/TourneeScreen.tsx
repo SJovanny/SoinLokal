@@ -54,6 +54,7 @@ interface TourAppointment {
   observations: string | null;
   remarks: string | null;
   visible_to_patient: boolean;
+  signature_data: string | null;
   patient_name: string;
   patient_phone: string | null;
   gps: GPSPoint | null;
@@ -551,7 +552,7 @@ const TourneeScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, 
         .select(`
           id, patient_file_id, nurse_id, date, time, care_type, duration_min,
           status, address, notes, completion_note,
-          care_performed, observations, remarks, visible_to_patient,
+          care_performed, observations, remarks, visible_to_patient, signature_data,
           patient_file:patient_files!patient_file_id(
             id, patient_id,
             patient:profiles!patient_id(id, first_name, last_name, phone)
@@ -609,6 +610,7 @@ const TourneeScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, 
           observations: row.observations,
           remarks: row.remarks,
           visible_to_patient: row.visible_to_patient ?? false,
+          signature_data: row.signature_data ?? null,
           patient_name: patient ? `${patient.first_name} ${patient.last_name}` : 'Patient inconnu',
           patient_phone: patient?.phone ?? null,
           gps: pp?.gps_lat != null && pp?.gps_lng != null
@@ -799,6 +801,7 @@ const TourneeScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, 
           observations: data.observations || null,
           remarks: data.remarks || null,
           visible_to_patient: data.visible_to_patient,
+          signature_data: data.signature || null,
         })
         .eq('id', completingAppointment.id)
         .eq('nurse_id', user?.id ?? '');
@@ -818,6 +821,7 @@ const TourneeScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, 
                 observations: data.observations || null,
                 remarks: data.remarks || null,
                 visible_to_patient: data.visible_to_patient,
+                signature_data: data.signature || null,
               }
             : a
         )
@@ -842,6 +846,7 @@ const TourneeScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, 
           observations: data.observations || null,
           remarks: data.remarks || null,
           visible_to_patient: data.visible_to_patient,
+          signature_data: data.signature || null,
         })
         .eq('id', completingAppointment.id)
         .eq('nurse_id', user?.id ?? '');
@@ -860,6 +865,7 @@ const TourneeScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, 
                 observations: data.observations || null,
                 remarks: data.remarks || null,
                 visible_to_patient: data.visible_to_patient,
+                signature_data: data.signature || null,
               }
             : a
         )
@@ -1386,6 +1392,7 @@ const TourneeScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, 
                   observations: completingAppointment.observations ?? undefined,
                   remarks: completingAppointment.remarks ?? undefined,
                   visible_to_patient: completingAppointment.visible_to_patient,
+                  signature: (completingAppointment as any).signature_data ?? undefined,
                 }
               : undefined
           }
