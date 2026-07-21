@@ -78,11 +78,11 @@ const NurseTabNavigator = () => {
         }
         return <Ionicons name={iconName!} size={size} color={color} />;
       },
-      tabBarActiveTintColor: '#2E8B57',
-      tabBarInactiveTintColor: 'gray',
+      tabBarActiveTintColor: colors.NURSE_PRIMARY,
+      tabBarInactiveTintColor: colors.TEXT_MUTED,
       tabBarStyle: {
-        backgroundColor: 'white',
-        borderTopColor: '#e0e0e0',
+        backgroundColor: colors.SURFACE,
+        borderTopColor: colors.BORDER,
         borderTopWidth: 1,
         paddingBottom: 5,
         paddingTop: 5,
@@ -163,11 +163,11 @@ const PatientTabNavigator = () => {
         }
         return <Ionicons name={iconName!} size={size} color={color} />;
       },
-      tabBarActiveTintColor: '#4A90E2',
-      tabBarInactiveTintColor: 'gray',
+      tabBarActiveTintColor: colors.PATIENT_PRIMARY,
+      tabBarInactiveTintColor: colors.TEXT_MUTED,
       tabBarStyle: {
-        backgroundColor: 'white',
-        borderTopColor: '#e0e0e0',
+        backgroundColor: colors.SURFACE,
+        borderTopColor: colors.BORDER,
         borderTopWidth: 1,
         paddingBottom: 5,
         paddingTop: 5,
@@ -240,11 +240,11 @@ const FamilyTabNavigator = () => {
         }
         return <Ionicons name={iconName!} size={size} color={color} />;
       },
-      tabBarActiveTintColor: '#7C4DFF',
-      tabBarInactiveTintColor: 'gray',
+      tabBarActiveTintColor: colors.FAMILY_PRIMARY,
+      tabBarInactiveTintColor: colors.TEXT_MUTED,
       tabBarStyle: {
-        backgroundColor: 'white',
-        borderTopColor: '#e0e0e0',
+        backgroundColor: colors.SURFACE,
+        borderTopColor: colors.BORDER,
         borderTopWidth: 1,
         paddingBottom: 5,
         paddingTop: 5,

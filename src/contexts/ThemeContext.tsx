@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useColorScheme } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -10,6 +10,7 @@ interface ThemeContextType {
   isDark: boolean;
   themePreference: ThemePreference;
   setThemePreference: (preference: ThemePreference) => void;
+  isReady: boolean;
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
@@ -29,6 +30,7 @@ interface ThemeProviderProps {
 export function ThemeProvider({ children }: ThemeProviderProps): React.JSX.Element {
   const systemScheme = useColorScheme();
   const [themePreference, setThemePreferenceState] = useState<ThemePreference>('system');
+  const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
     AsyncStorage.getItem(STORAGE_KEY)
@@ -37,18 +39,22 @@ export function ThemeProvider({ children }: ThemeProviderProps): React.JSX.Eleme
           setThemePreferenceState(stored);
         }
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setIsReady(true));
   }, []);
 
-  const setThemePreference = (preference: ThemePreference) => {
+  const setThemePreference = useCallback((preference: ThemePreference) => {
     setThemePreferenceState(preference);
     AsyncStorage.setItem(STORAGE_KEY, preference).catch(() => {});
-  };
+  }, []);
 
   const isDark =
     themePreference === 'system' ? systemScheme === 'dark' : themePreference === 'dark';
 
-  const value: ThemeContextType = { isDark, themePreference, setThemePreference };
+  const value = useMemo<ThemeContextType>(
+    () => ({ isDark, themePreference, setThemePreference, isReady }),
+    [isDark, themePreference, setThemePreference, isReady]
+  );
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }

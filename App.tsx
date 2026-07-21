@@ -15,8 +15,10 @@ import ErrorBoundary from './src/components/ErrorBoundary';
 
 SplashScreen.hideAsync();
 
-function ThemedApp(): React.JSX.Element {
-  const { isDark } = useTheme();
+function ThemedApp(): React.JSX.Element | null {
+  const { isDark, isReady } = useTheme();
+
+  if (!isReady) return null;
 
   return (
     <TamaguiProvider config={config} defaultTheme={isDark ? 'dark' : 'light'}>
