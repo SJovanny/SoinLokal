@@ -21,14 +21,14 @@ const mockFrom = jest.fn();
 jest.mock('../../utils/supabase', () => ({
   supabase: {
     auth: {
-      signInWithPassword: (...args) => mockSignInWithPassword(...args),
-      signOut: (...args) => mockSignOut(...args),
-      signUp: (...args) => mockSignUp(...args),
-      resetPasswordForEmail: (...args) => mockResetPasswordForEmail(...args),
-      getSession: (...args) => mockGetSession(...args),
-      onAuthStateChange: (...args) => mockOnAuthStateChange(...args),
+      signInWithPassword: (...args: any[]) => mockSignInWithPassword(...args),
+      signOut: (...args: any[]) => mockSignOut(...args),
+      signUp: (...args: any[]) => mockSignUp(...args),
+      resetPasswordForEmail: (...args: any[]) => mockResetPasswordForEmail(...args),
+      getSession: (...args: any[]) => mockGetSession(...args),
+      onAuthStateChange: (...args: any[]) => mockOnAuthStateChange(...args),
     },
-    from: (...args) => mockFrom(...args),
+    from: (...args: any[]) => mockFrom(...args),
   },
 }));
 
@@ -79,7 +79,7 @@ describe('AuthContext login logic', () => {
       password: 'pass',
     });
     expect(error).toBeNull();
-    expect(data.user.id).toBe('u1');
+    expect(data.user!.id).toBe('u1');
 
     // Now simulate the profile fetch that login() does
     const { data: profile, error: profileError } = await supabase
@@ -89,7 +89,7 @@ describe('AuthContext login logic', () => {
       .single();
 
     expect(profileError).toBeNull();
-    expect(profile.user_type).toBe('nurse');
+    expect(profile!.user_type).toBe('nurse');
   });
 
   it('throws when profile fetch fails (RLS error)', async () => {
@@ -108,7 +108,7 @@ describe('AuthContext login logic', () => {
       email: 'test@test.com',
       password: 'pass',
     });
-    expect(data.user.id).toBe('u1');
+    expect(data.user!.id).toBe('u1');
 
     // login() should detect the profile error and throw
     const { data: profile, error: profileError } = await supabase
@@ -118,7 +118,7 @@ describe('AuthContext login logic', () => {
       .single();
 
     expect(profileError).toBeTruthy();
-    expect(profileError.message).toContain('infinite recursion');
+    expect(profileError!.message).toContain('infinite recursion');
     expect(profile).toBeNull();
 
     // The fix in AuthContext: if (profileError) throw new Error(profileError.message)
@@ -141,7 +141,7 @@ describe('AuthContext login logic', () => {
       .single();
 
     expect(profileError).toBeNull();
-    expect(profile.user_type).toBeNull();
+    expect(profile!.user_type).toBeNull();
   });
 
   it('throws on signInWithPassword error', async () => {
@@ -156,7 +156,7 @@ describe('AuthContext login logic', () => {
     });
 
     expect(error).toBeTruthy();
-    expect(error.message).toBe('Invalid login credentials');
+    expect(error!.message).toBe('Invalid login credentials');
   });
 });
 
@@ -243,7 +243,7 @@ describe('AuthContext logout logic', () => {
 
     const { error } = await supabase.auth.signOut();
     expect(error).toBeTruthy();
-    expect(error.message).toBe('network error');
+    expect(error!.message).toBe('network error');
   });
 });
 

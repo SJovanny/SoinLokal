@@ -16,6 +16,7 @@
     ".expo/types/**/*.d.ts"
   ],
   "exclude": [
-    "supabase/functions"
+    "supabase/functions",
+    "admin-web"
   ]
 }

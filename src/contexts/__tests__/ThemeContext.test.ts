@@ -40,24 +40,26 @@ describe('ThemeContext logic', () => {
 
   describe('isDark logic', () => {
     it('isDark is true when preference is dark', () => {
-      const themePreference = 'dark';
-      const systemScheme = 'light';
+      const themePreference: string = 'dark';
+      const systemScheme: string = 'light';
       const isDark = themePreference === 'system' ? systemScheme === 'dark' : themePreference === 'dark';
       expect(isDark).toBe(true);
     });
 
     it('isDark is false when preference is light', () => {
-      const themePreference = 'light';
-      const systemScheme = 'dark';
+      const themePreference: string = 'light';
+      const systemScheme: string = 'dark';
       const isDark = themePreference === 'system' ? systemScheme === 'dark' : themePreference === 'dark';
       expect(isDark).toBe(false);
     });
 
     it('isDark follows system when preference is system', () => {
-      const themePreference = 'system';
+      const themePreference: string = 'system';
+      const dark: string = 'dark';
+      const light: string = 'light';
 
-      expect(themePreference === 'system' ? 'dark' === 'dark' : false).toBe(true);
-      expect(themePreference === 'system' ? 'light' === 'dark' : false).toBe(false);
+      expect(themePreference === 'system' ? dark === 'dark' : false).toBe(true);
+      expect(themePreference === 'system' ? light === 'dark' : false).toBe(false);
     });
   });
 });

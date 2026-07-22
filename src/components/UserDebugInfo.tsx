@@ -5,12 +5,12 @@ import { useTheme } from '../contexts/ThemeContext';
 import { getColors } from '../utils/constants';
 
 const UserDebugInfo: React.FC = () => {
-  if (!__DEV__) return null;
-
   const { user, userProfile, logout } = useAuth();
   const { isDark } = useTheme();
   const colors = getColors(isDark);
   const styles = useMemo(() => createStyles(colors), [colors]);
+
+  if (!__DEV__) return null;
   if (!user) return null;
 
   return (
