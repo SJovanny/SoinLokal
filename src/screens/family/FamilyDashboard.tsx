@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -33,6 +34,12 @@ interface LinkedPatient {
   isManaged: boolean;
   nurseName: string | null;
   nurseId: string | null;
+  nurses: NurseSummary[];
+}
+
+interface NurseSummary {
+  id: string;
+  name: string;
 }
 
 interface UpcomingAppointment {
@@ -104,6 +111,7 @@ const FamilyDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
   const [recentCares, setRecentCares] = useState<RecentCare[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [nursePickerVisible, setNursePickerVisible] = useState(false);
 
   // -------------------------------------------------------------------------
   // Fetch all patients this family member is linked to
@@ -144,6 +152,9 @@ const FamilyDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
         }
 
         const link = familyLinks[0];
+        const nurses = nurseName && file.nurse_id
+          ? [{ id: file.nurse_id, name: nurseName }]
+          : [];
         setLinkedPatient({
           patientFileId: file.id,
           patientId: file.patient_id,
@@ -153,6 +164,7 @@ const FamilyDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
           isManaged: false,
           nurseName,
           nurseId: file.nurse_id ?? null,
+          nurses,
         });
         return;
       }
@@ -176,6 +188,7 @@ const FamilyDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
       let nurseName: string | null = null;
       let nurseId: string | null = null;
       let patientFileId: string | null = null;
+      let nurses: NurseSummary[] = [];
 
       const { data: existingFiles } = await supabase
         .from('patient_files')
@@ -188,11 +201,18 @@ const FamilyDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
         nurseId = nurseIds[0] ?? null;
 
         if (nurseIds.length > 0) {
-          const { data: nurses } = await supabase
+          const { data: nurseProfiles } = await supabase
             .from('profiles')
-            .select('first_name, last_name')
+            .select('id, first_name, last_name')
             .in('id', nurseIds);
-          nurseName = formatNurseNames(nurses ?? []);
+          const profiles = nurseProfiles ?? [];
+          nurseName = formatNurseNames(profiles);
+          nurses = profiles
+            .map((nurse: any) => ({
+              id: nurse.id,
+              name: `${nurse.first_name} ${nurse.last_name}`.trim(),
+            }))
+            .filter(nurse => nurse.id && nurse.name);
         }
       }
 
@@ -205,6 +225,7 @@ const FamilyDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
         isManaged: true,
         nurseName,
         nurseId,
+        nurses,
       });
     }
   }, [user, familyLinks]);
@@ -331,6 +352,19 @@ const FamilyDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
     await fetchLinkedPatient();
     setRefreshing(false);
   }, [fetchProfile, fetchLinkedPatient, user]);
+
+  const openNurseProfile = (nurse: NurseSummary) => {
+    setNursePickerVisible(false);
+    navigation.navigate('NurseProfileView', { nurseId: nurse.id });
+  };
+
+  const handleNursePress = () => {
+    if (linkedPatient && linkedPatient.nurses.length === 1) {
+      openNurseProfile(linkedPatient.nurses[0]);
+      return;
+    }
+    setNursePickerVisible(true);
+  };
 
   // -------------------------------------------------------------------------
   // Render
@@ -488,7 +522,7 @@ const FamilyDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
             linkedPatient.nurseName ? (
               <TouchableOpacity
                 style={styles.nurseStatusRow}
-                onPress={() => navigation.navigate('NurseProfileView', { nurseId: linkedPatient.nurseId })}
+                onPress={handleNursePress}
                 activeOpacity={0.7}
               >
                 <Ionicons name="checkmark-circle" size={16} color={colors.SUCCESS} />
@@ -509,6 +543,41 @@ const FamilyDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
             </Text>
           )}
         </View>
+
+        <Modal
+          visible={nursePickerVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setNursePickerVisible(false)}
+        >
+          <View style={styles.modalBackdrop}>
+            <View style={styles.nurseModal}>
+              <View style={styles.modalHeader}>
+                <View style={styles.modalTitleBlock}>
+                  <Text style={styles.modalTitle}>Choisir une infirmière</Text>
+                  <Text style={styles.modalSubtitle}>Quelle professionnelle souhaitez-vous consulter ?</Text>
+                </View>
+                <TouchableOpacity onPress={() => setNursePickerVisible(false)}>
+                  <Ionicons name="close" size={24} color={colors.TEXT_MUTED} />
+                </TouchableOpacity>
+              </View>
+              {linkedPatient.nurses.map(nurse => (
+                <TouchableOpacity
+                  key={nurse.id}
+                  style={styles.nurseChoice}
+                  onPress={() => openNurseProfile(nurse)}
+                  activeOpacity={0.75}
+                >
+                  <View style={styles.nurseChoiceIcon}>
+                    <Ionicons name="person-outline" size={20} color={colors.FAMILY_PRIMARY} />
+                  </View>
+                  <Text style={styles.nurseChoiceName}>{nurse.name}</Text>
+                  <Ionicons name="chevron-forward" size={18} color={colors.TEXT_MUTED} />
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </Modal>
 
         {/* Stats */}
         <View style={styles.statsCard}>
@@ -683,6 +752,59 @@ function createStyles(colors: ReturnType<typeof getColors>) {
     fontSize: SIZES.FONT_SM,
     fontWeight: '600',
     color: colors.SUCCESS,
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    justifyContent: 'center',
+    padding: SIZES.LG,
+  },
+  nurseModal: {
+    backgroundColor: colors.WHITE,
+    borderRadius: SIZES.BORDER_RADIUS_LG,
+    padding: SIZES.LG,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: SIZES.MD,
+  },
+  modalTitleBlock: {
+    flex: 1,
+    paddingRight: SIZES.MD,
+  },
+  modalTitle: {
+    fontSize: SIZES.FONT_LG,
+    fontWeight: '700',
+    color: colors.TEXT_PRIMARY,
+  },
+  modalSubtitle: {
+    fontSize: SIZES.FONT_SM,
+    color: colors.TEXT_MUTED,
+    marginTop: SIZES.XS,
+  },
+  nurseChoice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: SIZES.MD,
+    borderTopWidth: 1,
+    borderTopColor: colors.BORDER,
+    gap: SIZES.SM,
+  },
+  nurseChoiceIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.FAMILY_LIGHT,
+  },
+  nurseChoiceName: {
+    flex: 1,
+    fontSize: SIZES.FONT_MD,
+    fontWeight: '600',
+    color: colors.TEXT_PRIMARY,
   },
   // Stats
   statsCard: {
