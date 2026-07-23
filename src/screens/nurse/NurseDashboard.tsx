@@ -85,7 +85,7 @@ const NurseDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { userProfile, user } = useAuth();
   const { isDark } = useTheme();
   const colors = getColors(isDark);
-  const styles = useMemo(() => createStyles(colors), [colors]);
+  const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
   const today = getTodayISO();
 
   const [stats, setStats] = useState<Stats>({
@@ -398,7 +398,11 @@ const NurseDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
 // Styles
 // ---------------------------------------------------------------------------
 
-function createStyles(colors: ReturnType<typeof getColors>) {
+function createStyles(colors: ReturnType<typeof getColors>, isDark: boolean) {
+  const cardTextColor = isDark ? '#FFFFFF' : colors.TEXT_PRIMARY;
+  const cardSecondaryTextColor = isDark ? '#FFFFFF' : colors.TEXT_SECONDARY;
+  const cardMutedTextColor = isDark ? '#FFFFFF' : colors.TEXT_MUTED;
+
   return StyleSheet.create({
     container: {
       flex: 1,
@@ -465,12 +469,12 @@ function createStyles(colors: ReturnType<typeof getColors>) {
     statValue: {
       fontSize: SIZES.FONT_2XL,
       fontWeight: '700',
-      color: colors.TEXT_PRIMARY,
+      color: cardTextColor,
       marginTop: SIZES.XS,
     },
     statTitle: {
       fontSize: SIZES.FONT_XS,
-      color: colors.TEXT_MUTED,
+      color: cardMutedTextColor,
       textAlign: 'center',
       marginTop: SIZES.XS,
     },
@@ -538,11 +542,11 @@ function createStyles(colors: ReturnType<typeof getColors>) {
     patientName: {
       fontSize: SIZES.FONT_MD,
       fontWeight: '700',
-      color: colors.TEXT_PRIMARY,
+      color: cardTextColor,
     },
     appointmentType: {
       fontSize: SIZES.FONT_SM,
-      color: colors.TEXT_SECONDARY,
+      color: cardSecondaryTextColor,
       marginTop: 2,
     },
     timeContainer: {
@@ -552,7 +556,7 @@ function createStyles(colors: ReturnType<typeof getColors>) {
     time: {
       fontSize: SIZES.FONT_SM,
       fontWeight: '600',
-      color: colors.TEXT_PRIMARY,
+      color: cardTextColor,
     },
     addressContainer: {
       flexDirection: 'row',
@@ -561,7 +565,7 @@ function createStyles(colors: ReturnType<typeof getColors>) {
     },
     address: {
       fontSize: SIZES.FONT_XS,
-      color: colors.TEXT_MUTED,
+      color: cardMutedTextColor,
       flex: 1,
     },
     emptyState: {
