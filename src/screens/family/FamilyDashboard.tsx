@@ -18,6 +18,7 @@ import { getColors, SIZES } from '../../utils/constants';
 import { useTheme } from '../../contexts/ThemeContext';
 import LogoutButton from '../../components/LogoutButton';
 import Avatar from '../../components/Avatar';
+import { formatNurseNames } from './familyDashboardHelpers';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -176,24 +177,22 @@ const FamilyDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
       let nurseId: string | null = null;
       let patientFileId: string | null = null;
 
-      const { data: existingFile } = await supabase
+      const { data: existingFiles } = await supabase
         .from('patient_files')
         .select('id, nurse_id')
-        .eq('patient_id', managedProfile.profile_id)
-        .single();
+        .eq('patient_id', managedProfile.profile_id);
 
-      if (existingFile) {
-        patientFileId = existingFile.id;
-        if (existingFile.nurse_id) {
-          nurseId = existingFile.nurse_id;
-          const { data: nurse } = await supabase
+      if (existingFiles && existingFiles.length > 0) {
+        patientFileId = existingFiles[0].id;
+        const nurseIds = [...new Set(existingFiles.map(file => file.nurse_id).filter(Boolean))];
+        nurseId = nurseIds[0] ?? null;
+
+        if (nurseIds.length > 0) {
+          const { data: nurses } = await supabase
             .from('profiles')
             .select('first_name, last_name')
-            .eq('id', existingFile.nurse_id)
-            .single();
-          if (nurse) {
-            nurseName = `${nurse.first_name} ${nurse.last_name}`;
-          }
+            .in('id', nurseIds);
+          nurseName = formatNurseNames(nurses ?? []);
         }
       }
 
