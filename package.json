@@ -68,6 +68,7 @@
     "@types/jest": "^30.0.0",
     "@types/react": "~19.1.10",
     "babel-preset-expo": "^54.0.10",
+    "@react-native-community/cli": "latest",
     "dotenv": "^17.4.2",
     "eslint": "^9",
     "eslint-config-expo": "^8",
