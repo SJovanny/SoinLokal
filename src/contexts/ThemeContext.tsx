@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { useColorScheme } from 'react-native';
+import { Appearance, type ColorSchemeName } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const STORAGE_KEY = 'soinlokal.themePreference';
@@ -28,9 +28,17 @@ interface ThemeProviderProps {
 }
 
 export function ThemeProvider({ children }: ThemeProviderProps): React.JSX.Element {
-  const systemScheme = useColorScheme();
+  const [systemScheme, setSystemScheme] = useState<ColorSchemeName>(() => Appearance.getColorScheme());
   const [themePreference, setThemePreferenceState] = useState<ThemePreference>('system');
   const [isReady, setIsReady] = useState(false);
+
+  useEffect(() => {
+    const subscription = Appearance.addChangeListener(({ colorScheme }) => {
+      setSystemScheme(colorScheme);
+    });
+
+    return () => subscription.remove();
+  }, []);
 
   useEffect(() => {
     AsyncStorage.getItem(STORAGE_KEY)

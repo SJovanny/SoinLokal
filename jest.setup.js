@@ -4,6 +4,10 @@ jest.mock('react-native', () => {
     Alert: { alert: jest.fn() },
     StyleSheet: { create: (s) => s, flatten: (s) => s },
     Platform: { OS: 'ios', select: (obj) => obj.ios },
+    Appearance: {
+      getColorScheme: jest.fn(() => 'light'),
+      addChangeListener: jest.fn(() => ({ remove: jest.fn() })),
+    },
     Dimensions: {
       get: () => ({ width: 375, height: 812 }),
       addEventListener: jest.fn(),

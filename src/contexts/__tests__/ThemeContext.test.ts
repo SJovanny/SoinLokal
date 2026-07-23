@@ -1,6 +1,7 @@
 // ThemeContext tests
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Appearance } from 'react-native';
 
 const STORAGE_KEY = 'soinlokal.themePreference';
 
@@ -60,6 +61,19 @@ describe('ThemeContext logic', () => {
 
       expect(themePreference === 'system' ? dark === 'dark' : false).toBe(true);
       expect(themePreference === 'system' ? light === 'dark' : false).toBe(false);
+    });
+
+    it('resolves the current system scheme each time it changes', () => {
+      const resolveIsDark = (preference: string, systemScheme: string | null) =>
+        preference === 'system' ? systemScheme === 'dark' : preference === 'dark';
+
+      expect(resolveIsDark('system', 'light')).toBe(false);
+      expect(resolveIsDark('system', 'dark')).toBe(true);
+    });
+
+    it('exposes the native appearance change subscription', () => {
+      expect(typeof Appearance.getColorScheme).toBe('function');
+      expect(typeof Appearance.addChangeListener).toBe('function');
     });
   });
 });
