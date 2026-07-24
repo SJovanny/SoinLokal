@@ -512,7 +512,7 @@ function createStyles(colors: ReturnType<typeof getColors>, isDark: boolean) {
       gap: SIZES.XS,
     },
     actionText: {
-      color: colors.WHITE,
+      color: isDark ? '#FFFFFF' : colors.WHITE,
       fontSize: SIZES.FONT_XS,
       fontWeight: '600',
       textAlign: 'center',
