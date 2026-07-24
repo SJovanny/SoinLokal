@@ -69,10 +69,14 @@ function StatCard({
   styles: ReturnType<typeof createStyles>;
 }) {
   return (
-    <View style={styles.statCard}>
-      <Ionicons name={icon} size={24} color={color} />
-      <Text style={styles.statValue}>{value}</Text>
-      <Text style={styles.statTitle}>{title}</Text>
+    <View style={[styles.statCard, { borderTopColor: color }]}>
+      <View style={[styles.statIconWrap, { backgroundColor: `${color}20` }]}>
+        <Ionicons name={icon} size={21} color={color} />
+      </View>
+      <View style={styles.statContent}>
+        <Text style={styles.statValue}>{value}</Text>
+        <Text style={styles.statTitle}>{title}</Text>
+      </View>
     </View>
   );
 }
@@ -218,19 +222,20 @@ const NurseDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
         onPress={() => navigation.navigate('Tournée')}
         activeOpacity={0.8}
       >
+        <View style={styles.appointmentTimeRail}>
+          <Text style={styles.time}>{item.time ? formatTime(item.time) : '--:--'}</Text>
+          <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
+        </View>
         <View style={styles.appointmentHeader}>
           <View style={{ flex: 1 }}>
             <Text style={styles.patientName}>{item.patientName}</Text>
             <Text style={styles.appointmentType}>{item.careType}</Text>
           </View>
-          <View style={styles.timeContainer}>
-            {item.time && <Text style={styles.time}>{formatTime(item.time)}</Text>}
-            <Ionicons
-              name={isCompleted ? 'checkmark-circle' : 'time-outline'}
-              size={20}
-              color={statusColor}
-            />
-          </View>
+          <Ionicons
+            name={isCompleted ? 'checkmark-circle' : 'time-outline'}
+            size={22}
+            color={statusColor}
+          />
         </View>
         {item.address ? (
           <View style={styles.addressContainer}>
@@ -274,10 +279,14 @@ const NurseDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
-            <Text style={styles.greeting}>Bonjour,</Text>
+            <View style={styles.greetingRow}>
+              <View style={styles.onlineDot} />
+              <Text style={styles.greeting}>Bonjour,</Text>
+            </View>
             <Text style={styles.userName}>
               {userProfile?.first_name} {userProfile?.last_name}
             </Text>
+            <Text style={styles.headerCaption}>Votre tournée, en un coup d'œil</Text>
           </View>
           <View style={styles.headerRight}>
             <TouchableOpacity
@@ -333,7 +342,10 @@ const NurseDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
 
         {/* Quick Actions */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Actions rapides</Text>
+          <View style={styles.sectionHeadingBlock}>
+            <Text style={styles.sectionTitle}>Actions rapides</Text>
+            <Text style={styles.sectionSubtitle}>Les raccourcis essentiels</Text>
+          </View>
           <View style={styles.quickActions}>
             <TouchableOpacity
               style={styles.actionButton}
@@ -362,7 +374,10 @@ const NurseDashboard: React.FC<{ navigation: any }> = ({ navigation }) => {
         {/* Today's Appointments */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Tournée d'aujourd'hui</Text>
+            <View style={styles.sectionHeadingBlock}>
+              <Text style={styles.sectionTitle}>Tournée d'aujourd'hui</Text>
+              <Text style={styles.sectionSubtitle}>{appointments.length} visite{appointments.length !== 1 ? 's' : ''} planifiée{appointments.length !== 1 ? 's' : ''}</Text>
+            </View>
             <TouchableOpacity onPress={() => navigation.navigate('Tournée')}>
               <Text style={styles.seeAllText}>Voir tout</Text>
             </TouchableOpacity>
@@ -420,8 +435,17 @@ function createStyles(colors: ReturnType<typeof getColors>, isDark: boolean) {
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'center',
-      padding: SIZES.LG,
+      paddingHorizontal: SIZES.LG,
+      paddingTop: SIZES.LG,
+      paddingBottom: SIZES.XL,
       backgroundColor: colors.WHITE,
+      borderBottomLeftRadius: 28,
+      borderBottomRightRadius: 28,
+      shadowColor: colors.BLACK,
+      shadowOffset: { width: 0, height: 5 },
+      shadowOpacity: 0.08,
+      shadowRadius: 12,
+      elevation: 4,
     },
     headerLeft: {
       flex: 1,
@@ -432,13 +456,31 @@ function createStyles(colors: ReturnType<typeof getColors>, isDark: boolean) {
       gap: SIZES.SM,
     },
     greeting: {
-      fontSize: SIZES.FONT_MD,
+      fontSize: SIZES.FONT_SM,
+      fontWeight: '600',
       color: colors.TEXT_SECONDARY,
     },
+    greetingRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: SIZES.XS,
+      marginBottom: SIZES.XS,
+    },
+    onlineDot: {
+      width: 7,
+      height: 7,
+      borderRadius: 4,
+      backgroundColor: colors.SUCCESS,
+    },
     userName: {
-      fontSize: SIZES.FONT_XL,
+      fontSize: 25,
       fontWeight: '700',
       color: colors.TEXT_PRIMARY,
+    },
+    headerCaption: {
+      fontSize: SIZES.FONT_XS,
+      color: colors.TEXT_MUTED,
+      marginTop: SIZES.XS,
     },
     profileButton: {
       padding: SIZES.XS,
@@ -451,20 +493,34 @@ function createStyles(colors: ReturnType<typeof getColors>, isDark: boolean) {
     statsContainer: {
       flexDirection: 'row',
       flexWrap: 'wrap',
-      padding: SIZES.LG,
-      gap: SIZES.MD,
+      paddingHorizontal: SIZES.LG,
+      paddingTop: SIZES.LG,
+      gap: SIZES.SM,
     },
     statCard: {
-      width: '47%',
+      width: '48%',
       backgroundColor: colors.WHITE,
-      padding: SIZES.MD,
+      padding: SIZES.SM,
+      minHeight: 78,
       borderRadius: SIZES.BORDER_RADIUS_MD,
-      alignItems: 'center',
+      borderTopWidth: 3,
+      flexDirection: 'row',
       shadowColor: colors.BLACK,
-      shadowOffset: { width: 0, height: 1 },
-      shadowOpacity: 0.08,
-      shadowRadius: 4,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.06,
+      shadowRadius: 8,
       elevation: 2,
+    },
+    statIconWrap: {
+      width: 38,
+      height: 38,
+      borderRadius: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: SIZES.SM,
+    },
+    statContent: {
+      flex: 1,
     },
     statValue: {
       fontSize: SIZES.FONT_2XL,
@@ -479,8 +535,11 @@ function createStyles(colors: ReturnType<typeof getColors>, isDark: boolean) {
       marginTop: SIZES.XS,
     },
     section: {
-      paddingVertical: SIZES.XL,
+      paddingTop: SIZES.XL,
       paddingHorizontal: SIZES.LG,
+    },
+    sectionHeadingBlock: {
+      flex: 1,
     },
     sectionHeader: {
       flexDirection: 'row',
@@ -489,9 +548,14 @@ function createStyles(colors: ReturnType<typeof getColors>, isDark: boolean) {
       marginBottom: SIZES.MD,
     },
     sectionTitle: {
-      fontSize: SIZES.FONT_LG,
+      fontSize: 19,
       fontWeight: '700',
       color: colors.TEXT_PRIMARY,
+    },
+    sectionSubtitle: {
+      fontSize: SIZES.FONT_XS,
+      color: colors.TEXT_MUTED,
+      marginTop: 3,
     },
     seeAllText: {
       color: colors.NURSE_PRIMARY,
@@ -501,15 +565,22 @@ function createStyles(colors: ReturnType<typeof getColors>, isDark: boolean) {
     quickActions: {
       flexDirection: 'row',
       gap: SIZES.MD,
-      paddingBottom: SIZES.SM,
+      marginTop: SIZES.MD,
     },
     actionButton: {
       flex: 1,
       backgroundColor: colors.NURSE_PRIMARY,
-      padding: SIZES.MD,
+      minHeight: 98,
+      padding: SIZES.SM,
       borderRadius: SIZES.BORDER_RADIUS_MD,
       alignItems: 'center',
+      justifyContent: 'center',
       gap: SIZES.XS,
+      shadowColor: colors.BLACK,
+      shadowOffset: { width: 0, height: 3 },
+      shadowOpacity: 0.12,
+      shadowRadius: 6,
+      elevation: 3,
     },
     actionText: {
       color: isDark ? '#FFFFFF' : colors.WHITE,
@@ -520,12 +591,14 @@ function createStyles(colors: ReturnType<typeof getColors>, isDark: boolean) {
     appointmentCard: {
       backgroundColor: colors.WHITE,
       padding: SIZES.MD,
+      paddingLeft: 68,
       borderRadius: SIZES.BORDER_RADIUS_MD,
       marginBottom: SIZES.SM,
+      minHeight: 94,
       shadowColor: colors.BLACK,
-      shadowOffset: { width: 0, height: 1 },
-      shadowOpacity: 0.08,
-      shadowRadius: 4,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.06,
+      shadowRadius: 8,
       elevation: 2,
     },
     completedCard: {
@@ -549,14 +622,27 @@ function createStyles(colors: ReturnType<typeof getColors>, isDark: boolean) {
       color: cardSecondaryTextColor,
       marginTop: 2,
     },
-    timeContainer: {
+    appointmentTimeRail: {
+      position: 'absolute',
+      left: SIZES.MD,
+      top: SIZES.MD,
+      bottom: SIZES.MD,
       alignItems: 'center',
-      gap: SIZES.XS,
+      justifyContent: 'space-between',
+      width: 36,
+      borderRightWidth: 1,
+      borderRightColor: colors.BORDER,
+      paddingRight: SIZES.SM,
     },
     time: {
-      fontSize: SIZES.FONT_SM,
+      fontSize: SIZES.FONT_XS,
       fontWeight: '600',
       color: cardTextColor,
+    },
+    statusDot: {
+      width: 8,
+      height: 8,
+      borderRadius: 4,
     },
     addressContainer: {
       flexDirection: 'row',
